@@ -1,0 +1,29 @@
+<div class="bg-white border border-black shadow mb-2 p-2 suggest-dropdown" tal:condition="search">
+  <ul>
+    <li tal:condition="not exact_match" class="pb-1 mb-1 border-b">
+      <label class="italic">
+        <input type="radio" class="mr-2" value="new" name="suggestion-${radio_uuid}" 
+            _="on change
+                get first .suggest-id in the closest parent .table-cell
+                then set its value to 'new'
+                then get the next .suggest-input from it
+                then set its value to '${search}'
+                then remove the closest .suggest-dropdown" />
+                Neue Zutat: &quot;${search}&quot;
+      </label>
+    </li>
+    <li tal:repeat="ingredient ingredients">
+      <label>
+        <input type="radio" class="mr-2"
+          name="suggestion-${radio_uuid}"
+          value="${ingredient.id}" 
+          _="on change
+                get first .suggest-id in the closest parent .table-cell
+                then set its value to '${ingredient.id}'
+                then get the next .suggest-input from it
+                then set its value to '${ingredient.description}'
+                then remove the closest .suggest-dropdown"/>${ingredient.description}
+      </label>
+    </li>
+  </ul>
+</div>

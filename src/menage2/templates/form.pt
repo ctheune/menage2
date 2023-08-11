@@ -1,0 +1,17 @@
+<!DOCTYPE html metal:define-macro="layout">
+<html lang="en">
+<head>
+    <script src="${request.static_url('menage2:static/htmx.min.js')}" defer></script>
+</head>
+<body hx-boost="true">
+	<form action="/form" method="POST">
+		<input type="hidden" name="__start__:1" value="foo:sequence" />
+		<input type="text" name="foo:1" value="bar" />
+		<input type="hidden" name="__end__:1" value="foo:sequence" />
+		<input type="hidden" name="__start__:2" value="bar:sequence" />
+		<input type="text" name="foo:2" value="bar2" />
+		<input type="hidden" name="__end__:2" value="bar:sequence" />
+		<input type="submit" />
+	</form>
+</body>
+</html>

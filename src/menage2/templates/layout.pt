@@ -1,0 +1,42 @@
+<!DOCTYPE html metal:define-macro="layout">
+<html lang="${request.locale_name}">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Menage 2</title>
+
+    <link href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQEAYAAABPYyMiAAAABmJLR0T///////8JWPfcAAAACXBIWXMAAABIAAAASABGyWs+AAAAF0lEQVRIx2NgGAWjYBSMglEwCkbBSAcACBAAAeaR9cIAAAAASUVORK5CYII=" rel="icon" type="image/x-icon" />
+
+    <!-- Custom styles for this scaffold -->
+    <link href="${request.static_url('menage2:static/tailwind.css')}" rel="stylesheet">
+    <link href="${request.static_url('menage2:static/theme.css')}" rel="stylesheet">
+
+    <script src="${request.static_url('menage2:static/htmx.min.js')}" defer></script>
+    <script src="${request.static_url('menage2:static/hyperscript.min.js')}" defer></script>
+    <script src="${request.static_url('menage2:static/menage.js')}" defer></script>
+
+  </head>
+
+  <body class="bg-slate-300" hx-boost="true">
+
+  <nav class="bg-slate-800 px-6 py-3 shadow-lg text-slate-50 print:hidden">
+    <a href="${request.route_url('list_recipes')}">Rezepte</a> |
+    <a href="${request.route_url('list_weeks')}">Wochenpläne</a> |
+    <a href="#">Admin</a>
+  </nav>
+
+  <div class="p-8 pb-0 print:p-0 print:mb-8">
+    <h1 class="text-xl font-bold">
+      <metal:block define-slot="title">
+      Der unendliche Speiseplan
+      </metal:block>
+    </h1>
+    <metal:block define-slot="subtitle"></metal:block>
+  </div>
+
+  <div metal:define-slot="content">No content</div>
+  
+  </body>
+</html>

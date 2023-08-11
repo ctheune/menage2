@@ -1,0 +1,234 @@
+<div metal:use-macro="load: layout.pt">
+
+  <span metal:fill-slot="title">
+    <a href="${request.route_url('edit_recipe', id=previous_recipe.id) if previous_recipe else None}" 
+       class="text-sm font-normal border border-slate-500 px-2 mx-2 py-1 rounded bg-slate-100 align-middle inline-block">←</a>
+
+    Rezept #${recipe.id}
+
+    <a href="${request.route_url('edit_recipe', id=next_recipe.id) if next_recipe else None}" 
+       class="text-sm font-normal border border-slate-500 px-2 mx-2 py-1 rounded bg-slate-100 align-middle inline-block">→</a>
+  </span>
+
+  <div metal:fill-slot="content" class="px-8 print:p-0">
+
+    <form hx-post="${request.route_url('edit_recipe', id=recipe.id)}"
+          autocomplete="off"
+          hx-select="#edit-recipe"
+          hx-trigger="submit"
+          id="edit-recipe">
+
+      <div class="flex">
+        <div>
+          <h2 class="text-lg font-bold mt-4">Titel</h2>
+
+          <input type="text" name="${field_name('title')}" id="edit-recipe-title" value="${recipe.title}" 
+          class="w-[42rem] shadow shadow-slate-400/50 appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"/>
+
+          <h2 class="text-lg font-bold mt-4">Status</h2>
+
+          <!-- the "or None" is due to https://github.com/Pylons/pyramid_chameleon/pull/31 -->
+          <label><input type="checkbox" name="${field_name('active')}" value="true" 
+            class="mr-1"
+            tal:attributes="checked recipe.active or None">Aktiv</label>
+
+          <div class="flex">
+            <div class="mr-8">
+              <h2 class="text-lg font-bold mt-4">Quelle</h2>
+
+              <input type="text" class="w-80" name="${field_name('source')}" value="${recipe.source}" />
+            </div>
+            <div>
+              <h2 class="text-lg font-bold mt-4">Quelle (Web)</h2>
+
+              <input type="text" class="w-80" name="${field_name('source_url')}" value="${recipe.source_url}" />
+            </div>
+          </div>
+
+          <h2 class="text-lg font-bold mt-4">Notizen</h2>
+
+          <textarea class="w-[42rem] h-40" type="text" name="${field_name('note')}">${recipe.note}</textarea>
+        </div>
+
+        <div class="ml-8 w-40">
+
+          <h2 class="text-lg font-bold mt-4">Wochentage</h2>
+
+          <input type="hidden" name="${field_name('__start__')}" value="weekdays:sequence"/>
+
+            <input type="button" class="mr-1 mb-2"
+                    _="on click
+                          repeat in(<input[name]/> in next <ul/>)
+                           set its checked to true
+                          end
+                       " value="Alle">
+            <input type="button" 
+                    _="on click
+                        repeat in(<input[name]/> in next <ul/>)
+                         set its checked to false
+                        end"
+                  class="mr-1" value="Keine"/>
+
+          <ul>
+            <li tal:repeat="weekday weekdays">
+              <label>
+                <input type="checkbox" class="mr-1" name="${field_name('weekdays')}" value="${weekday.value}"
+                      tal:attributes="checked weekday in recipe.enum_weekdays or None"/> ${format.locale.days['format']['wide'][weekday.value-1]}
+              </label>
+            </li>
+          </ul>
+          <input type="hidden" name="${field_name('__end__')}" value="weekdays:sequence"/>
+
+          <h2 class="text-lg font-bold mt-4">Häufigkeit</h2>
+
+          <label> Alle 
+            <input type="text" 
+              name="${field_name('frequency')}" value="${recipe.schedule.frequency}"
+              class="w-20 shadow shadow-slate-400/50 appearance-none border rounded mx-1 py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"  /> Tage </label>
+
+        </div>
+        <div class="ml-8 w-40">
+          <h2 class="text-lg font-bold mt-4">Saison</h2>
+            <input type="hidden" name="${field_name('__start__')}" value="seasons:sequence"/>
+
+            <input type="button" class="mr-1 mb-2"
+                    _="on click
+                          repeat in(<input[name]/> in next <ul/>)
+                           set its checked to true
+                          end
+                       " value="Alle">
+            <input type="button" 
+                    _="on click
+                        repeat in(<input[name]/> in next <ul/>)
+                         set its checked to false
+                        end"
+                  class="mr-1" value="Keine"/>
+            <ul>
+              <li tal:repeat="month months">
+                <label>
+                  <input type="checkbox" name="${field_name('seasons')}"
+                    value="${month.value}" class="mr-1"
+                    tal:attributes="checked month in recipe.enum_seasons or None" /> ${format.locale.months['format']['wide'][month.value]}</label>
+              </li>
+            </ul>
+            <input type="hidden" name="${field_name('__end__')}" value="seasons:sequence"/>
+        </div>
+        <div class="ml-8 w-40">
+          <ul class="mt-10">
+            <li class="mb-2">
+              <input type="submit" value="Speichern" class="
+            text-sm border border-slate-500 px-4 py-1 rounded bg-slate-200 font-bold hover:bg-slate-700 hover:text-white align-middle"/>
+            </li>
+            <li hx-disinherit="hx-select" class="mb-2">
+              <a href="${request.route_url('list_recipes')}" class="text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 align-middle inline-block">Abbrechen</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <h2 class="text-lg font-bold mt-4">Zutaten
+
+        <span class="p-2 text-xs cursor-pointer text-green-800"
+          _="on click get the next .template
+            then put its outerHTML after the last .table-row in the next .table
+            then get the last .table-row in the next .table
+            then set newRow to it
+            then for input in <[name]/> in it
+                set sequence to the next .next-sequence
+                then set its @name to it's @name + ':' + sequence's value
+                then increment the sequence's value
+                end
+            then remove .template from the newRow
+            then remove .hidden from the newRow
+            ">➕</span>
+      </h2>
+
+      <div class="table mb-64">
+        <div class="table-header-group">
+          <div class="table-row">
+            <div class="table-cell w-24 text-right"><span class="pr-3">Menge</span></div>
+            <div class="table-cell w-24"><span class="pl-3">Einheit</span></div>
+            <div class="table-cell w-96"><span class="pl-3">Zutat</span></div>
+          </div>
+        </div>
+        <div class="table-row-group">
+          <input type="hidden" name="${field_name('__start__')}" value="ingredients:sequence" />
+          <div class="table-row" tal:repeat="used recipe.ingredients">
+            <input type="hidden" name="${field_name('__start__')}" value="mapping" />
+            <div class="table-cell">
+              <input type="text"
+                  name="${field_name('amount')}"
+                  value="${used.amount}" 
+                  class="w-24 text-right" >
+            </div>
+            <div class="table-cell">
+              <input type="text" 
+                name="${field_name('unit')}"
+                value="${used.unit}"
+                class="w-24" />
+            </div>
+            <div class="table-cell"
+              hx-disinherit="*"
+              tal:define="ingredient_field field_name('ingredient_id')">
+              <input type="hidden" class="suggest-id"
+                name="${ingredient_field}" value="${used.ingredient.id}" 
+                 />
+              <input type="text"
+                name="${field_name('ingredient')}"
+                value="${used.ingredient.description}"
+                placeholder="eine Zutat ..."
+                class="w-96 suggest-input"
+                _="on keyup debounced at 300ms
+                    fetch `${request.route_url('suggest_ingredient')}?search=$${my value}`
+                    then put it into the next .suggestion"
+              />
+              <div class="suggestion" class="absolute"></div>
+            </div>
+            <div class="table-cell">
+              <span class="p-2 text-xs cursor-pointer" _="on click remove closest .table-row">❌</span>
+            </div>
+            <input type="hidden" name="${field_name('__end__')}" value="mapping" />
+          </div>
+
+          <div class="table-row template hidden">
+            <input type="hidden" name="__start__" value="mapping" />
+            <div class="table-cell">
+              <input type="text"
+                name="amount"
+                placeholder="1, 2, 3 ..."
+                class="w-24 text-right" >
+            </div>
+            <div class="table-cell">
+              <input type="text"
+                name="unit" 
+                placeholder=""
+                class="w-24" />
+            </div>
+            <div class="table-cell"
+              hx-disinherit="*">
+              <input type="hidden" class="suggest-id"
+                name="ingredient_id" value="" />
+              <input type="text"
+                name="ingredient"
+                placeholder="eine weitere Zutat ..."
+                class="w-96 suggest-input" 
+                _="on keyup debounced at 300ms
+                    fetch `${request.route_url('suggest_ingredient')}?search=$${my value}`
+                    then put it into the next .suggestion"
+              />
+              <div class="suggestion" class="absolute"></div>
+            </div>
+            <div class="table-cell">
+              <span class="p-2 text-xs cursor-pointer" _="on click remove closest .table-row">❌</span>
+            </div>
+            <input type="hidden" name="__end__" value="mapping" />
+          </div>
+          <input type="hidden" name="${field_name('__end__')}" value="sequence" />
+          <input type="hidden" class="next-sequence" value="${next_sequence()}"/>
+        </div>
+      </div>
+
+    </form>
+
+  </div>
+</div>

@@ -8,6 +8,7 @@ coverage.xml
 build/
 dist/
 .tox/
+tailwind/node_modules/
 nosetests.xml
 env*/
 tmp/

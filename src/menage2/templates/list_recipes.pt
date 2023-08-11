@@ -1,0 +1,32 @@
+<div metal:use-macro="load: layout.pt">
+
+  <div metal:fill-slot="title">
+    Die Rezepte
+
+    <div class="float-right">
+      <input type="button"
+          value="Neues Rezept"
+          hx-put="${request.route_url('add_recipe')}"
+          hx-target="body"
+          class="text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 align-middle"  />
+    </div>
+
+  </div>
+
+  <div metal:fill-slot="content" class="px-8 py-4">
+    <div class="flex flex-wrap">
+      <div class="p-6 pt-3 my-2 w-72 mr-4 bg-white text-sm rounded-xl shadow-lg items-center"
+        tal:repeat="recipe recipes">
+        <a href="${request.route_url('edit_recipe', id=recipe.id)}">
+          <h2 class="text-l font-bold text-black">
+            ${recipe.id} – ${recipe.title}
+          </h2>
+          <p class="text-sm text-slate-500">
+            <span tal:repeat="recipe_ingredient recipe.ingredients">
+                <span tal:omit-tag="" tal:condition="recipe_ingredient.amount">${recipe_ingredient.amount}&#8239;</span><span tal:omit-tag="" tal:condition="recipe_ingredient.unit">${recipe_ingredient.unit}&#8239;</span>${recipe_ingredient.ingredient.description}${", " if not repeat['recipe_ingredient'].end else ""}</span>
+          </p>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

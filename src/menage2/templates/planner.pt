@@ -1,0 +1,62 @@
+<div metal:use-macro="load: layout.pt">
+
+  <span metal:fill-slot="title">
+    Wochenplaner vom ${format.date(week.first.day, "long")} – ${format.date(week.last.day, "long")}
+
+    <div class="float-right">
+      <a href="${request.route_url('show_week', id=week.id)}" class="text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 align-middle inline-block" >Drucken</a>
+
+      <input type="submit" id="submit" form="edit-week" value="Speichern" class="
+      text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 align-middle"/>
+
+    </div>
+  </span>
+
+  <div metal:fill-slot="content" class="px-8 pt-8 print:p-0">
+
+    <form hx-post="${request.route_url('edit_week', id=week.id)}" hx-select="#edit-week" hx-trigger="change" hx-indicator="#submit" id="edit-week">
+
+      <div tal:repeat="day week.days" class="mb-8 bg-white rounded-xl shadow-lg p-6 pt-3">
+        <h2 class="text-lg font-bold mb-2">${format.date(day.day, "full")}</h2>
+
+        <div class="flex flex-wrap">
+          <div class="w-80">
+            <h3 class="mb-1 font-medium">Rezept aus dem Rezeptbuch</h3>
+
+            <select name="dinner" class="w-64 mb-4">
+              <option value="none" tal:attributes="selected True if day.dinner is None else None">Kein Rezept</option>
+              <option tal:repeat="recipe recipes"
+                tal:attributes="value recipe.id; selected True if (day.dinner and recipe.id == day.dinner.id) else None">
+                ${recipe.id} – ${recipe.title}
+              </option>
+            </select>
+          </div>
+
+          <div class="w-80">
+            <h3 class="mb-1 font-medium">Vorschläge</h3>
+              <ul class="font-light text-sm" hx-disinherit="*">
+                <li tal:repeat="suggestion day.suggestions()">
+                  <a class="cursor-pointer" hx-post="${request.route_url('set_dinner', day=day.day.isoformat(), recipe=suggestion.id)}" hx-target="body">
+                     ${suggestion.id} – ${suggestion.title} 
+                   </a>
+                   <a href="${request.route_url('edit_recipe', id=suggestion.id)}" > ✏️ </a>
+                </li>
+            </ul>
+          </div>
+
+          <div class="w-80">
+            <h3 class="mb-1 font-medium">Freies Rezept</h3>
+            <textarea name="dinner_freestyle" class="w-64">${day.dinner_freestyle}</textarea>
+          </div>
+
+          <div class="w-80">
+            <h3 class="mb-1 font-medium">Notizen zum Tag</h3>
+            <textarea name="note" class="w-64">${day.note}</textarea>
+          </div>
+
+        </div>
+      </div>
+    </form>
+
+  </div>
+</div>

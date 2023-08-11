@@ -1,0 +1,41 @@
+[tool.poetry]
+name = "menage2"
+version = "0.1.0"
+description = ""
+authors = ["Christian Theune <christian@theune.cc>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pyramid = "^2.0.1"
+pyramid-chameleon = "^0.3"
+pyramid-debugtoolbar = "^4.10"
+waitress = "^2.1.2"
+plaster-pastedeploy = "^1.0.1"
+alembic = "^1.11.1"
+pyramid-retry = "^2.1.1"
+pyramid-tm = "^2.5"
+sqlalchemy = "^2.0.19"
+transaction = "^3.1.0"
+zope-sqlalchemy = "^3.0"
+babel = "^2.12.1"
+pytz = "^2023.3"
+# peppercorn = "^0.6"
+peppercorn  = { git = "https://github.com/ctheune/peppercorn.git", branch = "htmx-workaround-1686-wrong-form-dataset-construction" }
+
+[tool.poetry.group.dev.dependencies]
+webtest = "^3.0.0"
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+
+[tool.poetry.plugins."paste.app_factory"]
+main = "menage2:main"
+
+[tool.poetry.plugins."console_scripts"]
+initialize_menage2_db = "menage2.scripts.initialize_db:main"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

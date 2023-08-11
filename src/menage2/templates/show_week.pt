@@ -1,0 +1,23 @@
+<div metal:use-macro="load: layout.pt">
+
+    <span metal:fill-slot="title">
+        Woche vom ${format.date(week.first.day, "long")} – ${format.date(week.last.day, "long")}
+
+        <div class="float-right">
+          <a href="${request.route_url('edit_week', id=week.id)}" class="text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 align-middle inline-block print:hidden" >Zurück</a>
+      </div>
+    </span>
+
+    <div metal:fill-slot="content" class="px-8 print:p-0">
+
+        <div class="p-6 pt-3 my-2 w-72 mr-4 bg-white rounded-xl shadow-lg w-full print:shadow-none print:p-0">
+            <div tal:repeat="day week.days" class="text-sm mb-12 border-t border-black">
+                <div>${format.date(day.day, "full")}</div>
+                <h2 tal:condition="day.dinner" class="text-lg font-bold text-black">#${day.dinner.id} – ${day.dinner.title}</h2>
+                <h2 tal:condition="day.dinner_freestyle" class="text-lg font-bold text-black">${day.dinner_freestyle}</h2>
+                <p tal:condition="day.note" class="pt-2">${day.note}</p>
+            </div>
+        </div>
+
+    </div>
+</div>
