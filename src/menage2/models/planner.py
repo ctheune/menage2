@@ -68,7 +68,7 @@ class Schedule(Base):
     @property
     def due_ratio(self):
         if not self.recipe.days:
-            return 1
+            return 1.5
         elapsed = (datetime.date.today() - self.recipe.days[-1].day).days
         ratio = elapsed / self.frequency
         return ratio
