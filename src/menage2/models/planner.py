@@ -4,14 +4,17 @@ import datetime
 
 from .meta import Base
 
-from menage2.models import Recipe
+from menage2.models import Recipe, ConfigItem
 
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import contains_eager
 
+import os
 import enum
 
 from sqlalchemy import Enum
+
+from rtmapi import Rtm
 
 
 class Weekday(enum.Enum):
@@ -43,14 +46,41 @@ class Week(Base):
     __tablename__ = "planner_weeks"
 
     id = Column(Integer, primary_key=True)
+    days = relationship(
+        "Day", cascade="all, delete-orphan", order_by="Day.day", back_populates="week"
+    )
 
     @property
     def first(self):
-        return list(sorted(self.days, key=lambda x: x.day))[0]
+        return self.days[0]
 
     @property
     def last(self):
-        return list(sorted(self.days, key=lambda x: x.day))[-1]
+        return self.days[-1]
+
+    def send_to_rtm(self):
+        api_key = os.environ["RTM_API_KEY"]
+        shared_secret = os.environ["RTM_SHARED_SECRET"]
+        list_id = "24309112"
+        session = Session.object_session(self)
+        token = session.query(ConfigItem).filter(ConfigItem.key == "RTM_TOKEN").one()
+        print(token.value)
+        api = Rtm(api_key, shared_secret, "write", token.value)
+        if not api.token_valid():
+            raise RuntimeError("Invalid RTM token, please log in first.")
+
+        result = api.rtm.timelines.create()
+        timeline = result.timeline.value
+
+        for day in self.days:
+            if not day.dinner:
+                continue
+            for ingredient_usage in day.dinner.ingredients:
+                api.rtm.tasks.add(
+                    timeline=timeline,
+                    list_id=list_id,
+                    name=ingredient_usage.to_string(),
+                )
 
 
 class Schedule(Base):
@@ -105,8 +135,7 @@ class Day(Base):
     day = Column(Date, primary_key=True)
 
     week_id = Column(Integer, ForeignKey("planner_weeks.id"), nullable=False)
-    week = relationship("Week", uselist=False, backref=backref("days"))
-
+    week = relationship("Week", back_populates="days")
     dinner_id = Column(Integer, ForeignKey("recipes.id"))
     dinner = relationship(
         "Recipe", uselist=False, backref=backref("days", order_by="Day.day")
@@ -115,6 +144,10 @@ class Day(Base):
     dinner_freestyle = Column(Text)
 
     note = Column(Text)
+
+    @property
+    def id(self):
+        return self.day.strftime("%Y-%m-%d")
 
     @property
     def weekday(self) -> Weekday:

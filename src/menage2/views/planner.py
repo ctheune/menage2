@@ -59,10 +59,7 @@ def edit_week(request):
     return HTTPSeeOther(request.route_url("edit_week", id=week.id))
 
 
-@view_config(
-    route_name="add_week",
-    request_method="PUT",
-)
+@view_config(route_name="add_week", request_method="PUT")
 def add_week(request):
     week = models.Week()
     request.dbsession.add(week)
@@ -80,10 +77,39 @@ def add_week(request):
     return HTTPSeeOther(request.route_url("edit_week", id=week.id))
 
 
-@view_config(
-    route_name="set_dinner",
-    request_method="POST",
-)
+@view_config(route_name="delete_day", request_method="DELETE")
+def delete_day(request):
+    day_date = datetime.datetime.strptime(request.matchdict["day"], "%Y-%m-%d").date()
+
+    day = request.dbsession.query(models.Day).filter(models.Day.day == day_date).one()
+    week = day.week
+    week.days.remove(day)
+
+    return HTTPSeeOther(request.route_url("edit_week", id=week.id))
+
+
+@view_config(route_name="add_day", request_method="PUT")
+def add_day(request):
+    week = (
+        request.dbsession.query(models.Week)
+        .filter(models.Week.id == request.matchdict["id"])
+        .one()
+    )
+    position = request.matchdict["position"]
+
+    if position == "before":
+        day = models.Day(day=week.first.day - datetime.timedelta(days=1), week=week)
+    elif position == "after":
+        day = models.Day(day=week.last.day + datetime.timedelta(days=1), week=week)
+    else:
+        raise ValueError(f"Invalid position {position}")
+    request.dbsession.add(day)
+    day.dinner = day.suggestions(1)[0]
+
+    return HTTPSeeOther(request.route_url("edit_week", id=week.id))
+
+
+@view_config(route_name="set_dinner", request_method="POST")
 def set_dinner(request):
     day = (
         request.dbsession.query(models.Day)
@@ -101,3 +127,15 @@ def set_dinner(request):
         day.dinner_id = int(dinner_id)
 
     return HTTPSeeOther(request.route_url("edit_week", id=day.week.id))
+
+
+@view_config(route_name="send_to_rtm", request_method="POST")
+def send_to_rtm(request):
+    week = (
+        request.dbsession.query(models.Week)
+        .options(joinedload(models.Week.days))
+        .filter(models.Week.id == request.matchdict["id"])
+        .one()
+    )
+
+    week.send_to_rtm()

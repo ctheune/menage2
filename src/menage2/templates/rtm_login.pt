@@ -1,0 +1,28 @@
+<div metal:use-macro="load: layout.pt">
+
+    <span metal:fill-slot="title">
+        Remember The Milk API Login
+    </span>
+
+    <div metal:fill-slot="content">
+
+        <div tal:condition="status == 'OK'">
+            The API is successfully logged in.
+        </div>
+
+        <div tal:condition="status != 'OK'">
+            
+            <div tal:condition="login_method == 'desktop' and status == 'LOGIN-NEEDED'">
+
+                <form action="${request.route_url('rtm_login')}">
+                    <input type="hidden" name="frob" value="${frob}"/>
+                    <input type="submit" value="Weiter!"/>
+                </form>
+
+                <a href="${login_url}" target="_blank">Login verifizieren</a>
+            </div>
+
+        </div>
+
+    </div>
+</div>

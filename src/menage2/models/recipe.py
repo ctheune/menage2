@@ -52,6 +52,11 @@ class IngredientUsage(Base):
     amount = Column(Text)
     unit = Column(Text)
 
+    def to_string(self):
+        return " ".join(
+            filter(None, [self.amount, self.unit, self.ingredient.description])
+        )
+
     # @classmethod
     # def from_shortcut(cls, recipe, shortcut):
     #     parts = shortcut.split(" ", 2)

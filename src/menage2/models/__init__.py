@@ -5,6 +5,7 @@ import zope.sqlalchemy
 
 # Import or define all models here to ensure they are attached to the
 # ``Base.metadata`` prior to any initialization routines.
+from .config import ConfigItem  # noqa
 from .recipe import Recipe, Ingredient, IngredientUsage  # noqa
 from .planner import (
     Week,

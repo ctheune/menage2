@@ -4,7 +4,8 @@ from menage2.views.notfound import notfound_view
 
 
 def test_list_recipes_success(app_request, dbsession):
-    model = models.Recipe(id=1, title="Gulasch")
+    model = models.Recipe()
+    model.title = "Gulasch"
     dbsession.add(model)
     dbsession.flush()
 

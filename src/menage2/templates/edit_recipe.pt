@@ -6,6 +6,7 @@
 
     Rezept #${recipe.id}
 
+
     <a href="${request.route_url('edit_recipe', id=next_recipe.id) if next_recipe else None}" 
        class="text-sm font-normal border border-slate-500 px-2 mx-2 py-1 rounded bg-slate-100 align-middle inline-block">→</a>
   </span>
@@ -58,14 +59,14 @@
 
             <input type="button" class="mr-1 mb-2"
                     _="on click
-                          repeat in(<input[name]/> in next <ul/>)
-                           set its checked to true
+                          repeat in (<input[name]/> in next <ul/>)
+                            set its checked to true
                           end
                        " value="Alle">
             <input type="button" 
                     _="on click
-                        repeat in(<input[name]/> in next <ul/>)
-                         set its checked to false
+                        repeat in (<input[name]/> in next <ul/>)
+                          set its checked to false
                         end"
                   class="mr-1" value="Keine"/>
 

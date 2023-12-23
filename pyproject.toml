@@ -23,6 +23,9 @@ babel = "^2.12.1"
 pytz = "^2023.3"
 # peppercorn = "^0.6"
 peppercorn  = { git = "https://github.com/ctheune/peppercorn.git", branch = "htmx-workaround-1686-wrong-form-dataset-construction" }
+rtmapi = "^0.7.2"
+# implicit dependency that rtmapi did not specify!?!
+httplib2 = "^0.22.0"
 
 [tool.poetry.group.dev.dependencies]
 webtest = "^3.0.0"

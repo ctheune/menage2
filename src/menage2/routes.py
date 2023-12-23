@@ -11,6 +11,11 @@ def includeme(config):
     config.add_route("add_week", "/week/new")
     config.add_route("show_week", "/week/{id}")
     config.add_route("edit_week", "/week/{id}/edit")
-    config.add_route("set_dinner", "/day/{day}/dinner/{recipe}")
+    config.add_route("add_day", "/week/{id}/new-day/{position}")
+    config.add_route("send_to_rtm", "/week/{id}/shoppinglist")
 
-    config.add_route("form", "/form")
+    config.add_route("set_dinner", "/day/{day}/dinner/{recipe}")
+    config.add_route("delete_day", "/day/{day}")
+
+    config.add_route("rtm_login", "/meta/rtm/login")
+    config.add_route("rtm_callback", "/auth/rtm-callback")

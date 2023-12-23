@@ -18,12 +18,6 @@ from menage2.models import (
 )
 
 
-@view_config(route_name="form", renderer="menage2:templates/form.pt")
-def form(request):
-    fields = peppercorn.parse(request.params.items())
-    return {}
-
-
 @view_config(
     route_name="suggest_ingredient", renderer="menage2:templates/suggest_ingredient.pt"
 )
@@ -105,10 +99,7 @@ def show_recipe(request):
     }
 
 
-@view_config(
-    route_name="edit_recipe",
-    request_method="POST",
-)
+@view_config(route_name="edit_recipe", request_method="POST")
 def edit_recipe(request):
     fields = peppercorn.parse(request.params.items(), unique_key_separator=":")
 
@@ -170,10 +161,7 @@ def edit_recipe(request):
     return HTTPSeeOther(request.route_url("edit_recipe", id=recipe.id))
 
 
-@view_config(
-    route_name="add_recipe",
-    request_method="PUT",
-)
+@view_config(route_name="add_recipe", request_method="PUT")
 def add_recipe(request):
     recipe = Recipe()
     recipe.title = "Neues Rezept"
