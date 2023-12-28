@@ -6,13 +6,13 @@ from menage2.models import ConfigItem
 
 from pyramid.httpexceptions import HTTPSeeOther
 
+api_key = os.environ["RTM_API_KEY"]
+shared_secret = os.environ["RTM_SHARED_SECRET"]
+
 
 @view_config(route_name="rtm_login", renderer="menage2:templates/rtm_login.pt")
 def rtm_login(request):
-    api_key = os.environ["RTM_API_KEY"]
-    shared_secret = os.environ["RTM_SHARED_SECRET"]
     session = request.dbsession
-
     try:
         config_token = (
             session.query(ConfigItem).filter(ConfigItem.key == "RTM_TOKEN").one()
@@ -20,7 +20,6 @@ def rtm_login(request):
     except Exception:
         config_token = ConfigItem(key="RTM_TOKEN", value="")
         session.add(config_token)
-    print(config_token.value)
     api = Rtm(api_key, shared_secret, "write", config_token.value)
 
     if api.token_valid():
@@ -54,4 +53,13 @@ def rtm_login(request):
 
 @view_config(route_name="rtm_callback")
 def rtm_callback(request):
-    pass
+    session = request.dbsession
+    config_token = session.query(ConfigItem).filter(ConfigItem.key == "RTM_TOKEN").one()
+    api = Rtm(api_key, shared_secret, "write", config_token.value)
+
+    if request.params.get("frob"):
+        frob = request.params["frob"]
+        if not api.retrieve_token(frob):
+            raise RuntimeError()
+        config_token.value = api.token
+        return HTTPSeeOther(request.route_url("rtm_login"))
