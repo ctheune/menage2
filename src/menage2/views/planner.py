@@ -129,7 +129,7 @@ def set_dinner(request):
     return HTTPSeeOther(request.route_url("edit_week", id=day.week.id))
 
 
-@view_config(route_name="send_to_rtm", request_method="POST")
+@view_config(route_name="send_to_rtm", request_method="POST", renderer="string")
 def send_to_rtm(request):
     week = (
         request.dbsession.query(models.Week)
