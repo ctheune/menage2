@@ -6,8 +6,8 @@ from menage2.models import ConfigItem
 
 from pyramid.httpexceptions import HTTPSeeOther
 
-api_key = os.environ["RTM_API_KEY"]
-shared_secret = os.environ["RTM_SHARED_SECRET"]
+api_key = os.environ.get("RTM_API_KEY")
+shared_secret = os.environ.get("RTM_SHARED_SECRET")
 
 
 @view_config(route_name="rtm_login", renderer="menage2:templates/rtm_login.pt")
