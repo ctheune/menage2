@@ -2,9 +2,8 @@
   <span metal:fill-slot="title">
     Wochenplaner vom ${format.date(week.first.day, "long")} – ${format.date(week.last.day, "long")}
     <div class="float-right">
-      <!-- <a href="#" hx-post="${request.route_url('send_to_rtm', id=week.id)}"
+      <a href="#" hx-post="${request.route_url('send_to_rtm', id=week.id)}"
       class="text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 align-middle inline-block">Auf die Einkaufsliste</a>
-      -->
       <a href="${request.route_url('show_week', id=week.id)}" class="text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 align-middle inline-block">Drucken</a>
       <input type="submit" id="submit" form="edit-week" value="Speichern" class="
       text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 align-middle"/>

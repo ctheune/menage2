@@ -17,5 +17,5 @@ def includeme(config):
     config.add_route("set_dinner", "/day/{day}/dinner/{recipe}")
     config.add_route("delete_day", "/day/{day}")
 
-    config.add_route("rtm_login", "/meta/rtm/login")
-    config.add_route("rtm_callback", "/auth/rtm-callback")
+    config.add_route("rtm_login", "/services/rtm/login")
+    config.add_route("rtm_callback", "/services/rtm/callback")
