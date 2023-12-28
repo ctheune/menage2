@@ -64,7 +64,6 @@ class Week(Base):
         list_id = "24309112"
         session = Session.object_session(self)
         token = session.query(ConfigItem).filter(ConfigItem.key == "RTM_TOKEN").one()
-        print(token.value)
         api = Rtm(api_key, shared_secret, "write", token.value)
         if not api.token_valid():
             raise RuntimeError("Invalid RTM token, please log in first.")

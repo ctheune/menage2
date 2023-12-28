@@ -139,3 +139,5 @@ def send_to_rtm(request):
     )
 
     week.send_to_rtm()
+
+    return "Zur Einkaufsliste hinzugefügt!"
