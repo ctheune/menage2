@@ -26,6 +26,7 @@ peppercorn  = { git = "https://github.com/ctheune/peppercorn.git", branch = "htm
 rtmapi = "^0.7.2"
 # implicit dependency that rtmapi did not specify!?!
 httplib2 = "^0.22.0"
+psycopg2-binary = "^2.9.9"
 
 [tool.poetry.group.dev.dependencies]
 webtest = "^3.0.0"
