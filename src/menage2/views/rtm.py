@@ -46,7 +46,7 @@ def rtm_login(request):
             }
 
     elif login_method == "web":
-        return HTTPSeeOther(api.authenticate_web())
+        return HTTPSeeOther(api.authenticate_webapp())
 
     raise ValueError(f"Invalid RTM login method: {login_method}")
 
