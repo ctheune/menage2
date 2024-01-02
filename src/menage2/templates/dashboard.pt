@@ -36,7 +36,7 @@
             end
             return {when: firstLeg.departure,
                     leavesFormatted: moment(firstLeg.departure).fromNow(),
-                    lines: lines.join("→ "),
+                    lines: lines.join(" → "),
                     arrives: moment(lastLeg.arrival).format("HH:mm")}
         end
 
@@ -72,61 +72,11 @@
 
   <div metal:fill-slot="content" class="px-8 py-4 text-xl"
     _="on load wait 30s call location.reload()">
-    <div class="flex flex-wrap">
-      <div class="p-3 pt-3 my-2 w-80 mr-4 bg-white rounded-xl shadow-lg items-center">
-        <h2 class="font-bold mb-4">Richtung Stadt</h2>
-        <table>
-          <thead>
-            <tr>
-              <th class="text-left w-20">Linie</th>
-              <th class="text-left w-36">Richtung</th>
-              <th class="text-right w-20">Abfahrt</th>
-            </tr>
-          </thead>
-          <tbody _="init call getDepartures(
-                    ['https://v6.db.transport.rest/stops/953201/departures?results=10&bus=false&direction=953141&duration=30',
-                     'https://v6.db.transport.rest/stops/953252/departures?results=10&bus=false&direction=953040&duration=30'])
+    <div class="flex flex-row">
 
-                  remove <tr/> from me
-                  repeat for departure in it
-                          set when to (departure.when as Date)
-                          call moment(when).fromNow()
-                          set when to it
-                          call departure.direction.replace(', Halle (Saale)', '')
-                          set direction to it
-                          put `<tr><td>$${departure.line.name}</td><td>$${direction}</td><td class='text-right'>$${when}</td></tr>` at the end of me
-                  end
-          ">
-          </tbody>
-        </table>
-      </div>
+      <div class="p-3 pt-3 my-2 basis-1/2 mr-4 bg-white rounded-xl shadow-lg items-center">
 
-      <div class="p-3 pt-3 my-2 w-80 mr-4 bg-white rounded-xl shadow-lg items-center">
-
-        <h2 class="font-bold mb-4">Zum Bahnhof</h2>
-        <table>
-          <thead>
-            <tr>
-              <th class="text-left w-36">Verbindung</th>
-              <th class="text-right w-20">Abfahrt</th>
-              <th class="text-right w-20">Ankunft</th>
-            </tr>
-          </thead>
-          <tbody
-            _="init call getJourneys([
-                      'https://v6.db.transport.rest/journeys?from=953252&to=8010159&results=5&departure=in+5+minutes',
-                      'https://v6.db.transport.rest/journeys?from=953201&to=8010159&results=5&departure=in+5+minutes'])
-                    remove <tr/> from me
-                    repeat for journey in it
-                      put `<tr><td>$${journey.lines}</td><td class='text-right'>$${journey.leavesFormatted}</td><td class='text-right'>$${journey.arrives}</td></tr>` at the end of me
-                    end">
-          </tbody>
-        </table>
-      </div>
-
-      <div class="p-3 pt-3 my-2 w-80 mr-4 bg-white rounded-xl shadow-lg items-center">
-
-        <h2 class="mb-4 font-bold">Rezepte</h2>
+        <h2 class="mb-4 font-bold">Wochenplan</h2>
 
         <div tal:repeat="day days" class="mb-4 ">
           <h3 class="${'font-bold' if day.is_today() else 'font-light'}">${format.date(day.day, "full")}</h3>
@@ -141,6 +91,59 @@
           </tal:block>
           </p>
           <p tal:condition="day.note" class="font-light italic">${day.note}</p>
+        </div>
+      </div>
+
+      <div class="basis-1/2 tabular-nums">
+        <div class="p-3 pt-3 my-2 mr-4 bg-white rounded-xl shadow-lg items-center">
+          <h2 class="font-bold mb-4">Richtung Stadt</h2>
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="text-left w-20">Linie</th>
+                <th class="text-left w-36">Richtung</th>
+                <th class="text-right w-20">Abfahrt</th>
+              </tr>
+            </thead>
+            <tbody class="font-light" _="init call getDepartures(
+                      ['https://v6.db.transport.rest/stops/953201/departures?results=10&bus=false&direction=953141&duration=30',
+                       'https://v6.db.transport.rest/stops/953252/departures?results=10&bus=false&direction=953040&duration=30'])
+
+                    remove <tr/> from me
+                    repeat for departure in it
+                            set when to (departure.when as Date)
+                            call moment(when).fromNow()
+                            set when to it
+                            call departure.direction.replace(', Halle (Saale)', '')
+                            set direction to it
+                            put `<tr><td class='align-top'>$${departure.line.name}</td><td class='align-top'>$${direction}</td><td class='text-right align-top''>$${when}</td></tr>` at the end of me
+                    end
+            ">
+            </tbody>
+          </table>
+        </div>
+
+        <div class="p-3 pt-3 my-2 mr-4 bg-white rounded-xl shadow-lg items-center">
+
+          <h2 class="font-bold mb-4">Zum Bahnhof</h2>
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="text-left w-36">Verbindung</th>
+                <th class="text-right w-28">Abfahrt</th>
+                <th class="text-right w-28">Ankunft</th>
+              </tr>
+            </thead> 
+            <tbody class="font-light"
+              _="init call getJourneys([
+                        'https://v6.db.transport.rest/journeys?from=953252&to=8010159&results=5&departure=in+5+minutes',
+                        'https://v6.db.transport.rest/journeys?from=953201&to=8010159&results=5&departure=in+5+minutes'])
+                      remove <tr/> from me
+                      repeat for journey in it
+                        put `<tr><td class='align-top'>$${journey.lines}</td><td class='text-right align-top'>$${journey.leavesFormatted}</td><td class='text-right align-top'>$${journey.arrives}</td></tr>` at the end of me
+                      end">
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
