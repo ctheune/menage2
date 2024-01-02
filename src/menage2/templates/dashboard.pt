@@ -72,13 +72,13 @@
   <div metal:fill-slot="content" class="px-8 py-4 text-xl"
     _="on load wait 30s call location.reload()">
     <div class="flex flex-wrap">
-      <div class="p-6 pt-3 my-2 w-72 mr-4 bg-white text-sm rounded-xl shadow-lg items-center">
+      <div class="p-3 pt-3 my-2 w-80 mr-4 bg-white rounded-xl shadow-lg items-center">
         <h2 class="font-bold mb-4">Richtung Stadt</h2>
         <table>
           <thead>
             <tr>
-              <th class="text-left w-12">Linie</th>
-              <th class="text-left w-28">Richtung</th>
+              <th class="text-left w-20">Linie</th>
+              <th class="text-left w-36">Richtung</th>
               <th class="text-right w-20">Abfahrt</th>
             </tr>
           </thead>
@@ -100,21 +100,21 @@
         </table>
       </div>
 
-      <div class="p-6 pt-3 my-2 w-72 mr-4 bg-white text-sm rounded-xl shadow-lg items-center">
+      <div class="p-3 pt-3 my-2 w-80 mr-4 bg-white rounded-xl shadow-lg items-center">
 
         <h2 class="font-bold mb-4">Zum Bahnhof</h2>
         <table>
           <thead>
             <tr>
-              <th class="text-left w-28">Verbindung</th>
+              <th class="text-left w-36">Verbindung</th>
               <th class="text-right w-20">Abfahrt</th>
-              <th class="text-right w-12">Ankunft</th>
+              <th class="text-right w-20">Ankunft</th>
             </tr>
           </thead>
           <tbody
             _="init call getJourneys([
-                      'https://v6.db.transport.rest/journeys?from=953252&to=8010159&departure=in+5+minutes',
-                      'https://v6.db.transport.rest/journeys?from=953201&to=8010159&departure=in+5+minutes'])
+                      'https://v6.db.transport.rest/journeys?from=953252&to=8010159&results=5&departure=in+5+minutes',
+                      'https://v6.db.transport.rest/journeys?from=953201&to=8010159&results=5&departure=in+5+minutes'])
                     remove <tr/> from me
                     repeat for journey in it
                       put `<tr><td>$${journey.lines}</td><td class='text-right'>$${journey.leavesFormatted}</td><td class='text-right'>$${journey.arrives}</td></tr>` at the end of me
@@ -123,20 +123,23 @@
         </table>
       </div>
 
-      <div class="p-6 pt-3 my-2 w-72 mr-4 bg-white text-sm rounded-xl shadow-lg items-center">
+      <div class="p-3 pt-3 my-2 w-80 mr-4 bg-white rounded-xl shadow-lg items-center">
 
         <h2 class="mb-4 font-bold">Rezepte</h2>
-          <div tal:repeat="day days" class="mb-4 ${'font-bold' if day.is_today() else ''}">
-            <h3>${format.date(day.day, "full")}</h3>
 
-            <tal:block condition="day.dinner">
-              #${day.dinner_id} – ${day.dinner.title}
-            </tal:block>
+        <div tal:repeat="day days" class="mb-4 ">
+          <h3 class="${'font-bold' if day.is_today() else 'font-light'}">${format.date(day.day, "full")}</h3>
 
-            <tal:block condition="not:day.dinner">
-              ${day.dinner_freestyle}
-            </tal:block>
-          </div>
+          <p class="${'font-bold' if day.is_today() else ''}">
+          <tal:block condition="day.dinner">
+            #${day.dinner_id} – ${day.dinner.title}
+          </tal:block>
+
+          <tal:block condition="not:day.dinner">
+            ${day.dinner_freestyle}
+          </tal:block>
+          </p>
+        </div>
       </div>
     </div>
   </div>
