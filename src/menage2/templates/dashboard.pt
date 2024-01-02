@@ -139,6 +139,7 @@
             ${day.dinner_freestyle}
           </tal:block>
           </p>
+          <p tal:condition="day.note" class="font-light italic">${day.note}</p>
         </div>
       </div>
     </div>
