@@ -9,7 +9,10 @@ from .. import models
 
 @view_config(route_name="list_weeks", renderer="menage2:templates/list_weeks.pt")
 def list_weeks(request):
-    weeks = request.dbsession.query(models.Week).order_by(models.Week.id.desc())
+    weeks = (
+        request.dbsession.query(models.Week).options(joinedload(models.Week.days)).all()
+    )
+    weeks.sort(key=lambda w: w.days[0].day, reverse=True)
     return {"weeks": weeks}
 
 
