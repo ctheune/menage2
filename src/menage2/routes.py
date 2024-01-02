@@ -19,3 +19,5 @@ def includeme(config):
 
     config.add_route("rtm_login", "/services/rtm/login")
     config.add_route("rtm_callback", "/services/rtm/callback")
+
+    config.add_route("dashboard", "/dashboard")

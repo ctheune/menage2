@@ -148,6 +148,9 @@ class Day(Base):
     def id(self):
         return self.day.strftime("%Y-%m-%d")
 
+    def is_today(self):
+        return self.day == datetime.date.today()
+
     @property
     def weekday(self) -> Weekday:
         return Weekday(self.day.isoweekday())
