@@ -6,6 +6,14 @@ import datetime
 
 session = requests.session()
 session = CacheControl(session, cache=FileCache(".web_cache"))
+# The target has a broken dual-stack config and requests doesn't do
+# happy eyeballs yet
+# Can be removed once either is solved
+#
+# https://github.com/public-transport/transport.rest/issues/23
+# https://github.com/urllib3/urllib3/issues/797
+
+requests.packages.urllib3.util.connection.HAS_IPV6 = False
 
 stations = {
     "robert-koch-straße": 953201,

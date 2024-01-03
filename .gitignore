@@ -22,3 +22,4 @@ coverage
 test
 *.sqlite
 *.sqlite3
+.web_cache/
