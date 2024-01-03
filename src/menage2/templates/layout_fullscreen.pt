@@ -19,7 +19,7 @@
     <metal:block define-slot="header-after"></metal:block>
   </head>
 
-  <body class="bg-slate-300" hx-boost="true">
+  <body class="bg-white" hx-boost="true">
 
   <div metal:define-slot="content">No content</div>
   
