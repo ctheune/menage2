@@ -29,3 +29,6 @@ def includeme(config):
     config.add_route("rtm_callback", "/services/rtm/callback")
 
     config.add_route("dashboard", "/dashboard")
+    config.add_route("dashboard_recipes", "/dashboard/recipes")
+    config.add_route("dashboard_pt_departures", "/dashboard/pt/departures")
+    config.add_route("dashboard_pt_hbf", "/dashboard/pt/hbf")

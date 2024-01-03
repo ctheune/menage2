@@ -1,0 +1,16 @@
+<h2 class="mb-4 font-bold">Wochenplan</h2>
+
+<div tal:repeat="day days" class="mb-4 tabular-nums">
+  <h3 class="${'font-bold' if day.is_today() else 'font-light'}">${format.date(day.day, "full")}</h3>
+
+  <p class="${'font-bold' if day.is_today() else ''}">
+  <tal:block condition="day.dinner">
+    #${day.dinner_id} – ${day.dinner.title}
+  </tal:block>
+
+  <tal:block condition="not:day.dinner">
+    ${day.dinner_freestyle}
+  </tal:block>
+  </p>
+  <p tal:condition="day.note" class="font-light italic">${day.note}</p>
+</div>

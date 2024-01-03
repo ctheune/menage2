@@ -1,0 +1,16 @@
+<table class="w-full">
+  <thead>
+    <tr>
+      <th class="text-left w-20">Linie</th>
+      <th class="text-left w-36">Richtung</th>
+      <th class="text-right w-20">Abfahrt</th>
+    </tr>
+  </thead>
+  <tbody class="font-light">
+    <tr tal:repeat="departure departures">
+      <td class="align-top">${departure.line}</td>
+      <td class="align-top">${departure.direction}</td>
+      <td class="text-right align-top">${departure.whenRelative}</td>
+    </tr>
+  </tbody>
+</table>

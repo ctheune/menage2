@@ -1,0 +1,16 @@
+<table class="w-full">
+  <thead>
+    <tr>
+      <th class="text-left w-36">Verbindung</th>
+      <th class="text-right w-28">Abfahrt</th>
+      <th class="text-right w-28">Ankunft</th>
+    </tr>
+  </thead> 
+  <tbody class="font-light">
+    <tr tal:repeat="journey journeys">
+      <td class="align-top">${journey.lines}</td>
+      <td class="text-right align-top">${journey.whenRelative}</td>
+      <td class="text-right align-top">${journey.arrives}</td>
+    </tr>
+  </tbody>
+</table>

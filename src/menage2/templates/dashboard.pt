@@ -1,149 +1,46 @@
 <!DOCTYPE html>
 <div metal:use-macro="load: layout_fullscreen.pt">
-<!--
-
-        Robert-Koch-Straße = 953201
-        Kantstraße = 953141
-        Vogelweide = 953252
-        Hauptbahnhof (Tram/Bus) = 963519
-        Hauptbahnhof = 8010159
-        Am Grünen Feld = 953161
-        BG Klinikum Bergmannstrost, Halle (Saale) = 953040
--->
 
   <metal:block fill-slot="header-after">
       <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment-with-locales.min.js"></script>
-      <script>
-        moment.locale("de");
-        moment.updateLocale('de', {
-            relativeTime : {
-                m:  "1 min",
-                mm: "%d min",
-            }
-        });
-
-        function compareDepartures(a,b) {
-        return moment(a.when) - moment(b.when);
-        }
-      </script>
       <script type="text/hyperscript">
-        def extractJourney(journey)
-            set firstLeg to first from journey.legs
-            set lastLeg to last from journey.legs
-            set lines to []
-            for leg in journey.legs
-                append leg.line.name to lines
-            end
-            return {when: firstLeg.departure,
-                    leavesFormatted: moment(firstLeg.departure).fromNow(),
-                    lines: lines.join(" → "),
-                    arrives: moment(lastLeg.arrival).format("HH:mm")}
-        end
 
-        def getDepartures(urls)
-          set departures to []
-          for url in urls
-            fetch `$${url}` as json with timeout:10s
-              for departure in it.departures
-                  if moment(departure.when) is less than moment().add(3, "minutes") then continue end
-                  append departure to departures
-              end
-          end
-          call departures.sort(compareDepartures)
-          return departures
-        end
-
-        def getJourneys(urls)
-          set journeys to []
-          for url in urls
-            fetch `$${url}` as json with timeout:10s
-            for journey in it.journeys
-                if moment(journey.legs[0].departure) is less than moment().add(3, "minutes") then continue end
-                append extractJourney(journey) to journeys
-            end
-          call journeys.sort(compareDepartures)
-          return journeys
-        end
       </script>
       <meta name="apple-mobile-web-app-capable" content="yes" />
       <meta name="viewport" content="width=device-width, user-scalable=no" />
       <title>Menage – Dashboard</title>
   </metal:block>
 
-  <div metal:fill-slot="content" class="px-8 py-4 text-xl"
-    _="on load wait 30s call location.reload()">
+  <div metal:fill-slot="content" class="px-8 py-4 text-xl dashboard">
+
     <div class="flex flex-row">
 
-      <div class="p-3 pt-3 my-2 basis-1/2 mr-4 bg-sky-100 rounded-xl shadow-lg items-center">
-
-        <h2 class="mb-4 font-bold">Wochenplan</h2>
-
-        <div tal:repeat="day days" class="mb-4 ">
-          <h3 class="${'font-bold' if day.is_today() else 'font-light'}">${format.date(day.day, "full")}</h3>
-
-          <p class="${'font-bold' if day.is_today() else ''}">
-          <tal:block condition="day.dinner">
-            #${day.dinner_id} – ${day.dinner.title}
-          </tal:block>
-
-          <tal:block condition="not:day.dinner">
-            ${day.dinner_freestyle}
-          </tal:block>
-          </p>
-          <p tal:condition="day.note" class="font-light italic">${day.note}</p>
-        </div>
+      <div class="basis-1/2 p-3 pt-3 my-2 mr-4 bg-sky-100 rounded-xl shadow-lg items-center"
+          hx-get="${request.route_url('dashboard_recipes')}"
+          hx-trigger="load, every 10m">
+          ...
       </div>
 
-      <div class="basis-1/2 tabular-nums">
+      <div class="basis-1/2">
         <div class="p-3 pt-3 my-2 mr-4 bg-lime-100 rounded-xl shadow-lg items-center">
           <h2 class="font-bold mb-4">Richtung Stadt</h2>
-          <table class="w-full">
-            <thead>
-              <tr>
-                <th class="text-left w-20">Linie</th>
-                <th class="text-left w-36">Richtung</th>
-                <th class="text-right w-20">Abfahrt</th>
-              </tr>
-            </thead>
-            <tbody class="font-light" _="init call getDepartures(
-                      ['https://v6.db.transport.rest/stops/953201/departures?results=10&bus=false&direction=953141&duration=30',
-                       'https://v6.db.transport.rest/stops/953252/departures?results=10&bus=false&direction=953040&duration=30'])
 
-                    remove <tr/> from me
-                    repeat for departure in it
-                            set when to (departure.when as Date)
-                            call moment(when).fromNow()
-                            set when to it
-                            call departure.direction.replace(', Halle (Saale)', '')
-                            set direction to it
-                            put `<tr><td class='align-top'>$${departure.line.name}</td><td class='align-top'>$${direction}</td><td class='text-right align-top''>$${when}</td></tr>` at the end of me
-                    end
-            ">
-            </tbody>
-          </table>
+          <div hx-get="${request.route_url('dashboard_pt_departures')}"
+               hx-trigger="load, every 10s">
+            ...
+          </div>
+
         </div>
 
         <div class="p-3 pt-3 my-2 mr-4 bg-lime-100 rounded-xl shadow-lg items-center">
 
           <h2 class="font-bold mb-4">Zum Bahnhof</h2>
-          <table class="w-full">
-            <thead>
-              <tr>
-                <th class="text-left w-36">Verbindung</th>
-                <th class="text-right w-28">Abfahrt</th>
-                <th class="text-right w-28">Ankunft</th>
-              </tr>
-            </thead> 
-            <tbody class="font-light"
-              _="init call getJourneys([
-                        'https://v6.db.transport.rest/journeys?from=953252&to=8010159&results=5&departure=in+5+minutes',
-                        'https://v6.db.transport.rest/journeys?from=953201&to=8010159&results=5&departure=in+5+minutes'])
-                      remove <tr/> from me
-                      repeat for journey in it
-                        put `<tr><td class='align-top'>$${journey.lines}</td><td class='text-right align-top'>$${journey.leavesFormatted}</td><td class='text-right align-top'>$${journey.arrives}</td></tr>` at the end of me
-                      end">
-            </tbody>
-          </table>
+
+          <div hx-get="${request.route_url('dashboard_pt_hbf')}"
+               hx-trigger="load, every 10s">
+            ...
+          </div>
+
         </div>
       </div>
     </div>
