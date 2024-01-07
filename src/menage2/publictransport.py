@@ -2,6 +2,8 @@ import requests
 from cachecontrol import CacheControl
 from cachecontrol.caches.file_cache import FileCache
 import arrow
+import arrow.locales
+
 import datetime
 
 session = requests.session()
@@ -14,6 +16,11 @@ session = CacheControl(session, cache=FileCache(".web_cache"))
 # https://github.com/urllib3/urllib3/issues/797
 
 requests.packages.urllib3.util.connection.HAS_IPV6 = False
+
+
+arrow.locales.GermanBaseLocale.timeframes["minute"] = "1 min"
+arrow.locales.GermanBaseLocale.timeframes["minutes"] = "{0} min"
+arrow.locales.GermanBaseLocale.timeframes["now"] = "jetzt"
 
 stations = {
     "robert-koch-straße": 953201,
@@ -40,7 +47,7 @@ def get_departures(station_specs):
             departures.append(
                 {
                     "when": when,
-                    "whenRelative": when.humanize(),
+                    "whenRelative": when.humanize(locale="de"),
                     "line": candidate["line"]["name"],
                     "direction": candidate["direction"].split(",")[0],
                 }
@@ -61,15 +68,20 @@ def get_journeys(station_specs):
             when = arrow.get(candidate["legs"][0]["departure"])
             if when - arrow.now() < datetime.timedelta(minutes=3):
                 continue
+
+            lines = []
+            for leg in candidate["legs"]:
+                if "line" in leg:
+                    lines.append(leg["line"]["name"])
+                elif leg["walking"]:
+                    lines.append("🚶🏻‍♀️")
             journeys.append(
                 {
                     "when": when,
-                    "whenRelative": when.humanize(),
-                    "lines": " → ".join(
-                        leg["line"]["name"] for leg in candidate["legs"]
-                    ),
+                    "whenRelative": when.humanize(locale="de"),
+                    "lines": " → ".join(lines),
                     "arrives": arrow.get(candidate["legs"][-1]["arrival"]).format(
-                        "HH:mm"
+                        "HH:mm", locale="de"
                     ),
                 }
             )
