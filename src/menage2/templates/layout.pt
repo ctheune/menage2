@@ -9,6 +9,13 @@
 
     <link href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQEAYAAABPYyMiAAAABmJLR0T///////8JWPfcAAAACXBIWXMAAABIAAAASABGyWs+AAAAF0lEQVRIx2NgGAWjYBSMglEwCkbBSAcACBAAAeaR9cIAAAAASUVORK5CYII=" rel="icon" type="image/x-icon" />
 
+    <!-- Make it a proper webapp on ios -->
+    <link rel="apple-touch-icon" href="${request.static_url('menage2:static/applogo.png')}">
+    <meta name="apple-mobile-web-app-title" content="Menage">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="viewport" content="width=device-width, user-scalable=no" />
+
     <!-- Custom styles for this scaffold -->
     <link href="${request.static_url('menage2:static/tailwind.css')}" rel="stylesheet">
     <link href="${request.static_url('menage2:static/theme.css')}" rel="stylesheet">
@@ -16,6 +23,7 @@
     <script src="${request.static_url('menage2:static/htmx.min.js')}" defer></script>
     <script src="${request.static_url('menage2:static/hyperscript.min.js')}" defer></script>
     <script src="${request.static_url('menage2:static/menage.js')}" defer></script>
+
   </head>
 
   <body class="bg-slate-300" hx-boost="true">
