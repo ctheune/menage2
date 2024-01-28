@@ -4,7 +4,7 @@ import datetime
 
 from .meta import Base
 
-from menage2.models import Recipe, ConfigItem
+from menage2.models import Recipe, ConfigItem, IngredientUsage
 
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import contains_eager
@@ -71,15 +71,39 @@ class Week(Base):
         result = api.rtm.timelines.create()
         timeline = result.timeline.value
 
+        shopping_list = []
+
+        ingredients = {}
+
         for day in self.days:
             if not day.dinner:
                 continue
             for ingredient_usage in day.dinner.ingredients:
-                api.rtm.tasks.add(
-                    timeline=timeline,
-                    list_id=list_id,
-                    name=ingredient_usage.to_string(),
-                )
+                amount = ingredient_usage.numeric_amount()
+                if not amount:
+                    shopping_list.append(ingredient_usage)
+                    continue
+
+                unit = ingredient_usage.unit or ""
+
+                by_unit = ingredients.setdefault(ingredient_usage.ingredient, {})
+                by_unit.setdefault(unit, 0)
+                by_unit[unit] += amount
+
+        for ingredient, by_unit in ingredients.items():
+            for unit, amount in by_unit.items():
+                usage = IngredientUsage()
+                usage.ingredient = ingredient
+                usage.unit = unit
+                usage.amount = str(amount)
+                shopping_list.append(usage)
+
+        for item in shopping_list:
+            api.rtm.tasks.add(
+                timeline=timeline,
+                list_id=list_id,
+                name=item.to_shopping_list(),
+            )
 
 
 class Schedule(Base):

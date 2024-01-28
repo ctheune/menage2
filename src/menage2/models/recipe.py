@@ -49,13 +49,38 @@ class IngredientUsage(Base):
     ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=False)
     ingredient = relationship("Ingredient", uselist=False, backref=backref("recipes"))
 
-    amount = Column(Text)
-    unit = Column(Text)
+    amount: str = Column(Text)
+    unit: str = Column(Text)
 
     def to_string(self):
         return " ".join(
             filter(None, [self.amount, self.unit, self.ingredient.description])
         )
+
+    def to_shopping_list(self):
+        result = self.ingredient.description
+        amount = " ".join(
+            filter(
+                None,
+                [
+                    self.amount,
+                    self.unit,
+                ],
+            )
+        )
+        if amount:
+            result += " (" + amount + ")"
+        return result
+
+    def numeric_amount(self) -> float | int | None:
+        try:
+            return int(self.amount)
+        except (ValueError, TypeError):
+            try:
+                return float(self.amount)
+            except (ValueError, TypeError):
+                pass
+        return None
 
     # @classmethod
     # def from_shortcut(cls, recipe, shortcut):
