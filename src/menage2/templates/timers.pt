@@ -1,0 +1,68 @@
+<div class="relative"
+	_="on htmx:load
+        get #timers-audio-alarm
+        set alarm to it
+        get #timers-audio-silence
+        set silence to it
+        if .alarm is not empty then
+           call alarm.play()
+           call silence.pause()
+        else
+           call alarm.pause()
+           if .running is not empty call silence.play() end
+        end"
+     >
+  <h2 class="font-bold mb-4">Timers</h2>
+
+  <audio src="${request.static_url('menage2:static/alarm.wav')}" id="timers-audio-alarm" loop preload="auto"></audio>
+  <audio src="${request.static_url('menage2:static/silence.wav')}" id="timers-audio-silence" loop preload="auto"></audio>
+
+  <div class="absolute top-0 right-0 p-3 bg-yellow-200 object-right-top rounded-xl shadow-lg">
+  	<h3 class="font-bold text-sm text-right"
+  		_="on click remove .hidden from next <ul/>
+  				then remove .hidden from next <h3/>
+  				then add .hidden on me
+  				">+</h3>
+  	<h3 class="font-bold text-sm text-right hidden"
+  		_="on click add .hidden to next <ul/>
+  			  then remove .hidden from previous <h3/>
+  			  then add .hidden on me">-</h3>
+	  <ul class="hidden">
+	  	<li tal:repeat="template templates"
+	  			_="on click add .hidden to the closest <ul/> 
+	  				  then get the previous <h3/>
+	  				  then add .hidden to it
+	  				  then remove .hidden from previous <h3/> from it"
+	  			hx-put="${request.route_url('timers')}?name=${template['name']}&duration=${int(template['duration'].total_seconds())}"
+	  			hx-swap="none">${template['name']} ${format_timedelta(template['duration'])}</li>
+	  </ul>
+	</div>
+
+  <div hx-get="${request.route_url('timers')}"
+       hx-trigger="every 1s"
+       hx-select="#timerlist">
+		<table class="w-full" id="timerlist">
+			<tal:block repeat="timer timers">
+				<tr class="timer ${'alarm bg-red-100' if timer.alarming else 'running'}">
+					<td>${timer.name}</td>
+					<td class="text-right tabular-nums">${format_timedelta(timer.remaining)}</td>
+				</tr>
+				<tr hx-swap="none">
+					<td class="text-sm">
+						<span tal:condition="timer.alarming"><a hx-delete="${request.route_url('timer', id=timer.id)}">Clear</a> | </span>
+						<span tal:condition="not timer.alarming"><a hx-delete="${request.route_url('timer', id=timer.id)}" hx-confirm="Cancel timer '${timer.name}'?">Cancel</a> | </span>
+						<span tal:condition="timer.started"><a hx-post="${request.route_url('timer_pause', id=timer.id)}">Pause</a> | </span>
+						<span tal:condition="not:timer.started"><a hx-post="${request.route_url('timer', id=timer.id)}">Continue</a> | </span>
+						<a hx-put="${request.route_url('timer', id=timer.id)}">Restart</a>
+					</td>
+					<td class="text-right text-sm">
+						<a hx-patch="${request.route_url('timer', id=timer.id)}?duration=-300">-5:00</a> |
+						<a hx-patch="${request.route_url('timer', id=timer.id)}?duration=-60">-1:00</a> |
+						<a hx-patch="${request.route_url('timer', id=timer.id)}?duration=60">+1:00</a> |
+						<a hx-patch="${request.route_url('timer', id=timer.id)}?duration=300">+5:00</a>
+					</td>
+				</tr>
+			</tal:block>
+		</table
+  </div>
+</div>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<div metal:use-macro="load: layout_fullscreen.pt">
+
+  <metal:block fill-slot="header-after">
+      <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="viewport" content="width=device-width, user-scalable=no" />
+      <title>Menage – Let's Cook!</title>
+  </metal:block>
+
+  <div metal:fill-slot="content" class="px-8 py-4 text-xl dashboard">
+
+    <div class="flex flex-row">
+
+      <div class="basis-3/4 p-3 pt-3 my-2 mr-4 bg-sky-100 rounded-xl shadow-lg items-center">
+        <h2 class="font-bold mb-4">#50 Chili sin carne</h2>
+
+        <p class="mb-2 font-light text-slate-400">Sojagranulat im Verhältnis 1:2 mit Brühe ansetzen. (Timer)</p>
+
+        <p class="mb-2 font-light text-slate-400">Brühe aufsetzen.</p>
+
+        <p class="mb-2 font-light text-slate-400">Zwiebeln und Knoblauch würfeln.</p>
+
+        <p class="mb-2 font-bold p-4">Einen großen Topf auf den Herd stellen und erhitzen.
+
+        <span class="float-right m-4 mt-0">✅</span>
+        </p>
+
+        <p class="mb-2">Boden des Topfes mit Olivenöl bedecken. Erst Zwiebeln, dann Knoblauch anbraten. (Timer)</p>
+
+        <p class="mb-2">Ein Drittel des Sojagranulats mit anbraten, dann mit Rotwein ablöschen und das restliche Sojagranulat dazugeben.</p>
+
+        <p class="mb-2">Die Gewürze (Kreuzkümmel, Salz, Pfeffer) im Mörser zerkleinern und zum Chili geben, den Rotwein einreduzieren lassen. Herd runter schalten auf halbe Flamme.
+        </p>
+
+        <p class="mb-2">Gummihandschuhe anziehen und alle Chilis hacken (je nach Geschmack mit oder ohne Kerne) und zum Chili geben.
+        </p>
+
+        <p class="mb-2">Bohnen und Mais abtropfen lassen und zum Fleisch geben, ebenso die Tomaten. Tomatenmark zum Abschmecken dazu und gute 45 min. köcheln lassen. (Timer)
+        </p>
+
+        <p class="mb-2">Dann die Schokolade in Stücke brechen, im Chili verteilen und wiederum gut 45 min. köcheln lassen.</p>
+
+        <p class="mb-2">Tisch decken, als Beilagen Tacos, Naturjoghurt und Käse dazustellen. Getränke: Rotwein oder Bier.</p>
+
+        <p class="mb-2">Nach Belieben nochmals mit Pfeffer und Salz abschmecken.</p>
+
+      </div>
+
+      <div class="basis-1/4 p-3 pt-3 my-2 mr-4 bg-yellow-100 rounded-xl shadow-lg items-center" hx-get="${request.route_url('timers')}" hx-trigger="load">
+        ...
+      </div>
+
+    </div>
+  </div>
+</div>

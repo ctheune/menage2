@@ -2,6 +2,9 @@
 The alarm sound is taken from 
 https://freesound.org/people/nigelcoop/sounds/234359/ licensed under CC https://creativecommons.org/publicdomain/zero/1.0/
 
+The silence sound is taken from
+https://freesound.org/people/KuroTsueki/sounds/155474/ licensed under CC https://creativecommons.org/publicdomain/zero/1.0/
+
 
 The app logo has been generated with https://deepai.org/machine-learning-model/text2img
 

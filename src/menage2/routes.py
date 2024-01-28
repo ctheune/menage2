@@ -32,3 +32,9 @@ def includeme(config):
     config.add_route("dashboard_recipes", "/dashboard/recipes")
     config.add_route("dashboard_pt_departures", "/dashboard/pt/departures")
     config.add_route("dashboard_pt_hbf", "/dashboard/pt/hbf")
+
+    config.add_route("letscook", "/lets-cook")
+
+    config.add_route("timers", "/timers")
+    config.add_route("timer", "/timer/{id}")
+    config.add_route("timer_pause", "/timer/{id}/pause")

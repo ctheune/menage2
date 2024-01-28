@@ -9,13 +9,23 @@
 
     <div class="flex flex-row">
 
+      <!-- Left column -->
+
       <div class="basis-1/2 p-3 pt-3 my-2 mr-4 bg-sky-100 rounded-xl shadow-lg items-center"
           hx-get="${request.route_url('dashboard_recipes')}"
           hx-trigger="load, every 10m">
           ...
       </div>
 
+
+      <!-- Right column -->
+
       <div class="basis-1/2">
+
+        <div class="p-3 pt-3 my-2 mr-4 bg-yellow-100 rounded-xl shadow-lg items-center" hx-get="${request.route_url('timers')}" hx-trigger="load">
+          ...
+        </div>
+
         <div class="p-3 pt-3 my-2 mr-4 bg-lime-100 rounded-xl shadow-lg items-center">
           <h2 class="font-bold mb-4">Richtung Stadt</h2>
 
@@ -36,6 +46,7 @@
           </div>
 
         </div>
+
       </div>
     </div>
   </div>

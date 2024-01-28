@@ -1,0 +1,20 @@
+<div _="
+     on htmx:load
+        get <audio/> in me
+        set alarm to it[0]
+         if .alarm is not empty then
+           call alarm.play()
+         else
+           call alarm.pause()
+  ">
+  <h2 class="font-bold mb-4">Timers</h2>
+
+  <audio src="${request.static_url('menage2:static/alarm.wav')}" loop preload="auto"></audio>
+
+  <div id="#timerlist"
+       hx-get="${request.route_url('timers')}"
+       hx-trigger="every 1s"
+       hx-target="#timerlist" hx-swap="innerHTML">
+
+  </div>
+</div>
