@@ -15,7 +15,7 @@ def dashboard(request):
 def recipes(request):
     days = (
         request.dbsession.query(models.Day)
-        .where(models.Day.day >= (datetime.date.today() - datetime.timedelta(days=3)))
+        .where(models.Day.day >= (datetime.date.today() - datetime.timedelta(days=1)))
         .order_by(models.Day.day.asc())
         .limit(10)
     )

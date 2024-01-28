@@ -53,7 +53,7 @@ def get_departures(station_specs):
                 }
             )
     departures.sort(key=lambda d: d["when"])
-    return departures
+    return departures[:5]
 
 
 def get_journeys(station_specs):
@@ -86,4 +86,4 @@ def get_journeys(station_specs):
                 }
             )
     journeys.sort(key=lambda d: d["when"])
-    return journeys
+    return journeys[:5]
