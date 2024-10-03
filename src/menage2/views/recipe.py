@@ -1,25 +1,25 @@
-from pyramid.view import view_config
-from pyramid.httpexceptions import HTTPSeeOther
+import itertools
 import uuid
 
-import itertools
-import sqlalchemy.orm
-
 import peppercorn
+import sqlalchemy.orm
+from pyramid.httpexceptions import HTTPSeeOther
+from pyramid.view import view_config
 
 from menage2.models import (
-    Recipe,
     Ingredient,
     IngredientUsage,
-    Weekday,
     Month,
-    RecipeWeekDays,
+    Recipe,
     RecipeSeasons,
+    RecipeWeekDays,
+    Weekday,
 )
 
 
 @view_config(
-    route_name="suggest_ingredient", renderer="menage2:templates/suggest_ingredient.pt"
+    route_name="suggest_ingredient",
+    renderer="menage2:templates/suggest_ingredient.pt",
 )
 def suggest_ingredient(request):
     search = request.params.get("search")
@@ -45,7 +45,9 @@ def suggest_ingredient(request):
     }
 
 
-@view_config(route_name="list_recipes", renderer="menage2:templates/list_recipes.pt")
+@view_config(
+    route_name="list_recipes", renderer="menage2:templates/list_recipes.pt"
+)
 def list_recipes(request):
     recipes = (
         request.dbsession.query(Recipe)
@@ -131,7 +133,8 @@ def edit_recipe(request):
 
     seasons = fields["seasons"]
     recipe.seasons = [
-        RecipeSeasons(recipe=recipe, month=Month(int(month))) for month in seasons
+        RecipeSeasons(recipe=recipe, month=Month(int(month)))
+        for month in seasons
     ]
 
     ingredients = []
