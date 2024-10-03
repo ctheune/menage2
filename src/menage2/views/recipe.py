@@ -117,7 +117,7 @@ def edit_recipe(request):
     ).one()
 
     recipe.title = fields["title"]
-    recipe.active = bool(fields["active"])
+    recipe.active = bool(fields.get("active"))
     recipe.source = fields["source"]
     recipe.source_url = fields["source_url"]
     recipe.note = fields["note"]
