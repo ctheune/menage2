@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship, backref
 from .meta import Base
 
 from .. import models
+from menage2.utils import Seen
 
 
 class Recipe(Base):
@@ -50,7 +51,7 @@ class IngredientUsage(Base):
         Integer, ForeignKey("ingredients.id"), nullable=False
     )
     ingredient = relationship(
-        "Ingredient", uselist=False, backref=backref("recipes")
+        "Ingredient", uselist=False, backref=backref("used")
     )
 
     amount: str = Column(Text)
@@ -86,32 +87,9 @@ class IngredientUsage(Base):
                 pass
         return None
 
-    # @classmethod
-    # def from_shortcut(cls, recipe, shortcut):
-    #     parts = shortcut.split(" ", 2)
-    #     if len(parts) == 1:
-    #         amount = None
-    #         unit = None
-    #         ingredient = parts[0]
-    #     elif len(parts) == 2:
-    #         amount = parts[0]
-    #         unit = None
-    #         ingredient = parts[1]
-    #     else:
-    #         amount, unit, ingredient = parts
-
-    #     if unit is None:
-    #         unit = ""
-
-    #     ing_obj, _ = Ingredient.objects.get_or_create(description=ingredient)
-
-    #     print(recipe, amount, unit, ing_obj)
-    #     usage = IngredientUsage.objects.create(
-    #         recipe=recipe, amount=amount, unit=unit, ingredient=ing_obj
-    #     )
-    #     usage.save()
 
 KNOWN_TAGS = set(["obst-u-gemuese", "kühlung"])
+
 
 class Ingredient(Base):
     __tablename__ = "ingredients"
@@ -125,3 +103,13 @@ class Ingredient(Base):
         if not self.tags:
             return []
         return [f"#{tag.strip()}" for tag in self.tags.split(",")]
+
+    @property
+    def recipes(self):
+        result = []
+        seen_recipes = Seen()
+        for recipe in (usage.recipe for usage in self.used):
+            if recipe.id in seen_recipes:
+                continue
+            result.append(recipe)
+        return result

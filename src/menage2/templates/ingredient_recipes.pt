@@ -1,0 +1,9 @@
+Rezepte:
+
+<ul>
+    <li tal:repeat="recipe recipes">
+        <a href="${request.route_url('edit_recipe', id=recipe.id)}">
+            ${recipe.title}
+        </a>
+    </li>
+</ul>
