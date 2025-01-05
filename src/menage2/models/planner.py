@@ -47,7 +47,10 @@ class Week(Base):
 
     id = Column(Integer, primary_key=True)
     days = relationship(
-        "Day", cascade="all, delete-orphan", order_by="Day.day", back_populates="week"
+        "Day",
+        cascade="all, delete-orphan",
+        order_by="Day.day",
+        back_populates="week",
     )
 
     @property
@@ -63,7 +66,11 @@ class Week(Base):
         shared_secret = os.environ["RTM_SHARED_SECRET"]
         list_id = "24309112"
         session = Session.object_session(self)
-        token = session.query(ConfigItem).filter(ConfigItem.key == "RTM_TOKEN").one()
+        token = (
+            session.query(ConfigItem)
+            .filter(ConfigItem.key == "RTM_TOKEN")
+            .one()
+        )
         api = Rtm(api_key, shared_secret, "write", token.value)
         if not api.token_valid():
             raise RuntimeError("Invalid RTM token, please log in first.")
@@ -86,7 +93,9 @@ class Week(Base):
 
                 unit = ingredient_usage.unit or ""
 
-                by_unit = ingredients.setdefault(ingredient_usage.ingredient, {})
+                by_unit = ingredients.setdefault(
+                    ingredient_usage.ingredient, {}
+                )
                 by_unit.setdefault(unit, 0)
                 by_unit[unit] += amount
 
@@ -99,11 +108,19 @@ class Week(Base):
                 shopping_list.append(usage)
 
         for item in shopping_list:
-            api.rtm.tasks.add(
+            result = api.rtm.tasks.add(
                 timeline=timeline,
                 list_id=list_id,
                 name=item.to_shopping_list(),
             )
+            if item.tags:
+                api.rtm.tasks.addTags(
+                    timeline=timeline,
+                    list_id=list_id,
+                    taskseries_id=result.list.taskseries.id,
+                    task_id=result.list.taskseries.task.id,
+                    tags=item.tags,
+                )
 
 
 class Schedule(Base):
@@ -113,7 +130,9 @@ class Schedule(Base):
     recipe = relationship(
         "Recipe",
         uselist=False,
-        backref=backref("schedule", uselist=False, cascade="all, delete-orphan"),
+        backref=backref(
+            "schedule", uselist=False, cascade="all, delete-orphan"
+        ),
     )
 
     frequency = Column(Integer, server_default="90")

@@ -46,8 +46,12 @@ class IngredientUsage(Base):
         uselist=False,
         backref=backref("ingredients", cascade="all, delete-orphan"),
     )
-    ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=False)
-    ingredient = relationship("Ingredient", uselist=False, backref=backref("recipes"))
+    ingredient_id = Column(
+        Integer, ForeignKey("ingredients.id"), nullable=False
+    )
+    ingredient = relationship(
+        "Ingredient", uselist=False, backref=backref("recipes")
+    )
 
     amount: str = Column(Text)
     unit: str = Column(Text)
@@ -107,9 +111,17 @@ class IngredientUsage(Base):
     #     )
     #     usage.save()
 
+KNOWN_TAGS = set(["obst-u-gemuese", "kühlung"])
 
 class Ingredient(Base):
     __tablename__ = "ingredients"
 
     id = Column(Integer, primary_key=True)
     description = Column(Text)
+    tags = Column(Text)  # comma separated list of tags to use for RTM
+
+    @property
+    def hashtags(self):
+        if not self.tags:
+            return []
+        return [f"#{tag.strip()}" for tag in self.tags.split(",")]

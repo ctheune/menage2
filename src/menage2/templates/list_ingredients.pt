@@ -1,0 +1,24 @@
+<div metal:use-macro="load: layout.pt">
+
+  <div metal:fill-slot="title">
+    Zutaten
+  </div>
+
+  <div metal:fill-slot="content" class="px-8 py-4">
+    <form hx-post="${request.route_url('/ingredients')">
+      <ul>
+          <li tal:repeat="ingredient ingredients">
+              ${ingredient.description}
+              <span tal:repeat="tag ingredient.hashtags">
+                ${tag}
+              </span>
+
+              <span class="bg-amber-200 text-xs p-1 rounded-full">${len(ingredient.recipes)} 
+                <tal:block condition="len(ingredient.recipes) == 1">Rezept</tal:block>
+                <tal:block condition="len(ingredient.recipes) != 1">Rezepte</tal:block>
+
+              </span>
+          </li>
+      </ul>
+  </div>
+</div>

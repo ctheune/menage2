@@ -1,6 +1,6 @@
 import itertools
 import uuid
-
+from sqlalchemy.sql import collate
 import peppercorn
 import sqlalchemy.orm
 from pyramid.httpexceptions import HTTPSeeOther
@@ -171,3 +171,14 @@ def add_recipe(request):
     request.dbsession.add(recipe)
     request.dbsession.flush()
     return HTTPSeeOther(request.route_url("edit_recipe", id=recipe.id))
+
+
+@view_config(
+    route_name="list_ingredients",
+    renderer="menage2:templates/list_ingredients.pt",
+)
+def list_ingredients(request):
+    ingredients = request.dbsession.query(Ingredient).order_by(
+        collate(Ingredient.description, "NOCASE")
+    )
+    return {"ingredients": ingredients}

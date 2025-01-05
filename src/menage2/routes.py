@@ -10,6 +10,7 @@ def includeme(config):
     )
 
     config.add_route("suggest_ingredient", "/ingredient/suggest")
+    config.add_route("list_ingredients", "/ingredient")
 
     config.add_route("list_recipes", "/")
     config.add_route("add_recipe", "/recipe")
