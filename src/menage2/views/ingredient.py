@@ -1,6 +1,6 @@
 import itertools
 import uuid
-from sqlalchemy.sql import collate
+from sqlalchemy.sql import func
 import peppercorn
 import sqlalchemy.orm
 from pyramid.httpexceptions import HTTPSeeOther
@@ -23,7 +23,7 @@ from menage2.models import (
 )
 def list_ingredients(request):
     ingredients = request.dbsession.query(Ingredient).order_by(
-        collate(Ingredient.description, "NOCASE")
+        func.LOWER(Ingredient.description)
     )
     return {"ingredients": ingredients}
 
