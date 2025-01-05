@@ -6,7 +6,13 @@
   </metal:block>
 
   <div metal:fill-slot="content" class="px-8 py-4">
-    <h1 class="text-xl font-bold underline">${recipe.title}</h1>
+
+    <h1 class="text-xl font-bold">${recipe.title}</h1>
+
+    <a tal:omit-tag="not recipe.source_url" href="${recipe.source_url}" class="underline">
+        <span tal:condition="recipe.source">${recipe.source}</span>
+        <span tal:condition="not recipe.source">${recipe.source_url}</span>
+    </a>
 
     <div tal:content="structure steps_html" class="markdown"/>
 

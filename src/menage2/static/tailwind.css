@@ -716,6 +716,10 @@ select {
   padding-bottom: 0.5rem;
 }
 
+.markdown a {
+  text-decoration-line: underline;
+}
+
 .absolute {
   position: absolute;
 }

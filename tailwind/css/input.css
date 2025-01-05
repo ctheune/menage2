@@ -16,4 +16,9 @@
   .markdown ol li {
     @apply pb-2
   }
+
+  .markdown a {
+    @apply underline
+  }
+
 }
