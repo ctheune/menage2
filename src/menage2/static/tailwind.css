@@ -700,6 +700,22 @@ select {
   --tw-backdrop-sepia:  ;
 }
 
+.markdown  h1 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+}
+
+.markdown ol {
+  list-style-type: decimal;
+}
+
+.markdown ol li {
+  padding-bottom: 0.5rem;
+}
+
 .absolute {
   position: absolute;
 }
@@ -833,6 +849,10 @@ select {
 
 .h-40 {
   height: 10rem;
+}
+
+.h-80 {
+  height: 20rem;
 }
 
 .w-20 {
@@ -980,6 +1000,11 @@ select {
 .bg-slate-300 {
   --tw-bg-opacity: 1;
   background-color: rgb(203 213 225 / var(--tw-bg-opacity));
+}
+
+.bg-slate-400 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(148 163 184 / var(--tw-bg-opacity));
 }
 
 .bg-slate-800 {
@@ -1199,6 +1224,10 @@ select {
   color: rgb(100 116 139 / var(--tw-text-opacity));
 }
 
+.underline {
+  text-decoration-line: underline;
+}
+
 .shadow {
   --tw-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --tw-shadow-colored: 0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);
@@ -1250,4 +1279,3 @@ select {
     box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
   }
 }
-

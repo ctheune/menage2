@@ -46,6 +46,10 @@
             </div>
           </div>
 
+          <h2 class="text-lg font-bold mt-4">Rezept</h2>
+
+          <textarea class="w-[42rem] h-80" type="text" name="${field_name('recipe')}">${recipe.recipe}</textarea>
+
           <h2 class="text-lg font-bold mt-4">Notizen</h2>
 
           <textarea class="w-[42rem] h-40" type="text" name="${field_name('note')}">${recipe.note}</textarea>

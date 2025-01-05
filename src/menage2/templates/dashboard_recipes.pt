@@ -8,7 +8,11 @@
   <tal:block condition="day.dinner">
     #${day.dinner_id} – ${day.dinner.title}
 
-    <a tal:condition="day.dinner.source_url"
+    <a tal:condition="day.dinner.recipe"
+      href="${request.route_url('recipe_steps', id=day.dinner.id)}" target="_blank">
+      📄
+    </a>
+    <a tal:condition="not day.dinner.recipe and day.dinner.source_url"
       href="${day.dinner.source_url}">📄</a>
   </tal:block>
 

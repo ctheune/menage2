@@ -20,6 +20,8 @@ class Recipe(Base):
     source = Column(Text)
     source_url = Column(Text)
 
+    recipe = Column(Text)
+
     def __init__(self):
         self.schedule = models.Schedule()
 

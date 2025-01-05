@@ -16,6 +16,7 @@ def includeme(config):
     config.add_route("list_recipes", "/")
     config.add_route("add_recipe", "/recipe")
     config.add_route("edit_recipe", "/recipe/{id}/edit")
+    config.add_route("recipe_steps", "/recipe/{id}/steps")
 
     config.add_route("list_weeks", "/weeks")
     config.add_route("add_week", "/week/new")

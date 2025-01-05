@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<div metal:use-macro="load: layout_fullscreen.pt">
+
+  <metal:block fill-slot="header-after">
+      <title>Menage – ${recipe.title}</title>
+  </metal:block>
+
+  <div metal:fill-slot="content" class="px-8 py-4">
+    <h1 class="text-xl font-bold underline">${recipe.title}</h1>
+
+    <div tal:content="structure steps_html" class="markdown"/>
+
+  </div>
+
+</div>

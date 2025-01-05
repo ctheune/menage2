@@ -5,6 +5,7 @@ import peppercorn
 import sqlalchemy.orm
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.view import view_config
+import markdown
 
 from menage2.models import (
     Ingredient,
@@ -59,6 +60,21 @@ def list_recipes(request):
         )
     )
     return {"recipes": recipes}
+
+
+@view_config(
+    route_name="recipe_steps",
+    renderer="menage2:templates/recipe_steps.pt",
+    request_method="GET",
+)
+def recipe_steps(request):
+    recipe = (
+        request.dbsession.query(Recipe)
+        .filter(Recipe.id == int(request.matchdict["id"]))
+        .one()
+    )
+    steps_html = markdown.markdown(recipe.recipe)
+    return {"recipe": recipe, "steps_html": steps_html}
 
 
 @view_config(
@@ -123,6 +139,7 @@ def edit_recipe(request):
     recipe.source = fields["source"]
     recipe.source_url = fields["source_url"]
     recipe.note = fields["note"]
+    recipe.recipe = fields["recipe"]
     recipe.schedule.frequency = int(fields["frequency"])
 
     weekdays = fields["weekdays"]

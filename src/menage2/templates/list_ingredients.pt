@@ -19,6 +19,13 @@
                 <tal:block condition="len(ingredient.recipes) != 1">Rezepte</tal:block>
               </span>
 
+              <span>
+                <span tal:repeat="tag tags(ingredient)"
+                  class="bg-slate-400 text-xs p-1 rounded-full">
+                  ${tag.name}
+                </span>
+              </span>
+
               <div class="recipes ml-4">
               </div>
           </li>
