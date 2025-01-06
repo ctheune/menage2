@@ -90,9 +90,6 @@ class IngredientUsage(Base):
         return None
 
 
-KNOWN_TAGS = set(["obst-u-gemuese", "kühlung"])
-
-
 class Ingredient(Base):
     __tablename__ = "ingredients"
 
@@ -100,11 +97,25 @@ class Ingredient(Base):
     description = Column(Text)
     tags = Column(Text)  # comma separated list of tags to use for RTM
 
+    KNOWN_TAGS = set(
+        [
+            "diet:meat",
+            "diet:animal",
+            "shopping:obst-u-gemuese",
+            "shopping:kühlung",
+            "shopping:asia-markt",
+        ]
+    )
+
     @property
-    def hashtags(self):
+    def tags_set(self):
         if not self.tags:
-            return []
-        return [f"#{tag.strip()}" for tag in self.tags.split(",")]
+            return set()
+        return set(x.strip() for x in self.tags.split(","))
+
+    @tags_set.setter
+    def tags_set(self, value):
+        self.tags = ",".join(value)
 
     @property
     def recipes(self):

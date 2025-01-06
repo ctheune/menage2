@@ -1,5 +1,5 @@
 module.exports = {
-  content: ["../src/**/*.{pt,html}",],
+  content: ["../src/**/*.{pt,py,html}",],
   theme: {
     fontFamily: {
       'sans': ['ConduitITCStd', 'ui-sans-serif', 'system-ui']

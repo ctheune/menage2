@@ -12,6 +12,7 @@ def includeme(config):
     config.add_route("suggest_ingredient", "/ingredient/suggest")
     config.add_route("list_ingredients", "/ingredient")
     config.add_route("ingredient_recipes", "/ingredient/{id}/recipes")
+    config.add_route("ingredient_toggle_tag", "/ingredient/{id}/tag/{tag}")
 
     config.add_route("list_recipes", "/")
     config.add_route("add_recipe", "/recipe")

@@ -5,13 +5,10 @@
   </div>
 
   <div metal:fill-slot="content" class="px-8 py-4">
-      <ul>
+      <ul id="ingredients">
           <li tal:repeat="ingredient ingredients">
               ${ingredient.description}
-              <span tal:repeat="tag ingredient.hashtags">
-                ${tag}
-              </span>
-
+              
               <span class="bg-amber-200 text-xs p-1 rounded-full"
                 hx-get="${request.route_url('ingredient_recipes', id=ingredient.id)}"
                 hx-target="next .recipes">${len(ingredient.recipes)} 
@@ -21,7 +18,9 @@
 
               <span>
                 <span tal:repeat="tag tags(ingredient)"
-                  class="bg-slate-400 text-xs p-1 rounded-full">
+                  class="${tag.color} text-xs p-1 rounded-full ml-1"
+                  hx-patch="${request.route_url('ingredient_toggle_tag', id=ingredient.id, tag=tag.name)}"
+                  hx-target="#ingredients" hx-select="#ingredients">
                   ${tag.name}
                 </span>
               </span>

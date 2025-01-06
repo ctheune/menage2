@@ -113,13 +113,19 @@ class Week(Base):
                 list_id=list_id,
                 name=item.to_shopping_list(),
             )
-            if item.tags:
+            shopping_tags = []
+            for tag in item.ingredient.tags_set:
+                prefix, tag = tag.split(":")
+                if prefix != "shopping":
+                    continue
+                shopping_tags.append(tag)
+            if shopping_tags:
                 api.rtm.tasks.addTags(
                     timeline=timeline,
                     list_id=list_id,
                     taskseries_id=result.list.taskseries.id,
                     task_id=result.list.taskseries.task.id,
-                    tags=item.tags,
+                    tags=",".join(shopping_tags),
                 )
 
 

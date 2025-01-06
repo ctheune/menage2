@@ -25,7 +25,25 @@ def list_ingredients(request):
     ingredients = request.dbsession.query(Ingredient).order_by(
         func.LOWER(Ingredient.description)
     )
-    return {"ingredients": ingredients}
+
+    def tags(ingredient):
+        for tag in sorted(ingredient.KNOWN_TAGS):
+            yield TagToggle(tag, tag in ingredient.tags_set)
+
+    return {"ingredients": ingredients, "tags": tags}
+
+
+class TagToggle:
+    inactive_color = "bg-slate-400"
+    active_color = "bg-cyan-400"
+
+    def __init__(self, name: str, active: bool):
+        self.name = name
+        self.active = active
+
+    @property
+    def color(self):
+        return self.active_color if self.active else self.inactive_color
 
 
 @view_config(
@@ -40,3 +58,22 @@ def list_ingredient_recipes(request):
         .one()
     )
     return {"recipes": ingredient.recipes}
+
+
+@view_config(
+    request_method="PATCH",
+    route_name="ingredient_toggle_tag",
+)
+def toggle_ingredient_tag(request):
+    ingredient_id = int(request.matchdict["id"])
+    ingredient = (
+        request.dbsession.query(Ingredient)
+        .filter(Ingredient.id == ingredient_id)
+        .one()
+    )
+    tag = request.matchdict["tag"]
+    if tag in ingredient.tags_set:
+        ingredient.tags_set = ingredient.tags_set - set([tag])
+    else:
+        ingredient.tags_set = ingredient.tags_set | set([tag])
+    return HTTPSeeOther(request.route_url("list_ingredients"))
