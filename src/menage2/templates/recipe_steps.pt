@@ -14,8 +14,17 @@
         <span tal:condition="not recipe.source">${recipe.source_url}</span>
     </a>
 
-    <div tal:content="structure steps_html" class="markdown"/>
-
+      <div class="flex">
+        <div tal:content="structure steps_html" class="markdown"/>
+        <div class="ml-8 w-64">
+          <h1 class="text-lg py-2 font-bold">Zutaten</h1>
+          <ul>
+            <li tal:repeat="ingredient recipe.ingredients">
+              ${ingredient.amount} ${ingredient.unit} ${ingredient.ingredient.description}
+            </li>
+          </ul>
+        </div>
+      </div>
   </div>
 
 </div>

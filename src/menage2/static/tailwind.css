@@ -1126,6 +1126,10 @@ select {
   padding-bottom: 0.25rem;
 }
 
+.pb-4 {
+  padding-bottom: 1rem;
+}
+
 .pl-3 {
   padding-left: 0.75rem;
 }
