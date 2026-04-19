@@ -93,17 +93,39 @@ def _postponed_count(request) -> int:
     ).scalar()
 
 
+def _done_count(request) -> int:
+    request.dbsession.flush()
+    return request.dbsession.execute(
+        select(func.count()).select_from(Todo).where(Todo.status == TodoStatus.done)
+    ).scalar()
+
+
+_PILL_STYLE = (
+    "display:inline-flex;align-items:center;gap:0.35rem;"
+    "border-radius:9999px;padding:0.25rem 0.65rem;"
+    "font-size:0.75rem;font-weight:500;"
+)
+_BADGE_STYLE = (
+    "display:inline-flex;align-items:center;justify-content:center;"
+    "background:rgba(255,255,255,0.25);border-radius:9999px;"
+    "padding:0 0.4rem;font-size:0.7rem;font-weight:700;min-width:1.2em;"
+)
+
+
 def _postponed_section_oob(request) -> str:
     count = _postponed_count(request)
     activate_url = request.route_url("todos_activate_all_postponed")
     if count > 0:
         btn = (
             f'<button hx-post="{activate_url}" hx-target="body" '
-            f'class="rounded-full bg-slate-500 px-3 py-1 text-xs text-white shadow hover:bg-slate-600">'
-            f"⏸ Activate {count}</button>"
+            f'style="{_PILL_STYLE}background:#64748b;color:#fff;cursor:pointer;">'
+            f'⏸ Paused <span style="{_BADGE_STYLE}">{count}</span></button>'
         )
     else:
-        btn = ""
+        btn = (
+            f'<span style="{_PILL_STYLE}background:#e2e8f0;color:#94a3b8;">'
+            f'⏸ Paused <span style="{_BADGE_STYLE}background:rgba(0,0,0,0.1);color:#94a3b8;">0</span></span>'
+        )
     return f'<div id="postponed-section" hx-swap-oob="true">{btn}</div>'
 
 
@@ -122,11 +144,15 @@ def list_todos(request):
         .all()
     )
     postponed_count = request.dbsession.execute(
-        select(Todo).where(Todo.status == TodoStatus.postponed)
-    ).scalars().all()
+        select(func.count()).select_from(Todo).where(Todo.status == TodoStatus.postponed)
+    ).scalar()
+    done_count = request.dbsession.execute(
+        select(func.count()).select_from(Todo).where(Todo.status == TodoStatus.done)
+    ).scalar()
     return {
         "groups": build_tag_tree(todos),
-        "postponed_count": len(postponed_count),
+        "postponed_count": postponed_count,
+        "done_count": done_count,
     }
 
 
