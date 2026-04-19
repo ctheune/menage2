@@ -160,6 +160,13 @@ function initTagInput() {
         });
     }
 
+    function showQuickPick() { if (quickPick) quickPick.style.display = ''; }
+    function hideQuickPick() { if (quickPick) quickPick.style.display = 'none'; }
+
+    hideQuickPick();
+    textInput.addEventListener('focus', showQuickPick);
+    textInput.addEventListener('blur', function() { setTimeout(hideQuickPick, 150); });
+
     function addTag(tag) {
         tag = tag.replace(/^#/, '');
         if (tags.indexOf(tag) === -1) {
