@@ -92,15 +92,102 @@ function initTodoSwipe(content) {
     });
 }
 
-// Show error toast when todo text is empty (only tags entered)
-document.body.addEventListener('showAddTodoError', function(e) {
-    var input = document.querySelector('input[name="text"]');
-    if (input) {
-        input.value = e.detail.input;
-        input.focus();
-        input.select();
+function parseTagsFromRaw(raw) {
+    var tagMatches = (raw.match(/#\S+/g) || []).map(function(t) { return t.slice(1); });
+    var text = raw.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
+    return { tags: tagMatches, text: text };
+}
+
+function initTagInput() {
+    var container = document.getElementById('todo-tag-input');
+    if (!container) return;
+
+    var textInput = document.getElementById('todo-text');
+    var hiddenInput = document.getElementById('todo-hidden-text');
+    var form = document.getElementById('todo-form');
+    var quickPick = document.getElementById('todo-quick-pick');
+
+    var tags = JSON.parse(sessionStorage.getItem('todo-tags') || '[]');
+
+    function renderPills() {
+        container.querySelectorAll('.todo-tag-pill').forEach(function(el) { el.remove(); });
+        tags.forEach(function(tag) {
+            var pill = document.createElement('span');
+            pill.className = 'todo-tag-pill';
+            pill.innerHTML = '#' + tag + ' <button class="todo-tag-remove" type="button" data-tag="' + tag + '">\u00d7</button>';
+            container.insertBefore(pill, textInput);
+        });
+        sessionStorage.setItem('todo-tags', JSON.stringify(tags));
     }
 
+    function renderQuickPick() {
+        if (!quickPick) return;
+        quickPick.innerHTML = '';
+        var available = Array.from(document.querySelectorAll('.tag-group-header[data-tag]'))
+            .map(function(el) { return el.dataset.tag; })
+            .filter(function(t) { return t && t !== '__untagged__' && tags.indexOf(t) === -1; })
+            .sort();
+        available.forEach(function(tag) {
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'todo-quick-pick-chip';
+            chip.textContent = '#' + tag;
+            chip.addEventListener('click', function() { addTag(tag); });
+            quickPick.appendChild(chip);
+        });
+    }
+
+    function addTag(tag) {
+        tag = tag.replace(/^#/, '');
+        if (tags.indexOf(tag) === -1) {
+            tags.push(tag);
+            renderPills();
+            renderQuickPick();
+        }
+        textInput.focus();
+    }
+
+    function removeTag(tag) {
+        tags = tags.filter(function(t) { return t !== tag; });
+        renderPills();
+        renderQuickPick();
+    }
+
+    container.addEventListener('click', function(e) {
+        var btn = e.target.closest('.todo-tag-remove');
+        if (btn) { removeTag(btn.dataset.tag); return; }
+        textInput.focus();
+    });
+
+    // Capture phase fires before HTMX's bubble-phase submit handler serializes the form.
+    form.addEventListener('submit', function() {
+        var rawText = textInput.value;
+        var typedTags = (rawText.match(/#\S+/g) || []).map(function(t) { return t.slice(1); });
+        typedTags.forEach(function(t) { if (tags.indexOf(t) === -1) tags.push(t); });
+        var cleanText = rawText.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
+        hiddenInput.value = [cleanText].concat(tags.map(function(t) { return '#' + t; })).join(' ').trim();
+        sessionStorage.setItem('todo-tags', JSON.stringify(tags));
+        textInput.value = '';
+    }, true);
+
+    // After successful submit (body swap), tags remain in sessionStorage and re-render on next initTagInput call.
+    // On error, restore text + accumulated tags into composite widget.
+    document.body.addEventListener('showAddTodoError', function(e) {
+        var raw = e.detail.input || '';
+        var parsed = parseTagsFromRaw(raw);
+        parsed.tags.forEach(function(t) { if (tags.indexOf(t) === -1) tags.push(t); });
+        renderPills();
+        renderQuickPick();
+        textInput.value = parsed.text;
+        textInput.focus();
+    }, true);
+
+    renderPills();
+    renderQuickPick();
+}
+
+// Show error toast when todo text is empty (only tags entered)
+document.body.addEventListener('showAddTodoError', function(e) {
     var existing = document.getElementById('error-toast');
     if (existing) existing.remove();
 
@@ -198,6 +285,8 @@ document.addEventListener('keydown', function(e) {
 htmx.onLoad(function(content) {
     initSortables(content);
     initTodoSwipe(content);
+    initTagInput();
 });
 initSortables(document);
 initTodoSwipe(document);
+initTagInput();

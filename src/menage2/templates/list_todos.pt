@@ -5,17 +5,6 @@
 
   <div metal:fill-slot="content" class="px-4 py-4 max-w-2xl">
 
-    <!-- Add todo form -->
-    <form hx-post="${request.route_url('add_todo')}"
-          hx-target="body"
-          class="mb-3">
-      <input type="text" name="text" autocomplete="off"
-             enterkeyhint="done"
-             placeholder="New todo… #tag #category:sub"
-             style="width:100%"
-             class="rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
-    </form>
-
     <!-- Secondary action bar: postponed + done (OOB target must keep id) -->
     <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
       <div id="postponed-section">
@@ -40,6 +29,20 @@
         <span style="display:inline-flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.1);border-radius:9999px;padding:0 0.4rem;font-size:0.7rem;font-weight:700;min-width:1.2em;">${done_count}</span>
       </a>
     </div>
+
+    <!-- Add todo form -->
+    <form id="todo-form"
+          hx-post="${request.route_url('add_todo')}"
+          hx-target="body"
+          class="mb-2">
+      <div class="todo-tag-input" id="todo-tag-input">
+        <input type="text" id="todo-text" autocomplete="off"
+               enterkeyhint="done" placeholder="New todo…"
+               style="flex:1;min-width:6rem;border:none;outline:none;font-size:0.875rem;background:transparent;" />
+      </div>
+      <input type="hidden" name="text" id="todo-hidden-text" />
+    </form>
+    <div id="todo-quick-pick" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.75rem;min-height:1.5rem;"></div>
 
     <!-- Todo list -->
     <div id="todo-list" class="-mx-4"
