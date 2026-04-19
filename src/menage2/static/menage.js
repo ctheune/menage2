@@ -284,8 +284,9 @@ function initTagInput() {
     });
 
     textInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && acEl.style.display === 'none' && editingId) {
-            exitEditMode();
+        if (e.key === 'Escape') {
+            if (acEl.style.display === 'none' && editingId) exitEditMode();
+            textInput.blur();
         }
     });
 
