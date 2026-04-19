@@ -49,43 +49,56 @@ function initSortables(content) {
     }
 }
 
-function initTodoSwipe(content) {
-    content.querySelectorAll('.todo-item').forEach(function(item) {
-        var startX = 0, dx = 0;
-        var THRESHOLD = 80;
+var _swipeTouchState = new WeakMap();
+var _SWIPE_THRESHOLD = 80;
 
-        item.addEventListener('touchstart', function(e) {
-            startX = e.touches[0].clientX;
-            item.style.transition = 'none';
-        }, {passive: true});
+document.addEventListener('touchstart', function(e) {
+    var item = e.target.closest('.todo-item');
+    if (!item) return;
+    var inner = item.querySelector('.todo-content');
+    if (!inner) return;
+    inner.style.transition = 'none';
+    _swipeTouchState.set(item, {startX: e.touches[0].clientX, dx: 0});
+}, {passive: true});
 
-        item.addEventListener('touchmove', function(e) {
-            dx = e.touches[0].clientX - startX;
-            var clamped = Math.max(-150, Math.min(150, dx));
-            item.style.transform = 'translateX(' + clamped + 'px)';
-            item.dataset.swipeDir = dx > 0 ? 'right' : (dx < 0 ? 'left' : '');
-        }, {passive: true});
+document.addEventListener('touchmove', function(e) {
+    var item = e.target.closest('.todo-item');
+    if (!item) return;
+    var state = _swipeTouchState.get(item);
+    if (!state) return;
+    var inner = item.querySelector('.todo-content');
+    if (!inner) return;
+    state.dx = e.touches[0].clientX - state.startX;
+    inner.style.transform = 'translateX(' + Math.max(-150, Math.min(150, state.dx)) + 'px)';
+    item.dataset.swipeDir = state.dx > 0 ? 'right' : (state.dx < 0 ? 'left' : '');
+}, {passive: true});
 
+document.addEventListener('touchend', function(e) {
+    var item = e.target.closest('.todo-item');
+    if (!item) return;
+    var state = _swipeTouchState.get(item);
+    if (!state) return;
+    _swipeTouchState.delete(item);
+    var inner = item.querySelector('.todo-content');
+    if (!inner) return;
+    inner.style.transition = 'transform 0.2s ease';
+    var dx = state.dx;
+    var list = document.getElementById('todo-list');
+    var checkbox = item.querySelector('.todo-checkbox');
+    var todoId = checkbox ? checkbox.dataset.id : null;
+    if (dx >= _SWIPE_THRESHOLD && list && todoId) {
+        inner.style.transform = 'translateX(100vw)';
+        swipePost(list.dataset.doneUrl, todoId, list);
+    } else if (dx <= -_SWIPE_THRESHOLD && list && todoId) {
+        inner.style.transform = 'translateX(-100vw)';
+        swipePost(list.dataset.postponeUrl, todoId, list);
+    } else {
+        inner.style.transform = 'translateX(0)';
+        delete item.dataset.swipeDir;
+    }
+});
 
-        item.addEventListener('touchend', function() {
-            item.style.transition = 'transform 0.2s ease';
-            var list = document.getElementById('todo-list');
-            var checkbox = item.querySelector('.todo-checkbox');
-            var todoId = checkbox ? checkbox.dataset.id : null;
-            if (dx >= THRESHOLD && list && todoId) {
-                item.style.transform = 'translateX(100vw)';
-                swipePost(list.dataset.doneUrl, todoId, list);
-            } else if (dx <= -THRESHOLD && list && todoId) {
-                item.style.transform = 'translateX(-100vw)';
-                swipePost(list.dataset.postponeUrl, todoId, list);
-            } else {
-                item.style.transform = 'translateX(0)';
-                delete item.dataset.swipeDir;
-            }
-            dx = 0;
-        });
-    });
-}
+function initTodoSwipe() {} // kept for htmx.onLoad call below; delegation handles all items
 
 function parseTagsFromRaw(raw) {
     var tagMatches = (raw.match(/#\S+/g) || []).map(function(t) { return t.slice(1); });

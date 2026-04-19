@@ -248,39 +248,46 @@
 .todo-item {
     position: relative;
     touch-action: pan-y;
-    gap: 0.5rem;
+    overflow: hidden;
 }
 
-.todo-item:hover {
+.todo-item:hover .todo-content {
     background: #fefce8;
 }
 
-/* Green "done" indicator on the left during right-swipe */
+/* Sliding content layer sits above the indicators */
+.todo-content {
+    position: relative;
+    z-index: 1;
+    gap: 0.5rem;
+}
+
+/* Full-width green indicator revealed on right-swipe */
 .todo-item[data-swipe-dir="right"]::before {
     content: '✓';
     position: absolute;
-    top: 0; bottom: 0; left: 0;
-    width: 60px;
+    inset: 0;
     background: #22c55e;
     color: white;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    padding-left: 1.25rem;
     font-size: 1.25rem;
-    z-index: -1;
+    z-index: 0;
 }
 
-/* Gray "postpone" indicator on the right during left-swipe */
+/* Full-width gray indicator revealed on left-swipe */
 .todo-item[data-swipe-dir="left"]::after {
     content: '⏸';
     position: absolute;
-    top: 0; bottom: 0; right: 0;
-    width: 60px;
+    inset: 0;
     background: #94a3b8;
     color: white;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
+    padding-right: 1.25rem;
     font-size: 1.25rem;
-    z-index: -1;
+    z-index: 0;
 }
