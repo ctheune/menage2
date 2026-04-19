@@ -68,7 +68,7 @@ def test_send_to_shopping_list_creates_todos(app_request, dbsession):
     salz = by_text["Salz"]
     assert salz.status == TodoStatus.todo
     assert "Tomatensalat" in salz.note
-    assert "einkaufen" in salz.tags
+    assert "einkaufen:supermarkt" in salz.tags
 
 
 def test_send_to_shopping_list_aggregates_amounts_across_days(app_request, dbsession):
@@ -128,7 +128,7 @@ def test_send_to_shopping_list_untagged_ingredient_gets_sonstiges(app_request, d
 
     todos = dbsession.query(Todo).all()
     assert len(todos) == 1
-    assert "einkaufen" in todos[0].tags
+    assert "einkaufen:supermarkt" in todos[0].tags
 
 
 def test_send_to_shopping_list_redirects_to_todos(app_request, dbsession):

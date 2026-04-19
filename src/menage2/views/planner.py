@@ -178,7 +178,7 @@ def send_to_shopping_list(request):
 
     def _einkaufen_tags(ingredient):
         tags = {t for t in ingredient.tags_set if t.startswith("einkaufen:")}
-        return tags or {"einkaufen"}
+        return tags or {"einkaufen:supermarkt"}
 
     for ingredient, by_unit in aggregated.items():
         for unit, by_recipe in by_unit.items():
