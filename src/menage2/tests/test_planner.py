@@ -22,7 +22,7 @@ def _make_recipe_for_all_days(dbsession):
 
 
 def _make_week_with_recipe(dbsession):
-    ingredient = Ingredient(description="Tomaten", tags="einkaufen:obst-u-gemuese")
+    ingredient = Ingredient(description="Tomaten", tags="einkaufen:supermarkt:obst-u-gemuese")
     ingredient2 = Ingredient(description="Salz", tags="")
     dbsession.add_all([ingredient, ingredient2])
     dbsession.flush()
@@ -62,7 +62,7 @@ def test_send_to_shopping_list_creates_todos(app_request, dbsession):
 
     tomaten = by_text["Tomaten (500 g)"]
     assert tomaten.status == TodoStatus.todo
-    assert "einkaufen:obst-u-gemuese" in tomaten.tags
+    assert "einkaufen:supermarkt:obst-u-gemuese" in tomaten.tags
     assert tomaten.note == "für: Tomatensalat"
 
     salz = by_text["Salz"]
