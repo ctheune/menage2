@@ -1,4 +1,8 @@
 
+function swipePost(url, todoId, list) {
+    htmx.ajax('POST', url, {target: list, swap: 'innerHTML', values: {todo_ids: todoId}});
+}
+
 function initSortables(content) {
     var sortables = content.querySelectorAll(".sortable");
     for (var i = 0; i < sortables.length; i++) {
@@ -30,12 +34,15 @@ function initTodoSwipe(content) {
 
         item.addEventListener('touchend', function() {
             item.style.transition = 'transform 0.2s ease';
-            if (dx >= THRESHOLD && item.dataset.doneUrl) {
+            var list = document.getElementById('todo-list');
+            var checkbox = item.querySelector('.todo-checkbox');
+            var todoId = checkbox ? checkbox.dataset.id : null;
+            if (dx >= THRESHOLD && list && todoId) {
                 item.style.transform = 'translateX(100vw)';
-                htmx.ajax('POST', item.dataset.doneUrl, {target: item, swap: 'delete'});
-            } else if (dx <= -THRESHOLD && item.dataset.postponeUrl) {
+                swipePost(list.dataset.doneUrl, todoId, list);
+            } else if (dx <= -THRESHOLD && list && todoId) {
                 item.style.transform = 'translateX(-100vw)';
-                htmx.ajax('POST', item.dataset.postponeUrl, {target: item, swap: 'delete'});
+                swipePost(list.dataset.postponeUrl, todoId, list);
             } else {
                 item.style.transform = 'translateX(0)';
                 delete item.dataset.swipeDir;
@@ -102,19 +109,13 @@ document.addEventListener('keydown', function(e) {
         if (boxes.length === 0) return;
         e.preventDefault();
 
+        var ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
         if (key === 'c') {
-            if (boxes.length === 1) {
-                var item = boxes[0].closest('.todo-item');
-                htmx.ajax('POST', item.dataset.doneUrl, {target: item, swap: 'delete'});
-            } else {
-                var ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
-                htmx.ajax('POST', list.dataset.batchDoneUrl,
-                           {target: list, swap: 'innerHTML', values: {todo_ids: ids}});
-            }
+            htmx.ajax('POST', list.dataset.doneUrl,
+                       {target: list, swap: 'innerHTML', values: {todo_ids: ids}});
         } else {
-            // 'p' — postpone single checked item
-            var item = boxes[0].closest('.todo-item');
-            htmx.ajax('POST', item.dataset.postponeUrl, {target: item, swap: 'delete'});
+            htmx.ajax('POST', list.dataset.postponeUrl,
+                       {target: list, swap: 'innerHTML', values: {todo_ids: ids}});
         }
     }
 

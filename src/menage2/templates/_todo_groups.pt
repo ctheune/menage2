@@ -15,9 +15,7 @@
       style="margin-left: ${group['depth'] * 1.25}rem">
     <li tal:repeat="todo group['items']"
         id="todo-${todo.id}"
-        class="todo-item flex items-center gap-2 py-2 px-3 bg-white mb-1 shadow-sm overflow-hidden"
-        data-done-url="${request.route_url('todo_done', id=todo.id)}"
-        data-postpone-url="${request.route_url('todo_postpone', id=todo.id)}">
+        class="todo-item flex items-center gap-2 py-2 px-3 bg-white mb-1 shadow-sm overflow-hidden">
 
       <input type="checkbox" class="todo-checkbox shrink-0"
              data-id="${todo.id}" />

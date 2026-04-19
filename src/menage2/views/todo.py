@@ -137,32 +137,6 @@ def add_todo(request):
     return HTTPSeeOther(request.route_url("list_todos"))
 
 
-@view_config(route_name="todo_done", request_method="POST")
-def todo_done(request):
-    todo_id = int(request.matchdict["id"])
-    todo = request.dbsession.get(Todo, todo_id)
-    prev_status = todo.status.value
-    todo.status = TodoStatus.done
-    todo.done_at = _now_utc()
-    request.response.status_int = 200
-    request.response.headers["HX-Trigger"] = _undo_trigger([todo_id], prev_status)
-    return request.response
-
-
-@view_config(route_name="todo_postpone", request_method="POST")
-def todo_postpone(request):
-    todo_id = int(request.matchdict["id"])
-    todo = request.dbsession.get(Todo, todo_id)
-    prev_status = todo.status.value
-    todo.status = TodoStatus.postponed
-    todo.postponed_at = _now_utc()
-    request.response.status_int = 200
-    request.response.content_type = "text/html"
-    request.response.text = _postponed_section_oob(request)
-    request.response.headers["HX-Trigger"] = _undo_trigger([todo_id], prev_status)
-    return request.response
-
-
 @view_config(route_name="todo_activate", request_method="POST")
 def todo_activate(request):
     todo_id = int(request.matchdict["id"])
@@ -173,8 +147,8 @@ def todo_activate(request):
     return HTTPSeeOther(request.route_url("list_todos"))
 
 
-@view_config(route_name="todos_batch_done", request_method="POST")
-def todos_batch_done(request):
+@view_config(route_name="todos_done", request_method="POST")
+def todos_done(request):
     raw_ids = request.params.get("todo_ids", "")
     todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
     for todo_id in todo_ids:
@@ -196,6 +170,33 @@ def todos_batch_done(request):
     )
     request.response.content_type = "text/html"
     request.response.text = body
+    request.response.headers["HX-Trigger"] = _undo_trigger(todo_ids, "todo")
+    return request.response
+
+
+@view_config(route_name="todos_postpone", request_method="POST")
+def todos_postpone(request):
+    raw_ids = request.params.get("todo_ids", "")
+    todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
+    for todo_id in todo_ids:
+        todo = request.dbsession.get(Todo, todo_id)
+        if todo:
+            todo.status = TodoStatus.postponed
+            todo.postponed_at = _now_utc()
+    todos = (
+        request.dbsession.execute(
+            select(Todo).where(Todo.status == TodoStatus.todo).order_by(Todo.created_at)
+        )
+        .scalars()
+        .all()
+    )
+    body = render(
+        "menage2:templates/_todo_groups.pt",
+        {"groups": build_tag_tree(todos)},
+        request=request,
+    )
+    request.response.content_type = "text/html"
+    request.response.text = body + _postponed_section_oob(request)
     request.response.headers["HX-Trigger"] = _undo_trigger(todo_ids, "todo")
     return request.response
 

@@ -11,11 +11,10 @@ from menage2.views.todo import (
     list_todos_done,
     parse_todo_input,
     todo_activate,
-    todo_done,
-    todo_postpone,
     todo_undo,
     todos_activate_all_postponed,
-    todos_batch_done,
+    todos_done,
+    todos_postpone,
 )
 
 
@@ -167,12 +166,13 @@ def test_add_todo_only_tags_returns_error(app_request, dbsession):
     assert dbsession.query(Todo).count() == 0
 
 
-def test_todo_done_sets_status_and_timestamp(app_request, dbsession):
+def test_todos_done_sets_status_and_timestamp(app_request, dbsession):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
-    app_request.matchdict = {"id": todo.id}
-    todo_done(app_request)
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    todos_done(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.done
@@ -180,24 +180,26 @@ def test_todo_done_sets_status_and_timestamp(app_request, dbsession):
     assert todo.done_at.tzinfo is not None
 
 
-def test_todo_done_response_has_hx_trigger(app_request, dbsession):
+def test_todos_done_response_has_hx_trigger(app_request, dbsession):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
-    app_request.matchdict = {"id": todo.id}
-    todo_done(app_request)
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    todos_done(app_request)
     trigger = json.loads(app_request.response.headers["HX-Trigger"])
     assert "showUndoToast" in trigger
     assert str(todo.id) in trigger["showUndoToast"]["ids"]
     assert trigger["showUndoToast"]["prevStatus"] == "todo"
 
 
-def test_todo_postpone_sets_status(app_request, dbsession):
+def test_todos_postpone_sets_status(app_request, dbsession):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
-    app_request.matchdict = {"id": todo.id}
-    todo_postpone(app_request)
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    todos_postpone(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.postponed
@@ -217,14 +219,14 @@ def test_todo_activate_restores_status(app_request, dbsession):
     assert todo.done_at is None
 
 
-def test_todos_batch_done_marks_multiple(app_request, dbsession):
+def test_todos_done_marks_multiple(app_request, dbsession):
     todos = [_todo(f"T{i}") for i in range(3)]
     for t in todos:
         dbsession.add(t)
     dbsession.flush()
     app_request.method = "POST"
     app_request.POST["todo_ids"] = ",".join(str(t.id) for t in todos)
-    todos_batch_done(app_request)
+    todos_done(app_request)
     dbsession.flush()
     for t in todos:
         dbsession.refresh(t)
@@ -343,7 +345,7 @@ def test_batch_done_endpoint(testapp, dbsession):
         dbsession.add(t)
     dbsession.flush()
     ids = ",".join(str(t.id) for t in todos)
-    res = testapp.post("/todos/batch-done", {"todo_ids": ids}, status=200)
+    res = testapp.post("/todos/done-items", {"todo_ids": ids}, status=200)
     for t in todos:
         dbsession.refresh(t)
         assert t.status == TodoStatus.done
