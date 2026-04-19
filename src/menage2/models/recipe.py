@@ -22,8 +22,10 @@ class Recipe(Base):
 
     recipe = Column(Text)
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.schedule = models.Schedule()
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     # XXX those are helpers that the form library should take over
     @property

@@ -59,7 +59,7 @@ def list_recipes(request):
             )
         )
     )
-    return {"recipes": recipes}
+    return {"recipes": recipes.all()}
 
 
 @view_config(
