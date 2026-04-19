@@ -244,6 +244,14 @@
     opacity: 1;
 }
 
+/* Smooth list refresh: fade out before HTMX swaps, fade in after */
+#todo-list {
+    transition: opacity 0.12s ease-out;
+}
+#todo-list.htmx-swapping {
+    opacity: 0;
+}
+
 /* Todo swipe gestures */
 .todo-item {
     position: relative;

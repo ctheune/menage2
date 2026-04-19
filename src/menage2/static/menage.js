@@ -34,7 +34,7 @@ document.addEventListener('click', function(e) {
 });
 
 function swipePost(url, todoId, list) {
-    htmx.ajax('POST', url, {target: list, swap: 'innerHTML', values: {todo_ids: todoId}});
+    htmx.ajax('POST', url, {target: list, swap: 'innerHTML swap:120ms', values: {todo_ids: todoId}});
 }
 
 function initSortables(content) {
