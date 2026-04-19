@@ -159,6 +159,20 @@ function initTagInput() {
         textInput.focus();
     });
 
+    textInput.addEventListener('input', function() {
+        var val = textInput.value;
+        var re = /#(\S+) /g;
+        var match;
+        var extracted = [];
+        while ((match = re.exec(val)) !== null) {
+            extracted.push(match[1]);
+        }
+        if (extracted.length > 0) {
+            textInput.value = val.replace(/#\S+ /g, '').replace(/  +/g, ' ');
+            extracted.forEach(addTag);
+        }
+    });
+
     // Capture phase fires before HTMX's bubble-phase submit handler serializes the form.
     form.addEventListener('submit', function() {
         var rawText = textInput.value;
