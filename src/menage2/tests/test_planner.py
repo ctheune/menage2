@@ -4,7 +4,7 @@ import pytest
 
 from menage2.models.todo import Todo, TodoStatus
 from menage2.models import Week, Day, Recipe, Ingredient, IngredientUsage, RecipeWeekDays, RecipeSeasons, Weekday, Month, Schedule
-from menage2.views.planner import add_week, send_to_shopping_list
+from menage2.views.planner import add_week, send_to_shopping_list, toggle_day_shopping
 
 
 def _make_recipe_for_all_days(dbsession):
@@ -187,3 +187,41 @@ def test_add_week_starts_after_existing_days(app_request, dbsession):
     all_days = dbsession.query(Day).order_by(Day.day).all()
     new_days = [d for d in all_days if d.week_id != existing_week.id]
     assert new_days[0].day > future_day
+
+
+def test_toggle_day_shopping_excludes_day(app_request, dbsession):
+    week, recipe = _make_week_with_recipe(dbsession)
+    day = week.days[0]
+    assert not day.exclude_from_shopping
+
+    app_request.matchdict = {"day": day.id}
+    toggle_day_shopping(app_request)
+    dbsession.flush()
+
+    assert day.exclude_from_shopping
+
+
+def test_toggle_day_shopping_re_includes_day(app_request, dbsession):
+    week, recipe = _make_week_with_recipe(dbsession)
+    day = week.days[0]
+    day.exclude_from_shopping = True
+    dbsession.flush()
+
+    app_request.matchdict = {"day": day.id}
+    toggle_day_shopping(app_request)
+    dbsession.flush()
+
+    assert not day.exclude_from_shopping
+
+
+def test_excluded_day_skipped_in_shopping_list(app_request, dbsession):
+    week, recipe = _make_week_with_recipe(dbsession)
+    day = week.days[0]
+    day.exclude_from_shopping = True
+    dbsession.flush()
+
+    app_request.matchdict = {"id": str(week.id)}
+    send_to_shopping_list(app_request)
+    dbsession.flush()
+
+    assert dbsession.query(Todo).count() == 0

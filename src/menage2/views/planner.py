@@ -113,6 +113,14 @@ def add_day(request):
     return HTTPSeeOther(request.route_url("edit_week", id=week.id))
 
 
+@view_config(route_name="toggle_day_shopping", request_method="POST")
+def toggle_day_shopping(request):
+    day_date = datetime.datetime.strptime(request.matchdict["day"], "%Y-%m-%d").date()
+    day = request.dbsession.query(models.Day).filter(models.Day.day == day_date).one()
+    day.exclude_from_shopping = not day.exclude_from_shopping
+    return HTTPSeeOther(request.route_url("edit_week", id=day.week.id))
+
+
 @view_config(route_name="set_dinner", request_method="POST")
 def set_dinner(request):
     day = (
@@ -149,7 +157,7 @@ def send_to_shopping_list(request):
     non_numeric = []
 
     for day in week.days:
-        if not day.dinner:
+        if not day.dinner or day.exclude_from_shopping:
             continue
         recipe_title = day.dinner.title
         for usage in day.dinner.ingredients:

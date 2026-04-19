@@ -28,6 +28,7 @@ def includeme(config):
     config.add_route("send_to_shopping_list", "/week/{id}/shoppinglist")
 
     config.add_route("set_dinner", "/day/{day}/dinner/{recipe}")
+    config.add_route("toggle_day_shopping", "/day/{day}/toggle-shopping")
     config.add_route("delete_day", "/day/{day}")
 
     config.add_route("dashboard", "/dashboard")

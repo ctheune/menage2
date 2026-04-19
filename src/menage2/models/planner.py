@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, ForeignKey, Date
+from sqlalchemy import Column, Integer, Text, ForeignKey, Date, Boolean
 from sqlalchemy.orm import relationship, backref
 import datetime
 
@@ -120,6 +120,8 @@ class Day(Base):
     dinner_freestyle = Column(Text)
 
     note = Column(Text)
+
+    exclude_from_shopping = Column(Boolean, nullable=False, server_default="false", default=False)
 
     @property
     def id(self):
