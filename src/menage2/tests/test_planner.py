@@ -146,6 +146,21 @@ def test_send_to_shopping_list_redirects_to_todos(app_request, dbsession):
     assert "/todos" in response.location
 
 
+def test_send_to_shopping_list_htmx_uses_hx_redirect(app_request, dbsession):
+    week = Week()
+    dbsession.add(week)
+    dbsession.flush()
+    dbsession.add(Day(day=datetime.date(2026, 4, 21), week=week))
+    dbsession.flush()
+
+    app_request.matchdict = {"id": str(week.id)}
+    app_request.headers["HX-Request"] = "true"
+    response = send_to_shopping_list(app_request)
+    assert "HX-Redirect" in response.headers
+    assert "/todos" in response.headers["HX-Redirect"]
+    assert response.status_int == 200
+
+
 def test_add_week_with_no_existing_days(app_request, dbsession):
     _make_recipe_for_all_days(dbsession)
     response = add_week(app_request)

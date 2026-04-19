@@ -194,4 +194,9 @@ def send_to_shopping_list(request):
             Todo(text=usage.to_shopping_list(), tags=tags, status=TodoStatus.todo, created_at=now, note=note)
         )
 
-    return HTTPSeeOther(request.route_url("list_todos"))
+    todos_url = request.route_url("list_todos")
+    if request.headers.get("HX-Request"):
+        response = request.response
+        response.headers["HX-Redirect"] = todos_url
+        return response
+    return HTTPSeeOther(todos_url)
