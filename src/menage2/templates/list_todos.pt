@@ -8,14 +8,12 @@
     <!-- Add todo form -->
     <form hx-post="${request.route_url('add_todo')}"
           hx-target="body"
-          class="mb-3 flex gap-2">
+          class="mb-3">
       <input type="text" name="text" autocomplete="off"
+             enterkeyhint="done"
              placeholder="New todo… #tag #category:sub"
-             class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
-      <button type="submit"
-              class="rounded-lg bg-cyan-500 px-4 py-2 text-lg font-bold text-white shadow hover:bg-cyan-600 leading-none">
-        +
-      </button>
+             style="width:100%"
+             class="rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
     </form>
 
     <!-- Secondary action bar: postponed + done (OOB target must keep id) -->
