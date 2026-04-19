@@ -251,6 +251,10 @@
     gap: 0.5rem;
 }
 
+.todo-item:hover {
+    background: #fefce8;
+}
+
 /* Green "done" indicator on the left during right-swipe */
 .todo-item[data-swipe-dir="right"]::before {
     content: '✓';

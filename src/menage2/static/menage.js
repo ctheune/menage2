@@ -486,10 +486,19 @@ document.addEventListener('keydown', function(e) {
 
     if (key === 'c' || key === 'p') {
         var boxes = Array.from(document.querySelectorAll('input.todo-checkbox:checked'));
-        if (boxes.length === 0) return;
+        // Fall back to hovered item if nothing is checked
+        var ids;
+        if (boxes.length > 0) {
+            ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
+        } else if (_hoveredTodoItem) {
+            var hovered = _hoveredTodoItem.querySelector('.todo-checkbox');
+            if (!hovered) return;
+            ids = hovered.dataset.id;
+        } else {
+            return;
+        }
         e.preventDefault();
 
-        var ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
         if (key === 'c') {
             htmx.ajax('POST', list.dataset.doneUrl,
                        {target: list, swap: 'innerHTML', values: {todo_ids: ids}});
@@ -497,6 +506,12 @@ document.addEventListener('keydown', function(e) {
             htmx.ajax('POST', list.dataset.postponeUrl,
                        {target: list, swap: 'innerHTML', values: {todo_ids: ids}});
         }
+    }
+
+    if (e.shiftKey && key === 'P') {
+        var pausedBtn = document.querySelector('button[hx-post*="activate-postponed"]');
+        if (pausedBtn) { e.preventDefault(); pausedBtn.click(); }
+        return;
     }
 
     if (key === 'u') {
@@ -509,6 +524,70 @@ document.addEventListener('keydown', function(e) {
                    values: {todo_ids: toast.dataset.todoIds, prev_status: toast.dataset.prevStatus}});
     }
 });
+
+// --- Keyboard shortcut help overlay ---
+(function() {
+    var overlay = document.createElement('div');
+    overlay.id = 'kbd-help-overlay';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;align-items:center;justify-content:center;';
+    overlay.innerHTML = [
+        '<div style="background:#fff;border-radius:0.75rem;padding:1.5rem 2rem;max-width:26rem;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2);">',
+        '<h2 style="font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;margin:0 0 1rem;">Keyboard shortcuts</h2>',
+
+        _kbdSection('Everywhere'),
+        '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;"><tbody>',
+        _kbdRow('?', 'Show this help'),
+        _kbdRow('Esc', 'Cancel / close'),
+        '</tbody></table>',
+
+        _kbdSection('Todo list'),
+        '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;"><tbody>',
+        _kbdRow('click', 'Select / deselect item'),
+        _kbdRow('e', 'Edit hovered item'),
+        _kbdRow('c', 'Mark hovered / selected done'),
+        _kbdRow('p', 'Postpone hovered / selected'),
+        _kbdRow('Shift+P', 'Unpause all postponed items'),
+        _kbdRow('u', 'Undo last action'),
+        '</tbody></table>',
+
+        _kbdSection('Done list'),
+        '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:0.25rem;"><tbody>',
+        _kbdRow('click', 'Select / deselect item'),
+        _kbdRow('r', 'Restore selected items'),
+        '</tbody></table>',
+
+        '</div>'
+    ].join('');
+    document.body.appendChild(overlay);
+
+    function _kbdSection(title) {
+        return '<p style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;margin:0 0 0.35rem;">' + title + '</p>';
+    }
+
+    function _kbdRow(key, desc) {
+        return '<tr><td style="padding:0.25rem 0.75rem 0.25rem 0;white-space:nowrap;">'
+             + '<kbd style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:0.25rem;padding:0.1rem 0.4rem;font-family:monospace;font-size:0.8rem;">'
+             + key + '</kbd></td>'
+             + '<td style="padding:0.25rem 0;color:#374151;">' + desc + '</td></tr>';
+    }
+
+    function showHelp() {
+        overlay.style.display = 'flex';
+    }
+    function hideHelp() {
+        overlay.style.display = 'none';
+    }
+
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) hideHelp();
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === '?') { e.preventDefault(); showHelp(); return; }
+        if (e.key === 'Escape') { hideHelp(); }
+    });
+}());
 
 htmx.onLoad(function(content) {
     initSortables(content);
