@@ -74,10 +74,16 @@ def _now_utc() -> datetime.datetime:
     return datetime.datetime.now(datetime.timezone.utc)
 
 
-def _undo_trigger(todo_ids: list[int], prev_status: str) -> str:
-    return json.dumps(
-        {"showUndoToast": {"ids": ",".join(str(i) for i in todo_ids), "prevStatus": prev_status}}
-    )
+def _undo_trigger(todo_ids: list[int], prev_status: str, texts: list[str], action: str) -> str:
+    label = texts[0] if len(texts) == 1 else f"{len(texts)} items"
+    return json.dumps({
+        "showUndoToast": {
+            "ids": ",".join(str(i) for i in todo_ids),
+            "prevStatus": prev_status,
+            "label": label,
+            "action": action,
+        }
+    })
 
 
 def _postponed_count(request) -> int:
@@ -151,9 +157,11 @@ def todo_activate(request):
 def todos_done(request):
     raw_ids = request.params.get("todo_ids", "")
     todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
+    texts = []
     for todo_id in todo_ids:
         todo = request.dbsession.get(Todo, todo_id)
         if todo:
+            texts.append(todo.text)
             todo.status = TodoStatus.done
             todo.done_at = _now_utc()
     todos = (
@@ -170,7 +178,7 @@ def todos_done(request):
     )
     request.response.content_type = "text/html"
     request.response.text = body
-    request.response.headers["HX-Trigger"] = _undo_trigger(todo_ids, "todo")
+    request.response.headers["HX-Trigger"] = _undo_trigger(todo_ids, "todo", texts, "completed")
     return request.response
 
 
@@ -178,9 +186,11 @@ def todos_done(request):
 def todos_postpone(request):
     raw_ids = request.params.get("todo_ids", "")
     todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
+    texts = []
     for todo_id in todo_ids:
         todo = request.dbsession.get(Todo, todo_id)
         if todo:
+            texts.append(todo.text)
             todo.status = TodoStatus.postponed
             todo.postponed_at = _now_utc()
     todos = (
@@ -197,7 +207,7 @@ def todos_postpone(request):
     )
     request.response.content_type = "text/html"
     request.response.text = body + _postponed_section_oob(request)
-    request.response.headers["HX-Trigger"] = _undo_trigger(todo_ids, "todo")
+    request.response.headers["HX-Trigger"] = _undo_trigger(todo_ids, "todo", texts, "postponed")
     return request.response
 
 
@@ -226,15 +236,33 @@ def todo_undo(request):
         prev_status = TodoStatus(prev_status_str)
     except ValueError:
         prev_status = TodoStatus.todo
+    texts = []
     for todo_id in todo_ids:
         todo = request.dbsession.get(Todo, todo_id)
         if todo:
+            texts.append(todo.text)
             todo.status = prev_status
             if prev_status != TodoStatus.done:
                 todo.done_at = None
             if prev_status != TodoStatus.postponed:
                 todo.postponed_at = None
-    return HTTPSeeOther(request.route_url("list_todos"))
+    todos = (
+        request.dbsession.execute(
+            select(Todo).where(Todo.status == TodoStatus.todo).order_by(Todo.created_at)
+        )
+        .scalars()
+        .all()
+    )
+    body = render(
+        "menage2:templates/_todo_groups.pt",
+        {"groups": build_tag_tree(todos)},
+        request=request,
+    )
+    label = texts[0] if len(texts) == 1 else f"{len(texts)} items"
+    request.response.content_type = "text/html"
+    request.response.text = body + _postponed_section_oob(request)
+    request.response.headers["HX-Trigger"] = json.dumps({"showUndoConfirm": {"label": label}})
+    return request.response
 
 
 @view_config(route_name="list_todos_done", renderer="menage2:templates/list_todos_done.pt")

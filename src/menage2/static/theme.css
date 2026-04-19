@@ -58,6 +58,25 @@
     }
 }
 
+/* Undo toast positioning */
+.undo-toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 9999;
+}
+
+@media (min-width: 768px) {
+    .undo-toast {
+        bottom: auto;
+        right: auto;
+        top: 0.75rem;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+    }
+}
+
 /* Todo swipe gestures */
 .todo-item {
     position: relative;

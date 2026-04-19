@@ -66,34 +66,46 @@ document.body.addEventListener('showAddTodoError', function(e) {
 
     var toast = document.createElement('div');
     toast.id = 'error-toast';
-    toast.className = 'fixed bottom-4 left-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 text-sm';
+    toast.className = 'fixed bottom-6 left-6 rounded-xl z-[9999] text-base font-semibold';
+    toast.style.cssText = 'background:#dc2626;color:#fff;padding:0.875rem 1.25rem;box-shadow:0 8px 32px rgba(0,0,0,0.45),0 2px 8px rgba(0,0,0,0.3);pointer-events:none;';
     toast.textContent = 'A todo needs text, not just tags.';
     document.body.appendChild(toast);
-    setTimeout(function() { toast.remove(); }, 3000);
+    setTimeout(function() { toast.remove(); }, 5000);
 });
+
+var _undoTimer = null;
 
 // Show undo toast when server fires showUndoToast HX-Trigger event
 document.body.addEventListener('showUndoToast', function(e) {
     var existing = document.getElementById('undo-toast');
     if (existing) existing.remove();
+    clearTimeout(_undoTimer);
 
     var toast = document.createElement('div');
     toast.id = 'undo-toast';
     toast.dataset.todoIds = e.detail.ids;
     toast.dataset.prevStatus = e.detail.prevStatus;
-    toast.className = 'fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-lg cursor-pointer z-50 text-sm';
-    toast.textContent = 'Undo (u)';
+    toast.dataset.label = e.detail.label || '';
+    toast.className = 'undo-toast rounded-xl text-base font-semibold cursor-pointer';
+    toast.style.cssText = 'background:#f97316;color:#fff;padding:0.875rem 1.25rem;box-shadow:0 8px 32px rgba(0,0,0,0.35),0 2px 8px rgba(0,0,0,0.2);';
+    toast.textContent = (e.detail.label || 'Item') + ' ' + (e.detail.action || 'completed') + '. (Undo)';
 
     toast.addEventListener('click', function() {
         document.dispatchEvent(new KeyboardEvent('keydown', {key: 'u', bubbles: true}));
     });
 
     document.body.appendChild(toast);
-    setTimeout(function() {
-        if (document.getElementById('undo-toast') === toast) {
-            toast.remove();
-        }
-    }, 4000);
+    _undoTimer = setTimeout(function() { toast.remove(); }, 7000);
+});
+
+document.body.addEventListener('showUndoConfirm', function(e) {
+    var toast = document.getElementById('undo-toast');
+    if (!toast) return;
+    var label = e.detail.label || 'Item';
+    toast.textContent = label + ' uncompleted. UNDO OK.';
+    toast.style.background = '#65a30d';
+    toast.style.cursor = 'default';
+    _undoTimer = setTimeout(function() { toast.remove(); }, 2500);
 });
 
 document.addEventListener('keydown', function(e) {
@@ -123,8 +135,9 @@ document.addEventListener('keydown', function(e) {
         var toast = document.getElementById('undo-toast');
         if (!toast) return;
         e.preventDefault();
+        clearTimeout(_undoTimer);
         htmx.ajax('POST', list.dataset.undoUrl,
-                  {target: document.body, swap: 'innerHTML',
+                  {target: list, swap: 'innerHTML',
                    values: {todo_ids: toast.dataset.todoIds, prev_status: toast.dataset.prevStatus}});
     }
 });

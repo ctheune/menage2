@@ -191,6 +191,8 @@ def test_todos_done_response_has_hx_trigger(app_request, dbsession):
     assert "showUndoToast" in trigger
     assert str(todo.id) in trigger["showUndoToast"]["ids"]
     assert trigger["showUndoToast"]["prevStatus"] == "todo"
+    assert trigger["showUndoToast"]["action"] == "completed"
+    assert trigger["showUndoToast"]["label"] == "Test"
 
 
 def test_todos_postpone_sets_status(app_request, dbsession):
@@ -272,6 +274,20 @@ def test_todo_undo_reverts_postponed_to_todo(app_request, dbsession):
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.todo
     assert todo.postponed_at is None
+
+
+def test_todo_undo_returns_list_html_with_confirm_trigger(app_request, dbsession):
+    todo = _todo("Undo me", status=TodoStatus.done, done_at=_now())
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    app_request.POST["prev_status"] = "todo"
+    todo_undo(app_request)
+    assert app_request.response.content_type == "text/html"
+    trigger = json.loads(app_request.response.headers["HX-Trigger"])
+    assert "showUndoConfirm" in trigger
+    assert trigger["showUndoConfirm"]["label"] == "Undo me"
 
 
 def test_list_todos_done_ordered_by_done_at(app_request, dbsession):
