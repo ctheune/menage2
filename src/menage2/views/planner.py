@@ -68,14 +68,15 @@ def add_week(request):
     request.dbsession.add(week)
 
     newest = request.dbsession.query(models.Day).order_by(models.Day.day.desc()).first()
-    newest = newest.day if newest else datetime.date.min()
+    newest = newest.day if newest else datetime.date.min
     start = datetime.date.today()
     start = max([newest, start])
 
     for i in range(7):
         day = models.Day(day=start + datetime.timedelta(days=i + 1), week=week)
         request.dbsession.add(day)
-        day.dinner = day.suggestions(1)[0]
+        suggestions = day.suggestions(1)
+        day.dinner = suggestions[0] if suggestions else None
 
     return HTTPSeeOther(request.route_url("edit_week", id=week.id))
 
@@ -132,8 +133,10 @@ def set_dinner(request):
     return HTTPSeeOther(request.route_url("edit_week", id=day.week.id))
 
 
-@view_config(route_name="send_to_rtm", request_method="POST", renderer="string")
-def send_to_rtm(request):
+@view_config(route_name="send_to_shopping_list", request_method="POST")
+def send_to_shopping_list(request):
+    from menage2.models.todo import Todo, TodoStatus
+
     week = (
         request.dbsession.query(models.Week)
         .options(joinedload(models.Week.days))
@@ -141,6 +144,46 @@ def send_to_rtm(request):
         .one()
     )
 
-    week.send_to_rtm()
+    aggregated = {}
+    non_numeric = []
 
-    return "Zur Einkaufsliste hinzugefügt!"
+    for day in week.days:
+        if not day.dinner:
+            continue
+        recipe_title = day.dinner.title
+        for usage in day.dinner.ingredients:
+            amount = usage.numeric_amount()
+            if not amount:
+                non_numeric.append((usage, recipe_title))
+                continue
+            unit = usage.unit or ""
+            by_unit = aggregated.setdefault(usage.ingredient, {})
+            if unit not in by_unit:
+                by_unit[unit] = [0.0, []]
+            by_unit[unit][0] += amount
+            if recipe_title not in by_unit[unit][1]:
+                by_unit[unit][1].append(recipe_title)
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    for ingredient, by_unit in aggregated.items():
+        for unit, (amount, recipes) in by_unit.items():
+            tags = {t for t in ingredient.tags_set if t.startswith("einkaufen:")}
+            amt_val = int(amount) if amount == int(amount) else amount
+            amt_str = " ".join(filter(None, [str(amt_val), unit]))
+            text = ingredient.description
+            if amt_str:
+                text += f" ({amt_str})"
+            note = "für: " + ", ".join(recipes)
+            request.dbsession.add(
+                Todo(text=text, tags=tags, status=TodoStatus.todo, created_at=now, note=note)
+            )
+
+    for usage, recipe_title in non_numeric:
+        tags = {t for t in usage.ingredient.tags_set if t.startswith("einkaufen:")}
+        note = "für: " + recipe_title
+        request.dbsession.add(
+            Todo(text=usage.to_shopping_list(), tags=tags, status=TodoStatus.todo, created_at=now, note=note)
+        )
+
+    return HTTPSeeOther(request.route_url("list_todos"))

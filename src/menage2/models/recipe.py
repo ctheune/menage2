@@ -103,9 +103,9 @@ class Ingredient(Base):
         [
             "diet:meat",
             "diet:animal",
-            "shopping:obst-u-gemuese",
-            "shopping:kühlung",
-            "shopping:asia-markt",
+            "einkaufen:obst-u-gemuese",
+            "einkaufen:kühlung",
+            "einkaufen:asia-markt",
         ]
     )
 

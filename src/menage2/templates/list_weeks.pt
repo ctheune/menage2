@@ -15,10 +15,27 @@
   </div>
 
   <div metal:fill-slot="content" class="px-8 py-4">
-      <ul>
-          <li tal:repeat="week weeks">
-              <a href="${request.route_url('edit_week', id=week.id)}">Woche vom ${format.date(week.first.day, "long")} – ${format.date(week.last.day, "long")}</a>&nbsp;
-          </li>
-      </ul>
+    <div class="mb-4 md:hidden">
+      <input type="button"
+          value="Neue Woche"
+          hx-target="body"
+          hx-push-url="true"
+          hx-put="${request.route_url('add_week')}"
+          class="text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100" />
+    </div>
+    <div tal:condition="not weeks" class="text-slate-500 text-sm italic py-4">
+      Noch keine Wochenpläne vorhanden.
+      <input type="button"
+          value="Erste Woche anlegen"
+          hx-target="body"
+          hx-push-url="true"
+          hx-put="${request.route_url('add_week')}"
+          class="ml-2 text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100" />
+    </div>
+    <ul>
+      <li tal:repeat="week weeks">
+        <a href="${request.route_url('edit_week', id=week.id)}">Woche vom ${format.date(week.first.day, "long")} – ${format.date(week.last.day, "long")}</a>&nbsp;
+      </li>
+    </ul>
   </div>
 </div>

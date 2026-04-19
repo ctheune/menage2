@@ -2,7 +2,8 @@
   <span metal:fill-slot="title">
     Wochenplaner vom ${format.date(week.first.day, "long")} – ${format.date(week.last.day, "long")}
     <div class="float-right">
-      <a href="#" hx-post="${request.route_url('send_to_rtm', id=week.id)}"
+      <a href="#" hx-post="${request.route_url('send_to_shopping_list', id=week.id)}"
+         hx-target="body"
       class="text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 align-middle inline-block">Auf die Einkaufsliste</a>
       <a href="${request.route_url('show_week', id=week.id)}" class="text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 align-middle inline-block">Drucken</a>
       <input type="submit" id="submit" form="edit-week" value="Speichern" class="
@@ -10,6 +11,11 @@
     </div>
   </span>
   <div metal:fill-slot="content" class="px-8 pt-8 print:p-0">
+    <div class="mb-4 md:hidden print:hidden">
+      <a href="#" hx-post="${request.route_url('send_to_shopping_list', id=week.id)}"
+         hx-target="body"
+         class="text-sm font-normal border border-slate-500 px-4 py-1 rounded bg-slate-100 inline-block">Auf die Einkaufsliste</a>
+    </div>
     <div hx-disinherit="*" class="text-right p-6">
       <a href="#" hx-put="${request.route_url('add_day', position='before', id=week.id)}"
          hx-target="body"

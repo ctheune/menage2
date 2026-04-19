@@ -4,18 +4,14 @@ import datetime
 
 from .meta import Base
 
-from menage2.models import Recipe, ConfigItem, IngredientUsage
+from menage2.models import Recipe, IngredientUsage
 
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import contains_eager
 
-import os
 import enum
 
 from sqlalchemy import Enum
-
-from rtmapi import Rtm
-
 
 class Weekday(enum.Enum):
     MONDAY = 1
@@ -61,74 +57,6 @@ class Week(Base):
     def last(self):
         return self.days[-1]
 
-    def send_to_rtm(self):
-        api_key = os.environ["RTM_API_KEY"]
-        shared_secret = os.environ["RTM_SHARED_SECRET"]
-        list_id = "24309112"
-        session = Session.object_session(self)
-        token = (
-            session.query(ConfigItem)
-            .filter(ConfigItem.key == "RTM_TOKEN")
-            .one()
-        )
-        api = Rtm(api_key, shared_secret, "write", token.value)
-        if not api.token_valid():
-            raise RuntimeError("Invalid RTM token, please log in first.")
-
-        result = api.rtm.timelines.create()
-        timeline = result.timeline.value
-
-        shopping_list = []
-
-        ingredients = {}
-
-        for day in self.days:
-            if not day.dinner:
-                continue
-            for ingredient_usage in day.dinner.ingredients:
-                amount = ingredient_usage.numeric_amount()
-                if not amount:
-                    shopping_list.append(ingredient_usage)
-                    continue
-
-                unit = ingredient_usage.unit or ""
-
-                by_unit = ingredients.setdefault(
-                    ingredient_usage.ingredient, {}
-                )
-                by_unit.setdefault(unit, 0)
-                by_unit[unit] += amount
-
-        for ingredient, by_unit in ingredients.items():
-            for unit, amount in by_unit.items():
-                usage = IngredientUsage()
-                usage.ingredient = ingredient
-                usage.unit = unit
-                usage.amount = str(amount)
-                shopping_list.append(usage)
-
-        for item in shopping_list:
-            result = api.rtm.tasks.add(
-                timeline=timeline,
-                list_id=list_id,
-                name=item.to_shopping_list(),
-            )
-            shopping_tags = []
-            for tag in item.ingredient.tags_set:
-                prefix, tag = tag.split(":")
-                if prefix != "shopping":
-                    continue
-                shopping_tags.append(tag)
-            if shopping_tags:
-                api.rtm.tasks.addTags(
-                    timeline=timeline,
-                    list_id=list_id,
-                    taskseries_id=result.list.taskseries.id,
-                    task_id=result.list.taskseries.task.id,
-                    tags=",".join(shopping_tags),
-                )
-
-
 class Schedule(Base):
     __tablename__ = "schedules"
 
@@ -161,7 +89,7 @@ class RecipeSeasons(Base):
         uselist=False,
         backref=backref("seasons", cascade="all, delete-orphan"),
     )
-    month = Column(Enum(Month), primary_key=True)
+    month = Column(Enum(Month, values_callable=lambda x: [e.name.lower() for e in x]), primary_key=True)
 
 
 class RecipeWeekDays(Base):
@@ -174,7 +102,7 @@ class RecipeWeekDays(Base):
         backref=backref("weekdays", cascade="all, delete-orphan"),
     )
 
-    weekday = Column(Enum(Weekday), primary_key=True)
+    weekday = Column(Enum(Weekday, values_callable=lambda x: [e.name.lower() for e in x]), primary_key=True)
 
 
 class Day(Base):

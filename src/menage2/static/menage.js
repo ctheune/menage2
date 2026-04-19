@@ -329,16 +329,23 @@ function initTagInput() {
         }
     });
 
-    // Capture phase fires before HTMX's bubble-phase submit handler serializes the form.
-    form.addEventListener('submit', function() {
-        hideAc();
+    var _pendingText = null;
+
+    function buildCompositeText() {
         var rawText = textInput.value;
         var typedTags = (rawText.match(/#\S+/g) || []).map(function(t) { return t.slice(1); });
-        typedTags.forEach(function(t) { if (tags.indexOf(t) === -1) tags.push(t); });
+        var allTags = tags.slice();
+        typedTags.forEach(function(t) { if (allTags.indexOf(t) === -1) allTags.push(t); });
         var cleanText = rawText.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
-        hiddenInput.value = [cleanText].concat(tags.map(function(t) { return '#' + t; })).join(' ').trim();
+        return [cleanText].concat(allTags.map(function(t) { return '#' + t; })).join(' ').trim();
+    }
+
+    // Capture phase: compute the composite text while the input still has the user's value,
+    // then clear the input and reset state. htmx:configRequest (below) injects it into the request.
+    form.addEventListener('submit', function() {
+        hideAc();
+        _pendingText = buildCompositeText();
         if (editingId) {
-            // Restore persistent tags after edit; don't persist the edited todo's tags
             tags = savedTags !== null ? savedTags : [];
             savedTags = null;
             editingId = null;
@@ -348,6 +355,15 @@ function initTagInput() {
         sessionStorage.setItem('todo-tags', JSON.stringify(tags));
         textInput.value = '';
     }, true);
+
+    // htmx:configRequest fires just before HTMX sends the request, after form serialization.
+    // Override the text parameter here so it always reflects the composite widget value.
+    form.addEventListener('htmx:configRequest', function(e) {
+        if (_pendingText !== null) {
+            e.detail.parameters['text'] = _pendingText;
+            _pendingText = null;
+        }
+    });
 
     // After successful submit (body swap), tags remain in sessionStorage and re-render on next initTagInput call.
     // On error, restore text + accumulated tags into composite widget.

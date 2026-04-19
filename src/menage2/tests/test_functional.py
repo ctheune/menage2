@@ -2,11 +2,7 @@ from menage2 import models
 
 
 def test_list__success(testapp, dbsession):
-    model = models.Recipe(title="Gulasch")
-    dbsession.add(model)
-    dbsession.flush()
-
-    res = testapp.get("/", status=200)
+    res = testapp.get("/todos", status=200)
     assert res.body
 
 

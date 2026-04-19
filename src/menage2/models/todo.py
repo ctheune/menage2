@@ -43,3 +43,4 @@ class Todo(Base):
     )
     done_at = Column(DateTime(timezone=True))
     postponed_at = Column(DateTime(timezone=True))
+    note = Column(Text)
