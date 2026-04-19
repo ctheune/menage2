@@ -45,13 +45,13 @@
     <div id="todo-quick-pick" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.75rem;min-height:1.5rem;"></div>
 
     <!-- Todo list -->
-    <div id="todo-list" class="-mx-4"
+    <div id="todo-list"
          data-done-url="${request.route_url('todos_done')}"
          data-postpone-url="${request.route_url('todos_postpone')}"
          data-undo-url="${request.route_url('todo_undo')}">
 
       <tal:block tal:condition="groups">
-        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;padding:0 1rem;">
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
           <button onclick="setAllGroups(true)"
                   style="font-size:0.7rem;color:#64748b;background:none;border:none;cursor:pointer;padding:0;">
             ⊞ expand all
@@ -69,7 +69,7 @@
              data-tag="${group['full_tag']}"
              data-parent-tag="${group['parent_tag']}"
              data-open="true"
-             style="padding-left:calc(1rem + ${group['depth'] * 1.25}rem)">
+             style="padding-left:${group['depth'] * 1.25}rem">
           <span class="tag-toggle">▾</span>
           <tal:block tal:condition="group['depth'] > 0 and group['name'] != '(untagged)'">└ </tal:block>${group['name']}
           <span class="tag-count-badge">${group['total_count']}</span>
@@ -78,7 +78,7 @@
         <ul tal:condition="group['items']"
             data-parent-tag="${group['full_tag']}"
             class="border-l-2 border-slate-200 mb-1"
-            style="margin-left:calc(1rem + ${group['depth'] * 1.25}rem)">
+            style="margin-left:${group['depth'] * 1.25}rem">
           <li tal:repeat="todo group['items']"
               id="todo-${todo.id}"
               class="todo-item flex items-center gap-2 py-2 px-3 bg-white mb-1 shadow-sm overflow-hidden"

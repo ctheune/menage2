@@ -393,7 +393,7 @@ document.body.addEventListener('showUndoToast', function(e) {
     toast.dataset.prevStatus = e.detail.prevStatus;
     toast.dataset.label = e.detail.label || '';
     toast.className = 'undo-toast rounded-xl text-base font-semibold cursor-pointer';
-    toast.style.cssText = 'background:#f97316;color:#fff;padding:0.875rem 1.25rem;box-shadow:0 8px 32px rgba(0,0,0,0.35),0 2px 8px rgba(0,0,0,0.2);';
+    toast.style.cssText = 'background:#fef3c7;color:#78350f;border:1px solid #f59e0b;padding:0.875rem 1.25rem;box-shadow:0 8px 32px rgba(0,0,0,0.2),0 2px 8px rgba(0,0,0,0.1);';
     toast.textContent = (e.detail.label || 'Item') + ' ' + (e.detail.action || 'completed') + '. (Undo)';
 
     toast.addEventListener('click', function() {
