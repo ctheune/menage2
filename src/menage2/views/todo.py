@@ -189,15 +189,6 @@ def add_todo(request):
     return HTTPSeeOther(request.route_url("list_todos"))
 
 
-@view_config(route_name="todo_activate", request_method="POST")
-def todo_activate(request):
-    todo_id = int(request.matchdict["id"])
-    todo = request.dbsession.get(Todo, todo_id)
-    todo.status = TodoStatus.todo
-    todo.done_at = None
-    todo.postponed_at = None
-    return HTTPSeeOther(request.route_url("list_todos"))
-
 
 @view_config(route_name="todos_done", request_method="POST")
 def todos_done(request):
@@ -323,3 +314,32 @@ def list_todos_done(request):
         .all()
     )
     return {"todos": todos}
+
+
+@view_config(route_name="todos_activate_batch", request_method="POST")
+def todos_activate_batch(request):
+    raw_ids = request.params.get("todo_ids", "")
+    todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
+    for todo_id in todo_ids:
+        todo = request.dbsession.get(Todo, todo_id)
+        if todo:
+            todo.status = TodoStatus.todo
+            todo.done_at = None
+            todo.postponed_at = None
+    todos = (
+        request.dbsession.execute(
+            select(Todo)
+            .where(Todo.status == TodoStatus.done)
+            .order_by(Todo.done_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    body = render(
+        "menage2:templates/_done_items.pt",
+        {"todos": todos},
+        request=request,
+    )
+    request.response.content_type = "text/html"
+    request.response.text = body
+    return request.response

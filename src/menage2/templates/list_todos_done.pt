@@ -10,37 +10,34 @@
     </div>
 
     <div id="done-list"
-         _="on keydown[key=='c'] from document
-              get <input.todo-checkbox:checked/> as boxes
-              for box in boxes
-                set url to box.closest('.todo-item').dataset.activateUrl
-                call htmx.ajax('POST', url, {target: box.closest('li'), swap: 'delete'})
-              end">
+         data-batch-activate-url="${request.route_url('todos_activate_batch')}">
 
       <tal:block tal:condition="todos">
         <ul>
           <li tal:repeat="todo todos"
               id="todo-${todo.id}"
-              class="todo-item flex items-center gap-2 py-2 px-3 bg-white rounded-lg mb-1 shadow-sm"
-              data-activate-url="${request.route_url('todo_activate', id=todo.id)}">
+              class="todo-item flex items-center gap-3 py-2 px-3 bg-white rounded-lg mb-1 shadow-sm">
 
             <input type="checkbox" class="todo-checkbox shrink-0" data-id="${todo.id}" />
 
-            <span class="flex-1 text-sm line-through text-slate-400">${todo.text}</span>
+            <span class="flex-1" style="font-size:0.875rem">${todo.text}</span>
 
             <span tal:repeat="tag python:sorted(todo.tags)"
                   class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full shrink-0">
               #${tag}
             </span>
 
-            <span class="text-xs text-slate-400 shrink-0"
-                  tal:condition="todo.done_at">
-              ${format.datetime(todo.done_at, format='short')}
+            <span tal:condition="todo.done_at"
+                  class="shrink-0"
+                  style="font-size:0.7rem;color:#94a3b8;cursor:default;"
+                  title="${absolute_with_weekday(todo.done_at)}">
+              ${humanize_ago(todo.done_at)}
             </span>
 
-            <button hx-post="${request.route_url('todo_activate', id=todo.id)}"
-                    hx-target="closest li"
-                    hx-swap="delete"
+            <button hx-post="${request.route_url('todos_activate_batch')}"
+                    hx-vals='{"todo_ids": "${todo.id}"}'
+                    hx-target="#done-list"
+                    hx-swap="innerHTML"
                     class="text-xs text-slate-400 hover:text-slate-700 shrink-0">
               ↩
             </button>

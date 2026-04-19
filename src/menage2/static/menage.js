@@ -151,6 +151,19 @@ document.body.addEventListener('showUndoConfirm', function(e) {
 document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+    // 'r' key: batch-restore checked items on the done list
+    if (e.key === 'r') {
+        var doneList = document.getElementById('done-list');
+        if (!doneList) return;
+        var boxes = Array.from(document.querySelectorAll('input.todo-checkbox:checked'));
+        if (boxes.length === 0) return;
+        e.preventDefault();
+        var ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
+        htmx.ajax('POST', doneList.dataset.batchActivateUrl,
+                  {target: doneList, swap: 'innerHTML', values: {todo_ids: ids}});
+        return;
+    }
+
     var list = document.getElementById('todo-list');
     if (!list) return;
 

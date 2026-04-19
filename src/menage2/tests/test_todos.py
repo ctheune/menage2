@@ -10,9 +10,9 @@ from menage2.views.todo import (
     list_todos,
     list_todos_done,
     parse_todo_input,
-    todo_activate,
     todo_undo,
     todos_activate_all_postponed,
+    todos_activate_batch,
     todos_done,
     todos_postpone,
 )
@@ -235,12 +235,13 @@ def test_todos_postpone_sets_status(app_request, dbsession):
     assert todo.postponed_at.tzinfo is not None
 
 
-def test_todo_activate_restores_status(app_request, dbsession):
+def test_todos_activate_batch_restores_status(app_request, dbsession):
     todo = _todo(status=TodoStatus.done, done_at=_now())
     dbsession.add(todo)
     dbsession.flush()
-    app_request.matchdict = {"id": todo.id}
-    todo_activate(app_request)
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    todos_activate_batch(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.todo
