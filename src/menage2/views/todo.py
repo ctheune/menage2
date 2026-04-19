@@ -93,12 +93,12 @@ def _postponed_section_oob(request) -> str:
     if count > 0:
         btn = (
             f'<button hx-post="{activate_url}" hx-target="body" '
-            f'class="rounded-lg bg-slate-500 px-3 py-1.5 text-sm text-white shadow hover:bg-slate-600">'
-            f"Activate postponed ({count})</button>"
+            f'class="rounded-full bg-slate-500 px-3 py-1 text-xs text-white shadow hover:bg-slate-600">'
+            f"⏸ Activate {count}</button>"
         )
     else:
         btn = ""
-    return f'<div id="postponed-section" hx-swap-oob="true" class="mb-4">{btn}</div>'
+    return f'<div id="postponed-section" hx-swap-oob="true">{btn}</div>'
 
 
 @view_config(route_name="list_todos", renderer="menage2:templates/list_todos.pt")

@@ -28,15 +28,25 @@
 
   <body class="bg-slate-300" hx-boost="true">
 
-  <nav class="bg-slate-800 px-6 py-3 shadow-lg text-slate-50 print:hidden">
-    <a href="${request.route_url('list_recipes')}">Rezepte</a> |
-    <a href="${request.route_url('list_ingredients')}">Zutaten</a> |
-    <a href="${request.route_url('list_weeks')}">Wochenpläne</a> |
-    <a href="${request.route_url('list_todos')}">Todos</a> |
-    <a href="${request.route_url('dashboard')}">Dashboard</a>
+  <nav class="bg-slate-800 shadow-lg text-slate-50 print:hidden">
+    <div class="nav-header">
+      <span class="font-semibold">Menage</span>
+      <span class="nav-page-title text-sm text-slate-300">
+        <metal:block define-slot="title-mobile"></metal:block>
+      </span>
+      <button class="nav-burger-btn text-2xl leading-none"
+              _="on click toggle .nav-open on #nav-links">&#9776;</button>
+      <div id="nav-links" class="nav-menu">
+        <a class="hover:text-slate-300" href="${request.route_url('list_recipes')}">Rezepte</a>
+        <a class="hover:text-slate-300" href="${request.route_url('list_ingredients')}">Zutaten</a>
+        <a class="hover:text-slate-300" href="${request.route_url('list_weeks')}">Wochenpläne</a>
+        <a class="hover:text-slate-300" href="${request.route_url('list_todos')}">TODO</a>
+        <a class="hover:text-slate-300" href="${request.route_url('dashboard')}">Dashboard</a>
+      </div>
+    </div>
   </nav>
 
-  <div class="p-8 pb-0 print:p-0 print:mb-8">
+  <div class="hidden md:block p-8 pb-0 print:block print:p-0 print:mb-8">
     <h1 class="text-xl font-bold">
       <metal:block define-slot="title">
       Der unendliche Speiseplan
@@ -46,6 +56,6 @@
   </div>
 
   <div metal:define-slot="content">No content</div>
-  
+
   </body>
 </html>
