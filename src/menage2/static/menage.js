@@ -443,6 +443,14 @@ document.body.addEventListener('showUndoConfirm', function(e) {
     _undoTimer = setTimeout(function() { toast.remove(); }, 2500);
 });
 
+var _hoveredTodoItem = null;
+document.addEventListener('mouseover', function(e) {
+    _hoveredTodoItem = e.target.closest('.todo-item') || _hoveredTodoItem;
+});
+document.addEventListener('mouseleave', function(e) {
+    if (e.target.closest && e.target.closest('.todo-item') === _hoveredTodoItem) _hoveredTodoItem = null;
+}, true);
+
 document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
@@ -456,6 +464,18 @@ document.addEventListener('keydown', function(e) {
         var ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
         htmx.ajax('POST', doneList.dataset.batchActivateUrl,
                   {target: doneList, swap: 'innerHTML', values: {todo_ids: ids}});
+        return;
+    }
+
+    if (e.key === 'e' && _hoveredTodoItem) {
+        e.preventDefault();
+        var li = _hoveredTodoItem;
+        document.dispatchEvent(new CustomEvent('todoEditStart', {detail: {
+            id: li.id.replace('todo-', ''),
+            text: li.dataset.todoText || '',
+            tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
+            editUrl: li.dataset.editUrl || ''
+        }}));
         return;
     }
 
