@@ -177,7 +177,10 @@ def send_to_shopping_list(request):
     now = datetime.datetime.now(datetime.timezone.utc)
 
     def _einkaufen_tags(ingredient):
-        tags = {t for t in ingredient.tags_set if t.startswith("einkaufen:")}
+        tags = {t.rstrip(":") for t in ingredient.tags_set if t.startswith("einkaufen:")}
+        tags.discard("einkaufen")  # bare prefix is not a useful tag
+        # Keep only the most specific tags (drop prefixes of other tags in the set)
+        tags = {t for t in tags if not any(other.startswith(t + ":") for other in tags)}
         return tags or {"einkaufen:supermarkt"}
 
     for ingredient, by_unit in aggregated.items():
