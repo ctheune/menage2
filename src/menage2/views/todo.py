@@ -316,6 +316,26 @@ def list_todos_done(request):
     return {"todos": todos}
 
 
+@view_config(route_name="edit_todo", request_method="POST")
+def edit_todo(request):
+    todo_id = int(request.matchdict["id"])
+    raw = request.params.get("text", "").strip()
+    todo = request.dbsession.get(Todo, todo_id)
+    if not todo or not raw:
+        return HTTPSeeOther(request.route_url("list_todos"))
+    text, tags = parse_todo_input(raw)
+    if not text:
+        request.response.status_int = 422
+        request.response.headers["HX-Reswap"] = "none"
+        request.response.headers["HX-Trigger"] = json.dumps(
+            {"showAddTodoError": {"input": raw}}
+        )
+        return request.response
+    todo.text = text
+    todo.tags = tags
+    return HTTPSeeOther(request.route_url("list_todos"))
+
+
 @view_config(route_name="todos_activate_batch", request_method="POST")
 def todos_activate_batch(request):
     raw_ids = request.params.get("todo_ids", "")

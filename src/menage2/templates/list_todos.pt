@@ -81,12 +81,18 @@
             style="margin-left:calc(1rem + ${group['depth'] * 1.25}rem)">
           <li tal:repeat="todo group['items']"
               id="todo-${todo.id}"
-              class="todo-item flex items-center gap-2 py-2 px-3 bg-white mb-1 shadow-sm overflow-hidden">
+              class="todo-item flex items-center gap-2 py-2 px-3 bg-white mb-1 shadow-sm overflow-hidden"
+              data-todo-text="${todo.text}"
+              data-todo-tags="${python:','.join(sorted(todo.tags))}"
+              data-edit-url="${request.route_url('edit_todo', id=todo.id)}">
 
             <input type="checkbox" class="todo-checkbox shrink-0"
                    data-id="${todo.id}" />
 
             <span class="flex-1" style="font-size:0.875rem">${todo.text}</span>
+
+            <button type="button" class="todo-edit-btn shrink-0" title="Edit"
+                    style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:0.85rem;padding:0 0.15rem;line-height:1;">✎</button>
           </li>
         </ul>
       </tal:block>

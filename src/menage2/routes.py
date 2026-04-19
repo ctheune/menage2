@@ -52,3 +52,4 @@ def includeme(config):
     config.add_route("todos_activate_all_postponed", "/todos/activate-postponed")
     config.add_route("todo_undo", "/todos/undo")
     config.add_route("todos_activate_batch", "/todos/activate-items")
+    config.add_route("edit_todo", "/todos/{id}/edit")

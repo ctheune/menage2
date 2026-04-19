@@ -7,6 +7,7 @@ from menage2.models.todo import Todo, TodoStatus
 from menage2.views.todo import (
     add_todo,
     build_tag_tree,
+    edit_todo,
     list_todos,
     list_todos_done,
     parse_todo_input,
@@ -392,3 +393,40 @@ def test_batch_done_endpoint(testapp, dbsession):
     for t in todos:
         dbsession.refresh(t)
         assert t.status == TodoStatus.done
+
+
+def test_edit_todo_updates_text_and_tags(app_request, dbsession):
+    todo = _todo("Old text", {"old-tag"})
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["text"] = "New text #new-tag"
+    edit_todo(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.text == "New text"
+    assert todo.tags == {"new-tag"}
+
+
+def test_edit_todo_only_tags_returns_422(app_request, dbsession):
+    todo = _todo("Something")
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["text"] = "#only-tag"
+    response = edit_todo(app_request)
+    assert response.status_int == 422
+    assert todo.text == "Something"
+
+
+def test_edit_todo_workflow(testapp, dbsession):
+    todo = _todo("Original")
+    dbsession.add(todo)
+    dbsession.flush()
+    testapp.post(f"/todos/{todo.id}/edit", {"text": "Updated #work"}, status=303)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.text == "Updated"
+    assert todo.tags == {"work"}

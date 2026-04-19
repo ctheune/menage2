@@ -98,6 +98,21 @@ function parseTagsFromRaw(raw) {
     return { tags: tagMatches, text: text };
 }
 
+// Delegated handler for the edit pencil button — fires todoEditStart event
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.todo-edit-btn');
+    if (!btn) return;
+    e.stopPropagation();
+    var li = btn.closest('li[id^="todo-"]');
+    if (!li) return;
+    document.dispatchEvent(new CustomEvent('todoEditStart', {detail: {
+        id: li.id.replace('todo-', ''),
+        text: li.dataset.todoText || '',
+        tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
+        editUrl: li.dataset.editUrl || ''
+    }}));
+});
+
 function initTagInput() {
     var container = document.getElementById('todo-tag-input');
     if (!container) return;
@@ -108,6 +123,9 @@ function initTagInput() {
     var quickPick = document.getElementById('todo-quick-pick');
 
     var tags = JSON.parse(sessionStorage.getItem('todo-tags') || '[]');
+    var addUrl = form.getAttribute('hx-post');
+    var savedTags = null; // tags saved before entering edit mode
+    var editingId = null;
 
     function renderPills() {
         container.querySelectorAll('.todo-tag-pill').forEach(function(el) { el.remove(); });
@@ -253,7 +271,46 @@ function initTagInput() {
         }
     });
 
+    textInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && acEl.style.display === 'none' && editingId) {
+            exitEditMode();
+        }
+    });
+
     textInput.addEventListener('blur', function() { setTimeout(hideAc, 150); });
+
+    // --- Edit mode ---
+    function enterEditMode(id, text, tagList, editUrl) {
+        savedTags = tags.slice();
+        editingId = id;
+        tags = tagList.slice();
+        renderPills();
+        renderQuickPick();
+        textInput.value = text;
+        form.setAttribute('hx-post', editUrl);
+        htmx.process(form);
+        container.classList.add('todo-tag-input--editing');
+        textInput.placeholder = 'Edit todo\u2026';
+        textInput.focus();
+    }
+
+    function exitEditMode() {
+        editingId = null;
+        tags = savedTags !== null ? savedTags : [];
+        savedTags = null;
+        renderPills();
+        renderQuickPick();
+        textInput.value = '';
+        form.setAttribute('hx-post', addUrl);
+        htmx.process(form);
+        container.classList.remove('todo-tag-input--editing');
+        textInput.placeholder = 'New todo\u2026';
+    }
+
+    document.addEventListener('todoEditStart', function(e) {
+        var d = e.detail;
+        enterEditMode(d.id, d.text, d.tags, d.editUrl);
+    });
 
     textInput.addEventListener('input', function() {
         var val = textInput.value;
@@ -280,6 +337,14 @@ function initTagInput() {
         typedTags.forEach(function(t) { if (tags.indexOf(t) === -1) tags.push(t); });
         var cleanText = rawText.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
         hiddenInput.value = [cleanText].concat(tags.map(function(t) { return '#' + t; })).join(' ').trim();
+        if (editingId) {
+            // Restore persistent tags after edit; don't persist the edited todo's tags
+            tags = savedTags !== null ? savedTags : [];
+            savedTags = null;
+            editingId = null;
+            container.classList.remove('todo-tag-input--editing');
+            textInput.placeholder = 'New todo\u2026';
+        }
         sessionStorage.setItem('todo-tags', JSON.stringify(tags));
         textInput.value = '';
     }, true);

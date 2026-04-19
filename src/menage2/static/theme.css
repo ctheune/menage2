@@ -151,6 +151,15 @@
     border-color: #22d3ee;
 }
 
+.todo-tag-input--editing {
+    border-color: #f59e0b;
+}
+
+.todo-tag-input--editing:focus-within {
+    box-shadow: 0 0 0 2px #fcd34d;
+    border-color: #f59e0b;
+}
+
 .todo-tag-input input[type="text"] {
     outline: none !important;
     box-shadow: none !important;
@@ -224,6 +233,15 @@
 .todo-ac-item.todo-ac-selected {
     background: #e0f2fe;
     color: #0369a1;
+}
+
+/* Edit button visibility */
+.todo-edit-btn {
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.todo-item:hover .todo-edit-btn {
+    opacity: 1;
 }
 
 /* Todo swipe gestures */
