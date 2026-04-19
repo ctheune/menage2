@@ -12,10 +12,10 @@
 
   <ul tal:condition="group['items']"
       class="border-l-2 border-slate-200 mb-1"
-      style="margin-left: ${group['depth'] * 1.25 + 0.25}rem">
+      style="margin-left: ${group['depth'] * 1.25}rem">
     <li tal:repeat="todo group['items']"
         id="todo-${todo.id}"
-        class="todo-item flex items-center gap-2 py-2 px-3 bg-white rounded-lg mb-1 shadow-sm overflow-hidden ml-2"
+        class="todo-item flex items-center gap-2 py-2 px-3 bg-white mb-1 shadow-sm overflow-hidden"
         data-done-url="${request.route_url('todo_done', id=todo.id)}"
         data-postpone-url="${request.route_url('todo_postpone', id=todo.id)}">
 
