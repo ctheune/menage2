@@ -29,6 +29,7 @@ def format_timedelta(td: timedelta):
 def globals_factory(event):
     locale_name = event["request"].locale_name
     locale = Locale(locale_name)
-    event["format"] = Format(locale, get_timezone("Europe/Berlin"))
-
+    settings = event["request"].registry.settings
+    tz_name = settings.get("menage.timezone", "Europe/Berlin")
+    event["format"] = Format(locale, get_timezone(tz_name))
     event["format_timedelta"] = format_timedelta

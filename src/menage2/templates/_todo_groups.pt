@@ -1,0 +1,30 @@
+<tal:block tal:repeat="group groups">
+  <h3 tal:condition="group['items'] or group['name'] == '(untagged)'"
+      class="text-xs font-semibold uppercase tracking-wide mt-4 mb-1"
+      style="padding-left: ${group['depth'] * 1.25}rem; color: ${group['depth'] == 0 and '#64748b' or '#94a3b8'}">
+    <tal:block tal:condition="group['depth'] > 0">└ </tal:block>${group['name']}
+  </h3>
+  <h3 tal:condition="not group['items'] and group['name'] != '(untagged)'"
+      class="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-3 mb-0.5"
+      style="padding-left: ${group['depth'] * 1.25}rem">
+    ${group['name']}
+  </h3>
+
+  <ul tal:condition="group['items']"
+      class="border-l-2 border-slate-200 mb-1"
+      style="margin-left: ${group['depth'] * 1.25 + 0.25}rem">
+    <li tal:repeat="todo group['items']"
+        id="todo-${todo.id}"
+        class="todo-item flex items-center gap-2 py-2 px-3 bg-white rounded-lg mb-1 shadow-sm overflow-hidden ml-2"
+        data-done-url="${request.route_url('todo_done', id=todo.id)}"
+        data-postpone-url="${request.route_url('todo_postpone', id=todo.id)}">
+
+      <input type="checkbox" class="todo-checkbox shrink-0"
+             data-id="${todo.id}" />
+
+      <span class="flex-1 text-sm">${todo.text}</span>
+    </li>
+  </ul>
+</tal:block>
+
+<p tal:condition="not groups" class="text-slate-500 text-sm italic">No todos yet.</p>

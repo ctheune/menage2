@@ -42,3 +42,13 @@ def includeme(config):
     config.add_route("timers", "/timers")
     config.add_route("timer", "/timer/{id}")
     config.add_route("timer_pause", "/timer/{id}/pause")
+
+    config.add_route("list_todos", "/todos")
+    config.add_route("list_todos_done", "/todos/done")
+    config.add_route("add_todo", "/todos/add")
+    config.add_route("todos_batch_done", "/todos/batch-done")
+    config.add_route("todos_activate_all_postponed", "/todos/activate-postponed")
+    config.add_route("todo_undo", "/todos/undo")
+    config.add_route("todo_done", "/todo/{id}/done")
+    config.add_route("todo_postpone", "/todo/{id}/postpone")
+    config.add_route("todo_activate", "/todo/{id}/activate")

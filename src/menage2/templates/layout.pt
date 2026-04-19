@@ -32,6 +32,7 @@
     <a href="${request.route_url('list_recipes')}">Rezepte</a> |
     <a href="${request.route_url('list_ingredients')}">Zutaten</a> |
     <a href="${request.route_url('list_weeks')}">Wochenpläne</a> |
+    <a href="${request.route_url('list_todos')}">Todos</a> |
     <a href="${request.route_url('dashboard')}">Dashboard</a>
   </nav>
 

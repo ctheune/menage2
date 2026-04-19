@@ -1,0 +1,56 @@
+<div metal:use-macro="load: layout.pt">
+
+  <div metal:fill-slot="title">Done Todos</div>
+
+  <div metal:fill-slot="content" class="px-4 py-4 max-w-2xl">
+
+    <div class="mb-4 flex items-center gap-4">
+      <a href="${request.route_url('list_todos')}"
+         class="text-sm text-cyan-600 underline hover:text-cyan-800">← Back to Todos</a>
+    </div>
+
+    <div id="done-list"
+         _="on keydown[key=='c'] from document
+              get <input.todo-checkbox:checked/> as boxes
+              for box in boxes
+                set url to box.closest('.todo-item').dataset.activateUrl
+                call htmx.ajax('POST', url, {target: box.closest('li'), swap: 'delete'})
+              end">
+
+      <tal:block tal:condition="todos">
+        <ul>
+          <li tal:repeat="todo todos"
+              id="todo-${todo.id}"
+              class="todo-item flex items-center gap-2 py-2 px-3 bg-white rounded-lg mb-1 shadow-sm"
+              data-activate-url="${request.route_url('todo_activate', id=todo.id)}">
+
+            <input type="checkbox" class="todo-checkbox shrink-0" data-id="${todo.id}" />
+
+            <span class="flex-1 text-sm line-through text-slate-400">${todo.text}</span>
+
+            <span tal:repeat="tag python:sorted(todo.tags)"
+                  class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full shrink-0">
+              #${tag}
+            </span>
+
+            <span class="text-xs text-slate-400 shrink-0"
+                  tal:condition="todo.done_at">
+              ${format.datetime(todo.done_at, format='short')}
+            </span>
+
+            <button hx-post="${request.route_url('todo_activate', id=todo.id)}"
+                    hx-target="closest li"
+                    hx-swap="delete"
+                    class="text-xs text-slate-400 hover:text-slate-700 shrink-0">
+              ↩
+            </button>
+          </li>
+        </ul>
+      </tal:block>
+
+      <p tal:condition="not todos" class="text-slate-500 text-sm italic">No completed todos.</p>
+
+    </div>
+  </div>
+
+</div>
