@@ -1,4 +1,38 @@
 
+function isGroupCollapsed(tag) {
+    if (!tag) return false;
+    var header = document.querySelector('.tag-group-header[data-tag="' + tag + '"]');
+    if (header && header.dataset.open === 'false') return true;
+    var colon = tag.lastIndexOf(':');
+    if (colon > -1) return isGroupCollapsed(tag.slice(0, colon));
+    return false;
+}
+
+function applyGroupVisibility() {
+    document.querySelectorAll('[data-parent-tag]').forEach(function(el) {
+        el.style.display = isGroupCollapsed(el.dataset.parentTag) ? 'none' : '';
+    });
+}
+
+function toggleGroup(tag) {
+    var header = document.querySelector('.tag-group-header[data-tag="' + tag + '"]');
+    if (!header) return;
+    header.dataset.open = header.dataset.open === 'false' ? 'true' : 'false';
+    applyGroupVisibility();
+}
+
+function setAllGroups(open) {
+    document.querySelectorAll('.tag-group-header').forEach(function(h) {
+        h.dataset.open = open ? 'true' : 'false';
+    });
+    applyGroupVisibility();
+}
+
+document.addEventListener('click', function(e) {
+    var header = e.target.closest('.tag-group-header');
+    if (header) toggleGroup(header.dataset.tag);
+});
+
 function swipePost(url, todoId, list) {
     htmx.ajax('POST', url, {target: list, swap: 'innerHTML', values: {todo_ids: todoId}});
 }

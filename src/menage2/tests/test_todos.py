@@ -103,6 +103,32 @@ def test_build_tag_tree_empty():
     assert build_tag_tree([]) == []
 
 
+def test_build_tag_tree_total_count_includes_descendants():
+    t1 = _todo("A", {"food:dairy"})
+    t2 = _todo("B", {"food:meat"})
+    flat = build_tag_tree([t1, t2])
+    food = next(g for g in flat if g["name"] == "food")
+    assert food["total_count"] == 2
+    dairy = next(g for g in flat if g["name"] == "dairy")
+    assert dairy["total_count"] == 1
+
+
+def test_build_tag_tree_parent_tag():
+    t = _todo("X", {"food:dairy"})
+    flat = build_tag_tree([t])
+    dairy = next(g for g in flat if g["name"] == "dairy")
+    assert dairy["parent_tag"] == "food"
+    food = next(g for g in flat if g["name"] == "food")
+    assert food["parent_tag"] == ""
+
+
+def test_build_tag_tree_untagged_has_stable_full_tag():
+    t = _todo("X", set())
+    flat = build_tag_tree([t])
+    assert flat[-1]["full_tag"] == "__untagged__"
+    assert flat[-1]["parent_tag"] == ""
+
+
 def test_build_tag_tree_multiple_tags_per_todo():
     t = _todo("X", {"shopping", "urgent"})
     flat = build_tag_tree([t])

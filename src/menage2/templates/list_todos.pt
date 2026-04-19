@@ -47,21 +47,35 @@
          data-postpone-url="${request.route_url('todos_postpone')}"
          data-undo-url="${request.route_url('todo_undo')}">
 
+      <tal:block tal:condition="groups">
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;padding:0 1rem;">
+          <button onclick="setAllGroups(true)"
+                  style="font-size:0.7rem;color:#64748b;background:none;border:none;cursor:pointer;padding:0;">
+            ⊞ expand all
+          </button>
+          <span style="color:#cbd5e1;font-size:0.7rem;">·</span>
+          <button onclick="setAllGroups(false)"
+                  style="font-size:0.7rem;color:#64748b;background:none;border:none;cursor:pointer;padding:0;">
+            ⊟ collapse all
+          </button>
+        </div>
+      </tal:block>
+
       <tal:block tal:repeat="group groups">
-        <h3 tal:condition="group['items'] or group['name'] == '(untagged)'"
-            class="text-xs font-semibold uppercase tracking-wide mt-4 mb-1"
-            style="padding-left: ${group['depth'] * 1.25}rem; color: ${group['depth'] == 0 and '#64748b' or '#94a3b8'}">
-          <tal:block tal:condition="group['depth'] > 0">└ </tal:block>${group['name']}
-        </h3>
-        <h3 tal:condition="not group['items'] and group['name'] != '(untagged)'"
-            class="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-3 mb-0.5"
-            style="padding-left: ${group['depth'] * 1.25}rem">
-          ${group['name']}
-        </h3>
+        <div class="tag-group-header"
+             data-tag="${group['full_tag']}"
+             data-parent-tag="${group['parent_tag']}"
+             data-open="true"
+             style="padding-left:calc(1rem + ${group['depth'] * 1.25}rem)">
+          <span class="tag-toggle">▾</span>
+          <tal:block tal:condition="group['depth'] > 0 and group['name'] != '(untagged)'">└ </tal:block>${group['name']}
+          <span class="tag-count-badge">${group['total_count']}</span>
+        </div>
 
         <ul tal:condition="group['items']"
+            data-parent-tag="${group['full_tag']}"
             class="border-l-2 border-slate-200 mb-1"
-            style="margin-left: ${group['depth'] * 1.25}rem">
+            style="margin-left:calc(1rem + ${group['depth'] * 1.25}rem)">
           <li tal:repeat="todo group['items']"
               id="todo-${todo.id}"
               class="todo-item flex items-center gap-2 py-2 px-3 bg-white mb-1 shadow-sm overflow-hidden">
@@ -69,12 +83,12 @@
             <input type="checkbox" class="todo-checkbox shrink-0"
                    data-id="${todo.id}" />
 
-            <span class="flex-1 text-sm">${todo.text}</span>
+            <span class="flex-1" style="font-size:0.875rem">${todo.text}</span>
           </li>
         </ul>
       </tal:block>
 
-      <p tal:condition="not groups" class="text-slate-500 text-sm italic">No todos yet.</p>
+      <p tal:condition="not groups" class="text-slate-500 text-sm italic px-4">No todos yet.</p>
 
     </div>
   </div>

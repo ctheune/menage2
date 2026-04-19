@@ -77,6 +77,59 @@
     }
 }
 
+/* Tag group headers */
+.tag-group-header {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-top: 0.6rem;
+    padding-bottom: 0.15rem;
+    padding-right: 1rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    cursor: pointer;
+    user-select: none;
+}
+
+.tag-group-header[data-open="false"] {
+    color: #94a3b8;
+    padding-bottom: 0.6rem;
+}
+
+.tag-toggle {
+    display: inline-block;
+    font-size: 0.75rem;
+    transition: transform 0.15s ease;
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+
+.tag-group-header[data-open="false"] .tag-toggle {
+    transform: rotate(-90deg);
+}
+
+.tag-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e2e8f0;
+    color: #64748b;
+    border-radius: 9999px;
+    padding: 0 0.35rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    min-width: 1.1em;
+    margin-left: 0.15rem;
+}
+
+.tag-group-header[data-open="false"] .tag-count-badge {
+    background: #f1f5f9;
+    color: #94a3b8;
+}
+
 /* Todo swipe gestures */
 .todo-item {
     position: relative;

@@ -35,21 +35,29 @@ def _insert(node: dict, segments: list, full_tag: str, todo: Todo) -> None:
         _insert(node[head]["children"], rest, full_tag, todo)
 
 
+def _subtree_count(node: dict) -> int:
+    return len(node["items"]) + sum(_subtree_count(c) for c in node["children"].values())
+
+
 def _flatten(node: dict, result: list, depth: int) -> None:
     for name, data in sorted(node.items()):
+        full_tag = data["full_tag"]
+        parent_tag = full_tag.rsplit(":", 1)[0] if ":" in full_tag else ""
         result.append(
             {
                 "name": name,
-                "full_tag": data["full_tag"],
+                "full_tag": full_tag,
+                "parent_tag": parent_tag,
                 "depth": depth,
                 "items": data["items"],
+                "total_count": _subtree_count(data),
             }
         )
         _flatten(data["children"], result, depth + 1)
 
 
 def build_tag_tree(todos: list) -> list[dict]:
-    """Return flat list [{name, full_tag, depth, items}] for template iteration."""
+    """Return flat list [{name, full_tag, parent_tag, depth, items, total_count}]."""
     tree: dict = {}
     untagged = []
     for todo in todos:
@@ -65,7 +73,14 @@ def build_tag_tree(todos: list) -> list[dict]:
     _flatten(tree, result, 0)
     if untagged:
         result.append(
-            {"name": "(untagged)", "full_tag": "", "depth": 0, "items": untagged}
+            {
+                "name": "(untagged)",
+                "full_tag": "__untagged__",
+                "parent_tag": "",
+                "depth": 0,
+                "items": untagged,
+                "total_count": len(untagged),
+            }
         )
     return result
 
