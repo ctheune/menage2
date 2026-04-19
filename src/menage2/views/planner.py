@@ -168,9 +168,13 @@ def send_to_shopping_list(request):
 
     now = datetime.datetime.now(datetime.timezone.utc)
 
+    def _einkaufen_tags(ingredient):
+        tags = {t for t in ingredient.tags_set if t.startswith("einkaufen:")}
+        return tags or {"einkaufen"}
+
     for ingredient, by_unit in aggregated.items():
         for unit, by_recipe in by_unit.items():
-            tags = {t for t in ingredient.tags_set if t.startswith("einkaufen:")}
+            tags = _einkaufen_tags(ingredient)
             total = sum(by_recipe.values())
             total_str = _fmt_amt(total, unit)
             text = ingredient.description
@@ -183,7 +187,7 @@ def send_to_shopping_list(request):
             )
 
     for usage, recipe_title in non_numeric:
-        tags = {t for t in usage.ingredient.tags_set if t.startswith("einkaufen:")}
+        tags = _einkaufen_tags(usage.ingredient)
         amt_str = _fmt_amt(usage.numeric_amount() or 0, usage.unit or "") if usage.numeric_amount() else ""
         note = "für: " + recipe_title + (f" ({amt_str})" if amt_str else "")
         request.dbsession.add(
