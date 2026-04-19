@@ -133,7 +133,8 @@ document.addEventListener('click', function(e) {
 
 function initTagInput() {
     var container = document.getElementById('todo-tag-input');
-    if (!container) return;
+    if (!container || container.dataset.tagInputInit) return;
+    container.dataset.tagInputInit = '1';
 
     var textInput = document.getElementById('todo-text');
     var hiddenInput = document.getElementById('todo-hidden-text');
