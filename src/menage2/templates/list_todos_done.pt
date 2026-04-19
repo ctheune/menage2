@@ -16,35 +16,37 @@
         <ul>
           <li tal:repeat="todo todos"
               id="todo-${todo.id}"
-              class="todo-item flex items-center gap-3 py-2 px-3 bg-white rounded-lg mb-1 shadow-sm">
+              class="todo-item mb-1 shadow-sm">
 
-            <input type="checkbox" class="todo-checkbox shrink-0" data-id="${todo.id}" />
+            <div class="todo-content flex items-center py-2 px-3 bg-white rounded-lg" style="gap:0.75rem">
+              <input type="checkbox" class="todo-checkbox shrink-0" data-id="${todo.id}" />
 
-            <span class="flex-1 min-w-0" style="font-size:0.875rem;display:flex;flex-direction:column;gap:0.1rem;">
-              <span>${todo.text}</span>
-              <span tal:condition="todo.note"
-                    style="font-size:0.7rem;color:#94a3b8;">${todo.note}</span>
-            </span>
+              <span class="flex-1 min-w-0" style="font-size:0.875rem;display:flex;flex-direction:column;gap:0.1rem;">
+                <span>${todo.text}</span>
+                <span tal:condition="todo.note"
+                      style="font-size:0.7rem;color:#94a3b8;">${todo.note}</span>
+              </span>
 
-            <span tal:repeat="tag python:sorted(todo.tags)"
-                  class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full shrink-0">
-              #${tag}
-            </span>
+              <span tal:repeat="tag python:sorted(todo.tags)"
+                    class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full shrink-0">
+                #${tag}
+              </span>
 
-            <span tal:condition="todo.done_at"
-                  class="shrink-0"
-                  style="font-size:0.7rem;color:#94a3b8;cursor:default;"
-                  title="${absolute_with_weekday(todo.done_at)}">
-              ${humanize_ago(todo.done_at)}
-            </span>
+              <span tal:condition="todo.done_at"
+                    class="shrink-0"
+                    style="font-size:0.7rem;color:#94a3b8;cursor:default;"
+                    title="${absolute_with_weekday(todo.done_at)}">
+                ${humanize_ago(todo.done_at)}
+              </span>
 
-            <button hx-post="${request.route_url('todos_activate_batch')}"
-                    hx-vals='{"todo_ids": "${todo.id}"}'
-                    hx-target="#done-list"
-                    hx-swap="innerHTML"
-                    class="text-xs text-slate-400 hover:text-slate-700 shrink-0">
-              ↩
-            </button>
+              <button hx-post="${request.route_url('todos_activate_batch')}"
+                      hx-vals='{"todo_ids": "${todo.id}"}'
+                      hx-target="#done-list"
+                      hx-swap="innerHTML"
+                      class="text-xs text-slate-400 hover:text-slate-700 shrink-0">
+                ↩
+              </button>
+            </div>
           </li>
         </ul>
       </tal:block>
