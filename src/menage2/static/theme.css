@@ -81,6 +81,7 @@
 .todo-item {
     position: relative;
     touch-action: pan-y;
+    gap: 0.5rem;
 }
 
 /* Green "done" indicator on the left during right-swipe */
