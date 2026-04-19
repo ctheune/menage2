@@ -452,7 +452,9 @@ document.body.addEventListener('showUndoConfirm', function(e) {
     if (!toast) return;
     var label = e.detail.label || 'Item';
     toast.textContent = label + ' uncompleted. UNDO OK.';
-    toast.style.background = '#65a30d';
+    toast.style.background = '#dcfce7';
+    toast.style.color = '#14532d';
+    toast.style.borderColor = '#16a34a';
     toast.style.cursor = 'default';
     _undoTimer = setTimeout(function() { toast.remove(); }, 2500);
 });
