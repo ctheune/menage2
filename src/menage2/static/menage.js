@@ -66,11 +66,6 @@ function initTodoSwipe(content) {
             item.dataset.swipeDir = dx > 0 ? 'right' : (dx < 0 ? 'left' : '');
         }, {passive: true});
 
-        item.addEventListener('click', function(e) {
-            var checkbox = item.querySelector('.todo-checkbox');
-            if (!checkbox || e.target === checkbox) return;
-            checkbox.checked = !checkbox.checked;
-        });
 
         item.addEventListener('touchend', function() {
             item.style.transition = 'transform 0.2s ease';
@@ -97,6 +92,16 @@ function parseTagsFromRaw(raw) {
     var text = raw.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
     return { tags: tagMatches, text: text };
 }
+
+// Delegated handler: clicking a todo-item row toggles its checkbox
+document.addEventListener('click', function(e) {
+    var item = e.target.closest('.todo-item');
+    if (!item) return;
+    if (e.target.closest('.todo-edit-btn')) return;
+    var checkbox = item.querySelector('.todo-checkbox');
+    if (!checkbox || e.target === checkbox) return;
+    checkbox.checked = !checkbox.checked;
+});
 
 // Delegated handler for the edit pencil button — fires todoEditStart event
 document.addEventListener('click', function(e) {
