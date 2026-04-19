@@ -6,13 +6,12 @@ suggestions what to cook when.
 
 ## Hacking
 
-Set up environment:
+Run development environment:
 
-  $ poetry install 
-  $ poetry run pytest
-  $ poetry run pserve development.ini
+  $ devenv up
+  
+Run tests:
 
-Regenerate tailwind.css:
+  $ devenv test
 
-  $ cd tailwindcss; npx tailwindcss -i ./css/input.css -o ../recipedb/static/tailwind.css --watch
-
+App is reachable via http://127.0.0.1:6543

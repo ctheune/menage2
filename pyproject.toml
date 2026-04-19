@@ -3,7 +3,7 @@ name = "menage2"
 version = "0.1.0"
 description = ""
 authors = [{ name = "Christian Theune", email = "christian@theune.cc" }]
-requires-python = "~=3.10"
+requires-python = "~=3.10.0"
 readme = "README.md"
 license.text = "MIT"
 dependencies = [

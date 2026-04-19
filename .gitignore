@@ -24,3 +24,14 @@ test
 *.sqlite3
 .web_cache/
 db.sql
+
+# Devenv
+.devenv*
+devenv.local.nix
+devenv.local.yaml
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml
