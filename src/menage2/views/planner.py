@@ -188,7 +188,10 @@ def send_to_shopping_list(request):
             text = ingredient.description
             if total_str:
                 text += f" ({total_str})"
-            parts = [f"{title} ({_fmt_amt(amt, unit)})" for title, amt in by_recipe.items()]
+            if len(by_recipe) == 1:
+                parts = list(by_recipe.keys())
+            else:
+                parts = [f"{title} ({_fmt_amt(amt, unit)})" for title, amt in by_recipe.items()]
             note = "für: " + ", ".join(parts)
             request.dbsession.add(
                 Todo(text=text, tags=tags, status=TodoStatus.todo, created_at=now, note=note)

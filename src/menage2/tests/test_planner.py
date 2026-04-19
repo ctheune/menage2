@@ -63,7 +63,7 @@ def test_send_to_shopping_list_creates_todos(app_request, dbsession):
     tomaten = by_text["Tomaten (500 g)"]
     assert tomaten.status == TodoStatus.todo
     assert "einkaufen:obst-u-gemuese" in tomaten.tags
-    assert "Tomatensalat (500 g)" in tomaten.note
+    assert tomaten.note == "für: Tomatensalat"
 
     salz = by_text["Salz"]
     assert salz.status == TodoStatus.todo
