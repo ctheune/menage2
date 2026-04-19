@@ -1,11 +1,3 @@
-.htmx-request {
-	background-color: red;
-}
-
-.dashboard .htmx-request {
-	background-color: inherit;
-}
-
 /* Todo swipe gestures */
 .todo-item {
     position: relative;
