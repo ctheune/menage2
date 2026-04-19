@@ -63,7 +63,7 @@ def test_send_to_shopping_list_creates_todos(app_request, dbsession):
     tomaten = by_text["Tomaten (500 g)"]
     assert tomaten.status == TodoStatus.todo
     assert "einkaufen:obst-u-gemuese" in tomaten.tags
-    assert "Tomatensalat" in tomaten.note
+    assert "Tomatensalat (500 g)" in tomaten.note
 
     salz = by_text["Salz"]
     assert salz.status == TodoStatus.todo
@@ -100,8 +100,8 @@ def test_send_to_shopping_list_aggregates_amounts_across_days(app_request, dbses
     assert len(todos) == 1
     todo = todos[0]
     assert todo.text == "Mehl (500 g)"
-    assert "Kuchen" in todo.note
-    assert "Brot" in todo.note
+    assert "Kuchen (200 g)" in todo.note
+    assert "Brot (300 g)" in todo.note
 
 
 def test_send_to_shopping_list_redirects_to_todos(app_request, dbsession):

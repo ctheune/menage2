@@ -144,6 +144,7 @@ def send_to_shopping_list(request):
         .one()
     )
 
+    # aggregated: ingredient -> {unit -> {recipe_title -> amount_float}}
     aggregated = {}
     non_numeric = []
 
@@ -158,30 +159,33 @@ def send_to_shopping_list(request):
                 continue
             unit = usage.unit or ""
             by_unit = aggregated.setdefault(usage.ingredient, {})
-            if unit not in by_unit:
-                by_unit[unit] = [0.0, []]
-            by_unit[unit][0] += amount
-            if recipe_title not in by_unit[unit][1]:
-                by_unit[unit][1].append(recipe_title)
+            by_recipe = by_unit.setdefault(unit, {})
+            by_recipe[recipe_title] = by_recipe.get(recipe_title, 0.0) + amount
+
+    def _fmt_amt(amount, unit):
+        v = int(amount) if amount == int(amount) else amount
+        return " ".join(filter(None, [str(v), unit]))
 
     now = datetime.datetime.now(datetime.timezone.utc)
 
     for ingredient, by_unit in aggregated.items():
-        for unit, (amount, recipes) in by_unit.items():
+        for unit, by_recipe in by_unit.items():
             tags = {t for t in ingredient.tags_set if t.startswith("einkaufen:")}
-            amt_val = int(amount) if amount == int(amount) else amount
-            amt_str = " ".join(filter(None, [str(amt_val), unit]))
+            total = sum(by_recipe.values())
+            total_str = _fmt_amt(total, unit)
             text = ingredient.description
-            if amt_str:
-                text += f" ({amt_str})"
-            note = "für: " + ", ".join(recipes)
+            if total_str:
+                text += f" ({total_str})"
+            parts = [f"{title} ({_fmt_amt(amt, unit)})" for title, amt in by_recipe.items()]
+            note = "für: " + ", ".join(parts)
             request.dbsession.add(
                 Todo(text=text, tags=tags, status=TodoStatus.todo, created_at=now, note=note)
             )
 
     for usage, recipe_title in non_numeric:
         tags = {t for t in usage.ingredient.tags_set if t.startswith("einkaufen:")}
-        note = "für: " + recipe_title
+        amt_str = _fmt_amt(usage.numeric_amount() or 0, usage.unit or "") if usage.numeric_amount() else ""
+        note = "für: " + recipe_title + (f" ({amt_str})" if amt_str else "")
         request.dbsession.add(
             Todo(text=usage.to_shopping_list(), tags=tags, status=TodoStatus.todo, created_at=now, note=note)
         )
