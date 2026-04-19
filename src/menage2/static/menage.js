@@ -159,6 +159,102 @@ function initTagInput() {
         textInput.focus();
     });
 
+    // --- Autocomplete ---
+    var acEl = document.createElement('div');
+    acEl.className = 'todo-tag-autocomplete';
+    acEl.style.display = 'none';
+    form.style.position = 'relative';
+    form.appendChild(acEl);
+    var acSelected = -1;
+
+    function acItems() { return Array.from(acEl.querySelectorAll('.todo-ac-item')); }
+
+    function hideAc() { acEl.style.display = 'none'; acSelected = -1; }
+
+    function showAc(matches) {
+        if (!matches.length) { hideAc(); return; }
+        acSelected = -1;
+        acEl.innerHTML = '';
+        matches.forEach(function(tag) {
+            var item = document.createElement('div');
+            item.className = 'todo-ac-item';
+            item.textContent = '#' + tag;
+            item.dataset.tag = tag;
+            item.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                selectAc(tag);
+            });
+            acEl.appendChild(item);
+        });
+        acEl.style.display = 'block';
+    }
+
+    function selectAc(tag) {
+        var val = textInput.value;
+        var cursor = textInput.selectionStart;
+        var before = val.slice(0, cursor).replace(/#\S*$/, '');
+        var after = val.slice(cursor);
+        textInput.value = (before + after).replace(/  +/g, ' ');
+        hideAc();
+        addTag(tag);
+    }
+
+    function fuzzyScore(fragment, tag) {
+        if (!fragment) return 2;
+        var f = fragment.toLowerCase(), t = tag.toLowerCase();
+        if (t.startsWith(f)) return 0;
+        if (t.split(':').some(function(s) { return s.startsWith(f); })) return 1;
+        // subsequence match: every char of f must appear in t in order
+        var fi = 0;
+        for (var ti = 0; ti < t.length && fi < f.length; ti++) {
+            if (t[ti] === f[fi]) fi++;
+        }
+        return fi === f.length ? 2 : -1;
+    }
+
+    function updateAc() {
+        var val = textInput.value;
+        var cursor = textInput.selectionStart;
+        var before = val.slice(0, cursor);
+        var m = before.match(/#(\S*)$/);
+        if (!m) { hideAc(); return; }
+        var fragment = m[1];
+        var known = Array.from(document.querySelectorAll('.tag-group-header[data-tag]'))
+            .map(function(el) { return el.dataset.tag; })
+            .filter(function(t) { return t && t !== '__untagged__' && tags.indexOf(t) === -1; });
+        var scored = [];
+        known.forEach(function(t) {
+            var s = fuzzyScore(fragment, t);
+            if (s >= 0) scored.push({tag: t, score: s});
+        });
+        scored.sort(function(a, b) { return a.score - b.score || a.tag.localeCompare(b.tag); });
+        showAc(scored.map(function(x) { return x.tag; }));
+    }
+
+    textInput.addEventListener('keydown', function(e) {
+        var items = acItems();
+        if (acEl.style.display === 'none' || !items.length) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            acSelected = Math.min(acSelected + 1, items.length - 1);
+            items.forEach(function(el, i) { el.classList.toggle('todo-ac-selected', i === acSelected); });
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            acSelected = Math.max(acSelected - 1, -1);
+            items.forEach(function(el, i) { el.classList.toggle('todo-ac-selected', i === acSelected); });
+        } else if ((e.key === 'Enter' || e.key === 'Tab') && acSelected >= 0) {
+            e.preventDefault();
+            selectAc(items[acSelected].dataset.tag);
+        } else if (e.key === 'Tab' && acSelected < 0 && items.length) {
+            e.preventDefault();
+            selectAc(items[0].dataset.tag);
+        } else if (e.key === 'Escape') {
+            hideAc();
+        }
+    });
+
+    textInput.addEventListener('blur', function() { setTimeout(hideAc, 150); });
+
     textInput.addEventListener('input', function() {
         var val = textInput.value;
         var re = /#(\S+) /g;
@@ -170,11 +266,15 @@ function initTagInput() {
         if (extracted.length > 0) {
             textInput.value = val.replace(/#\S+ /g, '').replace(/  +/g, ' ');
             extracted.forEach(addTag);
+            hideAc();
+        } else {
+            updateAc();
         }
     });
 
     // Capture phase fires before HTMX's bubble-phase submit handler serializes the form.
     form.addEventListener('submit', function() {
+        hideAc();
         var rawText = textInput.value;
         var typedTags = (rawText.match(/#\S+/g) || []).map(function(t) { return t.slice(1); });
         typedTags.forEach(function(t) { if (tags.indexOf(t) === -1) tags.push(t); });
