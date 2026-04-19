@@ -468,14 +468,22 @@ document.addEventListener('mouseleave', function(e) {
 document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-    // 'r' key: batch-restore checked items on the done list
+    // 'r' key: restore checked items on the done list, or hovered item as fallback
     if (e.key === 'r') {
         var doneList = document.getElementById('done-list');
         if (!doneList) return;
         var boxes = Array.from(document.querySelectorAll('input.todo-checkbox:checked'));
-        if (boxes.length === 0) return;
+        var ids;
+        if (boxes.length > 0) {
+            ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
+        } else if (_hoveredTodoItem) {
+            var hovered = _hoveredTodoItem.querySelector('.todo-checkbox');
+            if (!hovered) return;
+            ids = hovered.dataset.id;
+        } else {
+            return;
+        }
         e.preventDefault();
-        var ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
         htmx.ajax('POST', doneList.dataset.batchActivateUrl,
                   {target: doneList, swap: 'innerHTML', values: {todo_ids: ids}});
         return;
