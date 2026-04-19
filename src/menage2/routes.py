@@ -14,7 +14,8 @@ def includeme(config):
     config.add_route("ingredient_recipes", "/ingredient/{id}/recipes")
     config.add_route("ingredient_toggle_tag", "/ingredient/{id}/tag/{tag}")
 
-    config.add_route("list_recipes", "/")
+    config.add_route("home", "/")
+    config.add_route("list_recipes", "/recipes")
     config.add_route("add_recipe", "/recipe")
     config.add_route("edit_recipe", "/recipe/{id}/edit")
     config.add_route("recipe_steps", "/recipe/{id}/steps")

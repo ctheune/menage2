@@ -107,6 +107,11 @@ def _postponed_section_oob(request) -> str:
     return f'<div id="postponed-section" hx-swap-oob="true">{btn}</div>'
 
 
+@view_config(route_name="home")
+def home(request):
+    return HTTPSeeOther(request.route_url("list_todos"))
+
+
 @view_config(route_name="list_todos", renderer="menage2:templates/list_todos.pt")
 def list_todos(request):
     todos = (
