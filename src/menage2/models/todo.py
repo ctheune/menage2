@@ -1,8 +1,9 @@
 import datetime
 import enum
 
-from sqlalchemy import Column, Date, DateTime, Enum, Index, Integer, Text
+from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Index, Integer, Text
 from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.orm import relationship
 from sqlalchemy.types import TypeDecorator
 
 from .meta import Base
@@ -23,6 +24,40 @@ class TodoStatus(enum.Enum):
     todo = "todo"
     done = "done"
     on_hold = "on_hold"
+
+
+class RecurrenceKind(enum.Enum):
+    after = "after"
+    every = "every"
+
+
+class RecurrenceUnit(enum.Enum):
+    day = "day"
+    week = "week"
+    month = "month"
+    year = "year"
+
+
+class RecurrenceRule(Base):
+    """A repetition rule shared by an item and every instance spawned from it.
+
+    Two ``kind`` semantics:
+
+    * ``after`` — a spawn is created when the previous instance is marked done,
+      anchored ``interval_value × interval_unit`` after the completion date.
+    * ``every`` — instances fire on a fixed cadence regardless of completion.
+      ``weekday`` (0=Mon..6=Sun) anchors weekly rules ("every Wednesday").
+      ``month_day`` anchors monthly rules ("every 15th").
+    """
+
+    __tablename__ = "recurrence_rules"
+
+    id = Column(Integer, primary_key=True)
+    kind = Column(Enum(RecurrenceKind, name="recurrencekind"), nullable=False)
+    interval_value = Column(Integer, nullable=False, default=1)
+    interval_unit = Column(Enum(RecurrenceUnit, name="recurrenceunit"), nullable=False)
+    weekday = Column(Integer, nullable=True)  # 0=Mon..6=Sun for "every <weekday>"
+    month_day = Column(Integer, nullable=True)  # 1..31 for "every Nth"
 
 
 class Todo(Base):
@@ -46,4 +81,13 @@ class Todo(Base):
     due_date = Column(Date)
     note = Column(Text)
 
-    __table_args__ = (Index("ix_todos_due_date", "due_date"),)
+    recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
+    recurred_from_id = Column(Integer, ForeignKey("todos.id"), nullable=True)
+
+    recurrence = relationship("RecurrenceRule", lazy="joined")
+    recurred_from = relationship("Todo", remote_side="Todo.id", foreign_keys=[recurred_from_id])
+
+    __table_args__ = (
+        Index("ix_todos_due_date", "due_date"),
+        Index("ix_todos_recurrence_id", "recurrence_id"),
+    )

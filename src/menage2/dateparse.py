@@ -28,6 +28,28 @@ class ParsedDate:
     label: str  # short, human-friendly form for the live preview popover
 
 
+@dataclass(frozen=True)
+class RecurrenceSpec:
+    """Plain-data representation of a parsed recurrence rule.
+
+    Mirrors RecurrenceRule columns. Kept here (not in models/) so the parser
+    stays import-free of SQLAlchemy and remains trivially testable.
+    """
+    kind: str               # 'after' | 'every'
+    interval_value: int
+    interval_unit: str      # 'day' | 'week' | 'month' | 'year'
+    weekday: int | None = None    # 0=Mon..6=Sun
+    month_day: int | None = None  # 1..31
+
+
+_RECURRENCE_UNITS = {
+    "day": "day", "days": "day", "d": "day",
+    "week": "week", "weeks": "week", "w": "week",
+    "month": "month", "months": "month", "mo": "month",
+    "year": "year", "years": "year", "y": "year", "yr": "year",
+}
+
+
 _WEEKDAYS = {
     "monday": 0, "mon": 0,
     "tuesday": 1, "tue": 1, "tues": 1,
@@ -226,3 +248,137 @@ def parse_date(text: str, today: datetime.date) -> ParsedDate | None:
     if d:
         return ParsedDate(d, label_date(d, today))
     return None
+
+
+# ---------------------------------------------------------------------------
+# Recurrence
+# ---------------------------------------------------------------------------
+
+
+def _ordinal_to_int(text: str) -> int | None:
+    """Return 1..31 for '1st'..'31st' or '1'..'31', else None."""
+    m = re.fullmatch(r"(\d+)(?:st|nd|rd|th)?", text)
+    if not m:
+        return None
+    n = int(m.group(1))
+    return n if 1 <= n <= 31 else None
+
+
+def parse_recurrence(text: str) -> RecurrenceSpec | None:
+    """Resolve a recurrence fragment into a RecurrenceSpec.
+
+    Supported forms:
+
+    * ``every day`` / ``every week`` / ``every month`` / ``every year``
+    * ``every N days`` / ``every 2 weeks``
+    * ``every monday`` / ``every wed``
+    * ``every 15th`` / ``every 1st``
+    * ``after a day`` / ``after 1 week`` / ``after N months``
+
+    Returns None for empty or unparseable input.
+    """
+    if not text or not text.strip():
+        return None
+    s = _normalize(text)
+
+    # "every <weekday>"
+    m = re.fullmatch(r"every\s+(\w+)", s)
+    if m and m.group(1) in _WEEKDAYS:
+        return RecurrenceSpec(
+            kind="every", interval_value=1, interval_unit="week",
+            weekday=_WEEKDAYS[m.group(1)],
+        )
+
+    # "every <ordinal>"
+    m = re.fullmatch(r"every\s+(\d+(?:st|nd|rd|th)?)", s)
+    if m:
+        n = _ordinal_to_int(m.group(1))
+        if n is not None:
+            return RecurrenceSpec(
+                kind="every", interval_value=1, interval_unit="month",
+                month_day=n,
+            )
+
+    # "every|after a|N <unit>"
+    m = re.fullmatch(r"(every|after)\s+(?:(a|an|one)|(\d+))\s+(\w+)", s)
+    if m and m.group(4) in _RECURRENCE_UNITS:
+        kind = m.group(1)
+        n = 1 if m.group(2) else int(m.group(3))
+        if n < 1:
+            return None
+        return RecurrenceSpec(
+            kind=kind, interval_value=n,
+            interval_unit=_RECURRENCE_UNITS[m.group(4)],
+        )
+
+    # "every <unit>" (no number, no article)
+    m = re.fullmatch(r"every\s+(\w+)", s)
+    if m and m.group(1) in _RECURRENCE_UNITS:
+        return RecurrenceSpec(
+            kind="every", interval_value=1,
+            interval_unit=_RECURRENCE_UNITS[m.group(1)],
+        )
+
+    return None
+
+
+def label_recurrence(spec: RecurrenceSpec) -> str:
+    """Render a short, human-friendly label like 'every Wednesday'."""
+    if spec.weekday is not None:
+        names = ["Monday", "Tuesday", "Wednesday", "Thursday",
+                 "Friday", "Saturday", "Sunday"]
+        return f"every {names[spec.weekday]}"
+    if spec.month_day is not None:
+        suffix = "th"
+        if spec.month_day % 100 not in (11, 12, 13):
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(spec.month_day % 10, "th")
+        return f"every {spec.month_day}{suffix}"
+    n, unit = spec.interval_value, spec.interval_unit
+    if n == 1:
+        # "every day" reads naturally; "after a day" needs the article.
+        article = "" if spec.kind == "every" else "a "
+        return f"{spec.kind} {article}{unit}"
+    return f"{spec.kind} {n} {unit}s"
+
+
+def next_occurrence(spec: RecurrenceSpec, anchor_date: datetime.date) -> datetime.date:
+    """Return the next date the rule fires *strictly after* ``anchor_date``.
+
+    For ``after`` rules, ``anchor_date`` should be the completion date.
+    For ``every`` rules, ``anchor_date`` is the previous occurrence (or today
+    when there is no previous one yet).
+    """
+    if spec.weekday is not None:
+        return _soonest_weekday(anchor_date, spec.weekday)
+
+    if spec.month_day is not None:
+        # Next calendar occurrence of the requested day-of-month.
+        year, month = anchor_date.year, anchor_date.month
+        # Try this month first only if the day is strictly after anchor.
+        candidates = []
+        for advance in range(0, 14):  # at most a year forward
+            try_year = year + (month + advance - 1) // 12
+            try_month = ((month + advance - 1) % 12) + 1
+            try:
+                candidate = datetime.date(try_year, try_month, spec.month_day)
+            except ValueError:
+                continue  # e.g. Feb 30
+            if candidate > anchor_date:
+                candidates.append(candidate)
+                break
+        if candidates:
+            return candidates[0]
+        # Fallback: shouldn't happen for valid month_day in 1..28.
+        return anchor_date + datetime.timedelta(days=30)
+
+    n = spec.interval_value
+    unit = spec.interval_unit
+    if unit == "day":
+        return anchor_date + datetime.timedelta(days=n)
+    if unit == "week":
+        return anchor_date + datetime.timedelta(days=n * 7)
+    if unit == "month":
+        return anchor_date + relativedelta(months=n)
+    if unit == "year":
+        return anchor_date + relativedelta(years=n)
+    raise ValueError(f"Unknown recurrence unit: {unit}")

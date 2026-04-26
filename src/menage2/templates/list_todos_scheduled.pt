@@ -35,8 +35,11 @@
             data-todo-text="${todo.text}"
             data-todo-tags="${python:','.join(sorted(todo.tags))}"
             data-due-date="${todo.due_date.isoformat()}"
+            tal:attributes="data-recurrence python:_recurrence_label(todo);
+                            data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else ''"
             data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
-            data-set-due-url="${request.route_url('set_due_date', id=todo.id)}">
+            data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
+            data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}">
 
           <div class="todo-content d-flex align-items-center gap-2 py-2 px-3 bg-white">
             <input type="checkbox" class="form-check-input todo-checkbox flex-shrink-0"
@@ -48,6 +51,12 @@
                     class="badge bg-secondary rounded-pill ms-1">#${tag}</span>
               <span tal:condition="todo.note"
                     class="d-block text-muted" style="font-size:0.7rem">${todo.note}</span>
+            </span>
+
+            <span tal:condition="todo.recurrence_id"
+                  class="todo-recurrence flex-shrink-0 small"
+                  tal:attributes="title python:_recurrence_label(todo)">
+              <span class="todo-recurrence-label">${_recurrence_label(todo)}</span> ↻
             </span>
 
             <button type="button" class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted" title="Edit">✎</button>

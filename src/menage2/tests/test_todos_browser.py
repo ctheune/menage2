@@ -293,6 +293,143 @@ def test_help_overlay_persists_after_htmx_swap(page):
     page.wait_for_selector("#kbd-help-overlay", state="visible", timeout=2000)
 
 
+# ---------------------------------------------------------------------------
+# Repetition feature
+# ---------------------------------------------------------------------------
+
+
+def test_star_opens_recurrence_picker_and_adds_pill(page):
+    page.goto("/todos")
+    page.fill('#todo-text', "Water plants ")
+    page.locator('#todo-text').press("*")
+    page.wait_for_selector(".todo-popover[data-role='recurrence-picker']", timeout=2000)
+    page.click("text=every week")
+    page.wait_for_selector(".todo-rec-pill", timeout=2000)
+    page.locator('#todo-text').press("Enter")
+    page.wait_for_load_state("networkidle")
+    item = page.locator('.todo-item[data-todo-text="Water plants"]')
+    assert item.count() == 1
+    # Recurrence badge should be present on the rendered row
+    assert item.locator(".todo-recurrence").count() == 1
+
+
+def test_f_key_opens_recurrence_picker_for_hovered(page):
+    page.goto("/todos")
+    _add_todo(page, "F-key target")
+    page.wait_for_selector('.todo-item[data-todo-text="F-key target"]')
+    _hover_and_blur(page, '.todo-item[data-todo-text="F-key target"]')
+    page.keyboard.press("f")
+    page.wait_for_selector(".todo-popover[data-role='recurrence-picker']", timeout=2000)
+    assert page.locator(".todo-popover[data-role='recurrence-picker']").is_visible()
+
+
+def test_recurrence_history_panel_opens_on_badge_click(page):
+    page.goto("/todos")
+    page.fill('#todo-text', "Yoga ")
+    page.locator('#todo-text').press("*")
+    page.wait_for_selector(".todo-popover[data-role='recurrence-picker']")
+    page.click("text=every month")
+    page.wait_for_selector(".todo-rec-pill")
+    page.locator('#todo-text').press("Enter")
+    page.wait_for_load_state("networkidle")
+    page.locator('.todo-item[data-todo-text="Yoga"] .todo-recurrence').click()
+    page.wait_for_selector(".todo-history-panel", timeout=2000)
+    assert page.locator(".todo-history-panel").is_visible()
+    assert page.locator(".todo-history-entry").count() >= 1
+
+
+def test_scheduled_view_shows_recurrence_badge_and_history(page):
+    """Scheduled-view items must surface the ↻ badge and the history panel."""
+    page.goto("/todos")
+    # Create a future-dated, recurring item via the composite input.
+    page.fill('#todo-text', "Cosmetics check ")
+    page.locator('#todo-text').press("^")
+    page.wait_for_selector(".todo-popover[data-role='date-picker']")
+    page.click("text=+1 week")
+    page.wait_for_selector(".todo-date-pill")
+    page.locator('#todo-text').press("*")
+    page.wait_for_selector(".todo-popover[data-role='recurrence-picker']")
+    page.click("text=every month")
+    page.wait_for_selector(".todo-rec-pill")
+    page.locator('#todo-text').press("Enter")
+    page.wait_for_load_state("networkidle")
+
+    page.goto("/todos/scheduled")
+    item = page.locator('.todo-item[data-todo-text="Cosmetics check"]')
+    assert item.count() == 1
+    assert item.locator(".todo-recurrence").count() == 1
+    item.locator(".todo-recurrence").click()
+    page.wait_for_selector(".todo-history-panel", timeout=2000)
+
+
+def test_e_key_loads_recurrence_pill(page):
+    """The 'e' shortcut must load the recurrence pill, just like the pencil."""
+    page.goto("/todos")
+    page.fill('#todo-text', "ekey rec ")
+    page.locator('#todo-text').press("*")
+    page.wait_for_selector(".todo-popover[data-role='recurrence-picker']")
+    page.click("text=every week")
+    page.wait_for_selector(".todo-rec-pill")
+    page.locator('#todo-text').press("Enter")
+    page.wait_for_load_state("networkidle")
+
+    _hover_and_blur(page, '.todo-item[data-todo-text="ekey rec"]')
+    page.keyboard.press("e")
+    page.wait_for_selector(".todo-rec-pill", timeout=2000)
+    assert "every week" in page.locator(".todo-rec-pill").first.inner_text()
+
+
+def test_recurrence_label_visible_next_to_badge(page):
+    page.goto("/todos")
+    page.fill('#todo-text', "rule label vis ")
+    page.locator('#todo-text').press("*")
+    page.wait_for_selector(".todo-popover[data-role='recurrence-picker']")
+    page.click("text=every month")
+    page.wait_for_selector(".todo-rec-pill")
+    page.locator('#todo-text').press("Enter")
+    page.wait_for_load_state("networkidle")
+
+    item = page.locator('.todo-item[data-todo-text="rule label vis"]')
+    label = item.locator(".todo-recurrence-label")
+    assert label.count() == 1
+    assert "every month" in label.first.inner_text()
+
+
+def test_scheduled_view_edit_loads_recurrence_pill(page):
+    """Editing a recurring item from /todos/scheduled pre-fills the rec pill."""
+    page.goto("/todos")
+    page.fill('#todo-text', "Inventory check ")
+    page.locator('#todo-text').press("^")
+    page.wait_for_selector(".todo-popover[data-role='date-picker']")
+    page.click("text=+1 week")
+    page.wait_for_selector(".todo-date-pill")
+    page.locator('#todo-text').press("*")
+    page.wait_for_selector(".todo-popover[data-role='recurrence-picker']")
+    page.click("text=every week")
+    page.wait_for_selector(".todo-rec-pill")
+    page.locator('#todo-text').press("Enter")
+    page.wait_for_load_state("networkidle")
+
+    page.goto("/todos/scheduled")
+    page.locator('.todo-item[data-todo-text="Inventory check"] .todo-edit-btn').click()
+    page.wait_for_selector(".todo-rec-pill", timeout=2000)
+    pill_text = page.locator(".todo-rec-pill").first.inner_text()
+    assert "every week" in pill_text
+
+
+def test_recurrence_picker_custom_input_preview(page):
+    page.goto("/todos")
+    _add_todo(page, "preview rec")
+    _hover_and_blur(page, '.todo-item[data-todo-text="preview rec"]')
+    page.keyboard.press("f")
+    page.wait_for_selector(".todo-popover[data-role='recurrence-picker'] input", timeout=2000)
+    page.fill(".todo-popover input", "every wednesday")
+    page.wait_for_function(
+        "Array.from(document.querySelectorAll('.todo-popover-preview')).some(el => /wednesday/i.test(el.textContent))",
+        timeout=5000,
+    )
+
+
 def test_scheduled_view_can_edit_item(page):
     """Editing a scheduled item via the form keeps the user on /todos/scheduled."""
     page.goto("/todos")

@@ -3,7 +3,15 @@ import datetime
 
 import pytest
 
-from menage2.dateparse import ParsedDate, label_date, parse_date
+from menage2.dateparse import (
+    ParsedDate,
+    RecurrenceSpec,
+    label_date,
+    label_recurrence,
+    next_occurrence,
+    parse_date,
+    parse_recurrence,
+)
 
 
 # Reference "today" used by every test. Wednesday, 29 April 2026 — chosen so
@@ -234,3 +242,112 @@ def test_label_date(d, expected):
 def test_parsed_date_carries_label():
     result = parse_date("tomorrow", TODAY)
     assert result == ParsedDate(date=_date("2026-04-30"), label="tomorrow")
+
+
+# ---------------------------------------------------------------------------
+# Recurrence parsing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("raw", ["", "  ", "blah", "every", "after", "every 5 fortnights"])
+def test_parse_recurrence_returns_none_for_unrecognised(raw):
+    assert parse_recurrence(raw) is None
+
+
+@pytest.mark.parametrize("raw,kind,n,unit", [
+    ("every day", "every", 1, "day"),
+    ("every week", "every", 1, "week"),
+    ("every month", "every", 1, "month"),
+    ("every year", "every", 1, "year"),
+    ("every 2 days", "every", 2, "day"),
+    ("every 3 weeks", "every", 3, "week"),
+    ("every a week", "every", 1, "week"),
+    ("after a day", "after", 1, "day"),
+    ("after a week", "after", 1, "week"),
+    ("after a month", "after", 1, "month"),
+    ("after a year", "after", 1, "year"),
+    ("after 10 days", "after", 10, "day"),
+    ("after one week", "after", 1, "week"),
+])
+def test_parse_recurrence_interval(raw, kind, n, unit):
+    spec = parse_recurrence(raw)
+    assert spec == RecurrenceSpec(kind=kind, interval_value=n, interval_unit=unit)
+
+
+@pytest.mark.parametrize("raw,wd", [
+    ("every monday", 0),
+    ("every mon", 0),
+    ("every wednesday", 2),
+    ("every wed", 2),
+    ("every sunday", 6),
+])
+def test_parse_recurrence_weekday(raw, wd):
+    spec = parse_recurrence(raw)
+    assert spec == RecurrenceSpec(
+        kind="every", interval_value=1, interval_unit="week", weekday=wd
+    )
+
+
+@pytest.mark.parametrize("raw,day", [
+    ("every 1st", 1),
+    ("every 15th", 15),
+    ("every 31st", 31),
+    ("every 22nd", 22),
+])
+def test_parse_recurrence_month_day(raw, day):
+    spec = parse_recurrence(raw)
+    assert spec == RecurrenceSpec(
+        kind="every", interval_value=1, interval_unit="month", month_day=day
+    )
+
+
+# ---------------------------------------------------------------------------
+# Recurrence labels
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("spec,expected", [
+    (RecurrenceSpec("every", 1, "day"), "every day"),
+    (RecurrenceSpec("every", 1, "week"), "every week"),
+    (RecurrenceSpec("every", 2, "week"), "every 2 weeks"),
+    (RecurrenceSpec("after", 1, "month"), "after a month"),
+    (RecurrenceSpec("after", 3, "day"), "after 3 days"),
+    (RecurrenceSpec("every", 1, "week", weekday=2), "every Wednesday"),
+    (RecurrenceSpec("every", 1, "month", month_day=1), "every 1st"),
+    (RecurrenceSpec("every", 1, "month", month_day=2), "every 2nd"),
+    (RecurrenceSpec("every", 1, "month", month_day=3), "every 3rd"),
+    (RecurrenceSpec("every", 1, "month", month_day=4), "every 4th"),
+    (RecurrenceSpec("every", 1, "month", month_day=11), "every 11th"),
+    (RecurrenceSpec("every", 1, "month", month_day=21), "every 21st"),
+])
+def test_label_recurrence(spec, expected):
+    assert label_recurrence(spec) == expected
+
+
+# ---------------------------------------------------------------------------
+# next_occurrence
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("spec,anchor,expected", [
+    # Plain interval
+    (RecurrenceSpec("after", 1, "day"), "2026-04-29", "2026-04-30"),
+    (RecurrenceSpec("after", 7, "day"), "2026-04-29", "2026-05-06"),
+    (RecurrenceSpec("every", 2, "week"), "2026-04-29", "2026-05-13"),
+    (RecurrenceSpec("after", 1, "month"), "2026-01-31", "2026-02-28"),
+    (RecurrenceSpec("after", 1, "year"), "2026-04-29", "2027-04-29"),
+    # Weekday — anchor=Wednesday → next Mon = +5
+    (RecurrenceSpec("every", 1, "week", weekday=0), "2026-04-29", "2026-05-04"),
+    # Anchor=Wednesday, weekday=Wed → next Wed = +7
+    (RecurrenceSpec("every", 1, "week", weekday=2), "2026-04-29", "2026-05-06"),
+    # Month day — anchor=Apr 29, day=15 → May 15
+    (RecurrenceSpec("every", 1, "month", month_day=15), "2026-04-29", "2026-05-15"),
+    # Month day — anchor=Apr 14, day=15 → Apr 15 (same month, future)
+    (RecurrenceSpec("every", 1, "month", month_day=15), "2026-04-14", "2026-04-15"),
+    # Month day=31 — Apr 30 → May 31 (Apr 31 invalid skipped)
+    (RecurrenceSpec("every", 1, "month", month_day=31), "2026-04-30", "2026-05-31"),
+])
+def test_next_occurrence(spec, anchor, expected):
+    a = datetime.date.fromisoformat(anchor)
+    e = datetime.date.fromisoformat(expected)
+    assert next_occurrence(spec, a) == e

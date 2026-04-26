@@ -63,6 +63,15 @@ def globals_factory(event):
         absolute = fmt.datetime(dt, format="medium")
         return f"{weekday}, {absolute}"
 
+    def _recurrence_label(todo) -> str:
+        """Short label for the ↻ badge — empty string when no rule."""
+        if not getattr(todo, "recurrence", None):
+            return ""
+        from menage2.dateparse import label_recurrence
+        from menage2.recurrence import rule_to_spec
+        return label_recurrence(rule_to_spec(todo.recurrence))
+
     event["format_timedelta"] = format_timedelta
     event["humanize_ago"] = humanize_ago
     event["absolute_with_weekday"] = humanize_ago_with_weekday
+    event["_recurrence_label"] = _recurrence_label

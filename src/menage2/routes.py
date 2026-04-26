@@ -40,6 +40,7 @@ def includeme(config):
     config.add_route("admin_user_deactivate", "/admin/users/{id}/deactivate")
     config.add_route("admin_user_delete", "/admin/users/{id}/delete")
     config.add_route("admin_dashboard_token", "/admin/dashboard-token")
+    config.add_route("admin_recurrence_sweep", "/admin/recurrence-sweep")
 
     config.add_route("home", "/")
     config.add_route("list_recipes", "/recipes")
@@ -81,3 +82,6 @@ def includeme(config):
     config.add_route("edit_todo", "/todos/{id}/edit")
     config.add_route("set_due_date", "/todos/{id}/due-date")
     config.add_route("parse_date_preview", "/todos/parse-date")
+    config.add_route("set_recurrence", "/todos/{id}/recurrence")
+    config.add_route("parse_recurrence_preview", "/todos/parse-recurrence")
+    config.add_route("recurrence_history", "/todos/{id}/history")

@@ -3,7 +3,14 @@ import json
 
 import pytest
 
-from menage2.models.todo import Todo, TodoStatus
+from menage2.dateparse import RecurrenceSpec
+from menage2.models.todo import (
+    RecurrenceKind,
+    RecurrenceRule,
+    RecurrenceUnit,
+    Todo,
+    TodoStatus,
+)
 from menage2.views.todo import (
     ParsedTodoInput,
     _bump_due_date,
@@ -13,8 +20,11 @@ from menage2.views.todo import (
     list_todos,
     list_todos_done,
     list_todos_scheduled,
+    parse_recurrence_preview,
     parse_todo_input,
+    recurrence_history,
     set_due_date,
+    set_recurrence,
     todo_undo,
     todos_activate_all_on_hold,
     todos_activate_batch,
@@ -674,3 +684,250 @@ def test_edit_todo_workflow(authenticated_testapp, dbsession):
     dbsession.refresh(todo)
     assert todo.text == "Updated"
     assert todo.tags == {"work"}
+
+
+# ---------------------------------------------------------------------------
+# Recurrence — parse_todo_input + add/edit/done flows
+# ---------------------------------------------------------------------------
+
+
+def test_parse_todo_input_extracts_recurrence():
+    parsed = parse_todo_input("Water plants *every week #garden")
+    assert parsed.text == "Water plants"
+    assert parsed.tags == {"garden"}
+    assert parsed.recurrence == RecurrenceSpec(
+        kind="every", interval_value=1, interval_unit="week"
+    )
+
+
+def test_parse_todo_input_extracts_after_recurrence():
+    parsed = parse_todo_input("Vacuum *after 10 days")
+    assert parsed.text == "Vacuum"
+    assert parsed.recurrence == RecurrenceSpec(
+        kind="after", interval_value=10, interval_unit="day"
+    )
+
+
+def test_parse_todo_input_extracts_weekday_recurrence():
+    parsed = parse_todo_input("Yoga *every wednesday #fitness")
+    assert parsed.text == "Yoga"
+    assert parsed.recurrence == RecurrenceSpec(
+        kind="every", interval_value=1, interval_unit="week", weekday=2
+    )
+
+
+def test_parse_todo_input_unparseable_recurrence_kept_as_text():
+    parsed = parse_todo_input("nope *blah blah")
+    assert parsed.recurrence is None
+    assert "*blah blah" in parsed.text
+
+
+def test_add_todo_creates_recurrence_rule(app_request, dbsession):
+    app_request.method = "POST"
+    app_request.POST["text"] = "Water plants *every week"
+    add_todo(app_request)
+    todo = dbsession.query(Todo).one()
+    assert todo.text == "Water plants"
+    assert todo.recurrence_id is not None
+    rule = dbsession.get(RecurrenceRule, todo.recurrence_id)
+    assert rule.kind == RecurrenceKind.every
+    assert rule.interval_unit == RecurrenceUnit.week
+    assert rule.interval_value == 1
+
+
+def test_edit_todo_updates_existing_rule_in_place(app_request, dbsession):
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    todo = _todo("Yoga", recurrence_id=rule.id)
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["text"] = "Yoga *every 2 weeks"
+    edit_todo(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    dbsession.refresh(rule)
+    assert todo.recurrence_id == rule.id
+    assert rule.interval_value == 2
+
+
+def test_edit_todo_clears_recurrence_when_dropped(app_request, dbsession):
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    todo = _todo("Yoga", recurrence_id=rule.id)
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["text"] = "Yoga"
+    edit_todo(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.recurrence_id is None
+
+
+def test_todos_done_spawns_after_instance(app_request, dbsession):
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.after,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    todo = _todo("Vacuum", recurrence_id=rule.id)
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    todos_done(app_request)
+    dbsession.flush()
+    children = dbsession.query(Todo).filter(Todo.recurred_from_id == todo.id).all()
+    assert len(children) == 1
+    assert children[0].text == "Vacuum"
+    assert children[0].recurrence_id == rule.id
+    assert children[0].due_date == _today() + datetime.timedelta(days=7)
+
+
+def test_todos_done_spawns_every_instance(app_request, dbsession):
+    """Completing the only active in an every-chain must spawn the next."""
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+        weekday=_today().weekday(),
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    todo = _todo("Weekly", recurrence_id=rule.id, due_date=_today())
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    todos_done(app_request)
+    dbsession.flush()
+    pending = dbsession.query(Todo).filter(
+        Todo.recurrence_id == rule.id,
+        Todo.status == TodoStatus.todo,
+    ).all()
+    assert len(pending) == 1
+    assert pending[0].due_date == _today() + datetime.timedelta(days=7)
+    assert pending[0].recurred_from_id == todo.id
+
+
+# ---------------------------------------------------------------------------
+# set_recurrence / parse_recurrence_preview / recurrence_history
+# ---------------------------------------------------------------------------
+
+
+def test_set_recurrence_creates_rule(app_request, dbsession):
+    todo = _todo("Subject")
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["recurrence"] = "every wednesday"
+    set_recurrence(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.recurrence_id is not None
+    assert todo.recurrence.weekday == 2
+
+
+def test_set_recurrence_clears_when_empty(app_request, dbsession):
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    todo = _todo("Subject", recurrence_id=rule.id)
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["recurrence"] = ""
+    set_recurrence(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.recurrence_id is None
+
+
+def test_set_recurrence_invalid_returns_422(app_request, dbsession):
+    todo = _todo("Subject")
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["recurrence"] = "garbled"
+    response = set_recurrence(app_request)
+    assert response.status_int == 422
+
+
+def test_parse_recurrence_preview_endpoint(authenticated_testapp):
+    res = authenticated_testapp.get("/todos/parse-recurrence?q=every+monday", status=200)
+    body = json.loads(res.body)
+    assert body["ok"] is True
+    assert body["label"] == "every Monday"
+    assert body["weekday"] == 0
+
+
+def test_parse_recurrence_preview_unparseable(authenticated_testapp):
+    res = authenticated_testapp.get("/todos/parse-recurrence?q=blah", status=200)
+    body = json.loads(res.body)
+    assert body["ok"] is False
+
+
+def test_recurrence_history_returns_chain(authenticated_testapp, dbsession):
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    a = _todo("A", recurrence_id=rule.id, status=TodoStatus.done, done_at=_now())
+    dbsession.add(a)
+    dbsession.flush()
+    b = _todo("B", recurrence_id=rule.id, recurred_from_id=a.id)
+    dbsession.add(b)
+    dbsession.flush()
+    res = authenticated_testapp.get(f"/todos/{b.id}/history", status=200)
+    assert b"A" in res.body
+    assert b"B" in res.body
+    assert b"every Monday" not in res.body  # rule label is "every a week" here
+    assert b"Repetition history" in res.body
+
+
+def test_list_todos_runs_daily_sweep_creating_future_instance(app_request, dbsession):
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    today = _today()
+    # Anchor in the past so the chain has no today-or-future active item yet.
+    anchor = _todo("Sweep", recurrence_id=rule.id,
+                   due_date=today - datetime.timedelta(days=14))
+    dbsession.add(anchor)
+    dbsession.flush()
+    list_todos(app_request)
+    dbsession.flush()
+    actives = dbsession.query(Todo).filter(
+        Todo.recurrence_id == rule.id,
+        Todo.due_date >= today,
+    ).all()
+    assert len(actives) >= 1

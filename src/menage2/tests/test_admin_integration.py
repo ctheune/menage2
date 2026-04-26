@@ -65,3 +65,53 @@ def test_dashboard_token_view(authenticated_testapp):
 def test_dashboard_token_reset(authenticated_testapp):
     res = authenticated_testapp.post("/admin/dashboard-token", status=200)
     assert b"dashboard" in res.body.lower()
+
+
+def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession):
+    """The admin button forces a sweep regardless of the daily marker."""
+    import datetime
+
+    from menage2.models.config import ConfigItem
+    from menage2.models.todo import (
+        RecurrenceKind,
+        RecurrenceRule,
+        RecurrenceUnit,
+        Todo,
+    )
+    from menage2.recurrence import _LAST_SWEEP_KEY
+
+    today = datetime.date.today()
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    dbsession.add(Todo(
+        text="Bills",
+        tags=set(),
+        recurrence_id=rule.id,
+        due_date=today - datetime.timedelta(days=14),
+        created_at=datetime.datetime.now(datetime.timezone.utc),
+    ))
+    dbsession.add(ConfigItem(key=_LAST_SWEEP_KEY, value=today.isoformat()))
+    dbsession.flush()
+
+    res = authenticated_testapp.post("/admin/recurrence-sweep", status=303)
+    assert "sweep_spawned=" in res.location
+
+    actives = (
+        dbsession.query(Todo)
+        .filter(Todo.recurrence_id == rule.id, Todo.due_date >= today)
+        .count()
+    )
+    assert actives >= 1
+
+    follow = authenticated_testapp.get(res.location, status=200)
+    assert b"Recurrence sweep ran" in follow.body
+
+
+def test_recurrence_sweep_requires_admin(user_testapp):
+    """Non-admin users hit the @PERM_ADMIN guard."""
+    user_testapp.post("/admin/recurrence-sweep", status=403)

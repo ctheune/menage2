@@ -1,3 +1,4 @@
+import datetime as _datetime
 import secrets
 from datetime import datetime, timezone
 
@@ -7,6 +8,7 @@ from pyramid.view import view_config
 
 from ..models.config import ConfigItem
 from ..models.user import User
+from ..recurrence import force_recurrence_sweep
 from ..security import PERM_ADMIN
 from ..views.auth import DASHBOARD_TOKEN_KEY
 
@@ -25,7 +27,11 @@ def _now():
              permission=PERM_ADMIN)
 def list_users(request):
     users = request.dbsession.query(User).order_by(User.username).all()
-    return {"users": users}
+    sweep_spawned = request.params.get("sweep_spawned")
+    return {
+        "users": users,
+        "sweep_spawned": int(sweep_spawned) if sweep_spawned and sweep_spawned.isdigit() else None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -215,3 +221,23 @@ def dashboard_token_view(request):
     )
 
     return {"token": token_value, "dashboard_url": dashboard_url}
+
+
+# ---------------------------------------------------------------------------
+# Manual recurrence sweep
+# ---------------------------------------------------------------------------
+
+@view_config(route_name="admin_recurrence_sweep",
+             request_method="POST",
+             permission=PERM_ADMIN)
+def recurrence_sweep(request):
+    """Force the daily recurrence sweep regardless of the marker.
+
+    Useful after editing rules in bulk or recovering from a worker that was
+    down across midnight. Spawned count is surfaced via a flash message.
+    """
+    today = _datetime.date.today()
+    spawned = force_recurrence_sweep(request.dbsession, today, _now())
+    return HTTPSeeOther(location=request.route_url(
+        "admin_users", _query={"sweep_spawned": str(spawned)},
+    ))

@@ -128,6 +128,7 @@ document.addEventListener('click', function(e) {
         text: li.dataset.todoText || '',
         tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
         dueDate: li.dataset.dueDate || null,
+        recurrence: li.dataset.recurrence || null,
         editUrl: li.dataset.editUrl || ''
     }}));
 });
@@ -144,11 +145,13 @@ function initTagInput() {
 
     var tags = JSON.parse(sessionStorage.getItem('todo-tags') || '[]');
     var addUrl = form.getAttribute('hx-post');
-    var savedTags = null; // tags saved before entering edit mode
-    var savedDateISO = null; // due-date saved before entering edit mode
+    var savedTags = null;       // tags saved before entering edit mode
+    var savedDateISO = null;    // due-date saved before entering edit mode
+    var savedRecLabel = null;   // recurrence saved before entering edit mode
     var editingId = null;
-    var dateISO = null;     // currently-attached due date (ISO string or null)
-    var dateLabel = null;   // human-friendly label cached from the picker
+    var dateISO = null;         // currently-attached due date (ISO string or null)
+    var dateLabel = null;       // human-friendly label cached from the picker
+    var recLabel = null;        // currently-attached recurrence label (text)
 
     function renderPills() {
         container.querySelectorAll('.todo-tag-pill').forEach(function(el) { el.remove(); });
@@ -248,6 +251,41 @@ function initTagInput() {
         });
     }
 
+    // --- Recurrence pill (the * marker) ---
+    function renderRecPill() {
+        container.querySelectorAll('.todo-rec-pill').forEach(function(el) { el.remove(); });
+        if (!recLabel) return;
+        var pill = document.createElement('span');
+        pill.className = 'todo-rec-pill';
+        pill.dataset.label = recLabel;
+        pill.title = recLabel;
+        pill.innerHTML = '↻ ' + recLabel
+            + ' <button class="todo-rec-remove" type="button" title="Remove repeat">×</button>';
+        container.insertBefore(pill, textInput);
+    }
+
+    function setRecurrence(label) {
+        recLabel = label || null;
+        renderRecPill();
+    }
+
+    function clearRecurrence() { setRecurrence(null); }
+
+    function openRecurrencePillPicker() {
+        openRecurrencePicker({
+            anchorEl: container,
+            initialLabel: recLabel,
+            title: 'Repeat',
+            onCommit: function(label) {
+                setRecurrence(label);
+                textInput.focus();
+            },
+            onCancel: function() {
+                textInput.focus();
+            }
+        });
+    }
+
     container.addEventListener('click', function(e) {
         var rmTag = e.target.closest('.todo-tag-remove');
         if (rmTag) { removeTag(rmTag.dataset.tag); return; }
@@ -255,6 +293,10 @@ function initTagInput() {
         if (rmDate) { e.stopPropagation(); clearDate(); return; }
         var datePill = e.target.closest('.todo-date-pill');
         if (datePill) { e.stopPropagation(); openDatePillPicker(); return; }
+        var rmRec = e.target.closest('.todo-rec-remove');
+        if (rmRec) { e.stopPropagation(); clearRecurrence(); return; }
+        var recPill = e.target.closest('.todo-rec-pill');
+        if (recPill) { e.stopPropagation(); openRecurrencePillPicker(); return; }
         textInput.focus();
     });
 
@@ -362,14 +404,16 @@ function initTagInput() {
     textInput.addEventListener('blur', function() { setTimeout(hideAc, 150); });
 
     // --- Edit mode ---
-    function enterEditMode(id, text, tagList, dueDate, editUrl) {
+    function enterEditMode(id, text, tagList, dueDate, recurrence, editUrl) {
         savedTags = tags.slice();
         savedDateISO = dateISO;
+        savedRecLabel = recLabel;
         editingId = id;
         tags = tagList.slice();
         renderPills();
         renderQuickPick();
         setDate(dueDate || null, null);
+        setRecurrence(recurrence || null);
         textInput.value = text;
         form.setAttribute('hx-post', editUrl);
         htmx.process(form);
@@ -386,6 +430,8 @@ function initTagInput() {
         renderQuickPick();
         setDate(savedDateISO, null);
         savedDateISO = null;
+        setRecurrence(savedRecLabel);
+        savedRecLabel = null;
         textInput.value = '';
         form.setAttribute('hx-post', addUrl);
         htmx.process(form);
@@ -395,7 +441,7 @@ function initTagInput() {
 
     document.addEventListener('todoEditStart', function(e) {
         var d = e.detail;
-        enterEditMode(d.id, d.text, d.tags, d.dueDate, d.editUrl);
+        enterEditMode(d.id, d.text, d.tags, d.dueDate, d.recurrence, d.editUrl);
     });
 
     textInput.addEventListener('input', function() {
@@ -407,6 +453,15 @@ function initTagInput() {
             textInput.value = val.slice(0, caretIdx) + val.slice(caretIdx + 1);
             hideAc();
             openDatePillPicker();
+            return;
+        }
+
+        // * \u2192 open recurrence picker, strip the marker
+        var starIdx = val.indexOf('*');
+        if (starIdx !== -1) {
+            textInput.value = val.slice(0, starIdx) + val.slice(starIdx + 1);
+            hideAc();
+            openRecurrencePillPicker();
             return;
         }
 
@@ -435,6 +490,7 @@ function initTagInput() {
         var cleanText = rawText.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
         var parts = [cleanText].concat(allTags.map(function(t) { return '#' + t; }));
         if (dateISO) parts.push('^' + dateISO);
+        if (recLabel) parts.push('*' + recLabel);
         return parts.join(' ').trim();
     }
 
@@ -453,6 +509,7 @@ function initTagInput() {
         }
         sessionStorage.setItem('todo-tags', JSON.stringify(tags));
         clearDate();
+        clearRecurrence();
         textInput.value = '';
     }, true);
 
@@ -480,6 +537,7 @@ function initTagInput() {
     renderPills();
     renderQuickPick();
     renderDatePill();
+    renderRecPill();
 }
 
 // Show error toast when todo text is empty (only tags entered)
@@ -572,6 +630,7 @@ document.addEventListener('keydown', function(e) {
             text: li.dataset.todoText || '',
             tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
             dueDate: li.dataset.dueDate || null,
+            recurrence: li.dataset.recurrence || null,
             editUrl: li.dataset.editUrl || ''
         }}));
         return;
@@ -616,6 +675,12 @@ document.addEventListener('keydown', function(e) {
     if (key === 'd' && _hoveredTodoItem) {
         e.preventDefault();
         openSetDuePicker(_hoveredTodoItem);
+        return;
+    }
+
+    if (key === 'f' && _hoveredTodoItem) {
+        e.preventDefault();
+        openSetRecurrencePicker(_hoveredTodoItem);
         return;
     }
 
@@ -927,6 +992,175 @@ document.addEventListener('click', function(e) {
     openSetDuePicker(item);
 });
 
+// --- Recurrence picker ----------------------------------------------------
+//
+// Mirrors openPicker but for repetition rules. Calls /todos/parse-recurrence
+// for live preview. Quick chips cover the common cases per the spec; the
+// free-text field accepts anything parse_recurrence understands.
+
+var _RECURRENCE_CHIPS = [
+    'every day', 'every week', 'every month', 'every year',
+    'after a day', 'after a week', 'after a month', 'after a year',
+];
+
+function openRecurrencePicker(opts) {
+    closePopovers();
+    var pop = document.createElement('div');
+    pop.className = 'todo-popover';
+    pop.dataset.role = opts.role || 'recurrence-picker';
+
+    if (opts.title) {
+        var h = document.createElement('div');
+        h.style.cssText = 'font-size:0.75rem;font-weight:600;color:var(--bs-secondary-color);margin-bottom:0.35rem;';
+        h.textContent = opts.title;
+        pop.appendChild(h);
+    }
+
+    var chips = document.createElement('div');
+    chips.className = 'todo-popover-actions';
+    chips.style.marginTop = '0';
+    pop.appendChild(chips);
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'every wednesday / after 10 days / every 15th …';
+    input.value = opts.initialLabel || '';
+    pop.appendChild(input);
+
+    var preview = document.createElement('div');
+    preview.className = 'todo-popover-preview';
+    pop.appendChild(preview);
+
+    var footer = document.createElement('div');
+    footer.className = 'todo-popover-actions';
+    var setBtn = document.createElement('button');
+    setBtn.type = 'button';
+    setBtn.textContent = opts.commitLabel || 'Set';
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.textContent = 'No repeat';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    footer.appendChild(setBtn);
+    footer.appendChild(clearBtn);
+    footer.appendChild(cancelBtn);
+    pop.appendChild(footer);
+
+    anchorPopover(pop, opts.anchorEl);
+
+    var pendingLabel = opts.initialLabel || null;
+
+    function commit(label) {
+        if (typeof opts.onCommit === 'function') opts.onCommit(label || null);
+        closePopovers();
+    }
+    function cancel() {
+        if (typeof opts.onCancel === 'function') opts.onCancel();
+        closePopovers();
+    }
+
+    _RECURRENCE_CHIPS.forEach(function(label) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.addEventListener('click', function() { commit(label); });
+        chips.appendChild(btn);
+    });
+
+    var previewTimer = null;
+    function updatePreview() {
+        clearTimeout(previewTimer);
+        var q = input.value.trim();
+        if (!q) {
+            preview.textContent = '';
+            preview.classList.remove('todo-popover-preview--invalid');
+            pendingLabel = null;
+            return;
+        }
+        previewTimer = setTimeout(function() {
+            fetch('/todos/parse-recurrence?q=' + encodeURIComponent(q))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.ok) {
+                        pendingLabel = data.label;
+                        preview.textContent = '↻ ' + data.label;
+                        preview.classList.remove('todo-popover-preview--invalid');
+                    } else {
+                        pendingLabel = null;
+                        preview.textContent = '? cannot parse';
+                        preview.classList.add('todo-popover-preview--invalid');
+                    }
+                })
+                .catch(function() {});
+        }, 120);
+    }
+    input.addEventListener('input', updatePreview);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); commit(pendingLabel); }
+        else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+    setBtn.addEventListener('click', function() { commit(pendingLabel); });
+    clearBtn.addEventListener('click', function() { commit(null); });
+    cancelBtn.addEventListener('click', cancel);
+
+    if (opts.initialLabel) updatePreview();
+    setTimeout(function() { input.focus(); input.select(); }, 0);
+    return pop;
+}
+
+function openSetRecurrencePicker(itemEl) {
+    var url = itemEl.dataset.setRecUrl;
+    if (!url) return;
+    var list = document.getElementById('todo-list');
+    openRecurrencePicker({
+        anchorEl: itemEl,
+        initialLabel: itemEl.dataset.recurrence || null,
+        title: 'Repeat',
+        onCommit: function(label) {
+            htmx.ajax('POST', url, {
+                target: list || document.body,
+                swap: list ? 'innerHTML' : 'none',
+                values: {recurrence: label || ''}
+            });
+        }
+    });
+}
+
+// --- Repetition history panel ---
+function openHistoryPanel(itemEl) {
+    var url = itemEl.dataset.historyUrl;
+    if (!url) return;
+    closePopovers();
+    closeHistoryPanel();
+    fetch(url, {headers: {'Accept': 'text/html'}})
+        .then(function(r) { return r.text(); })
+        .then(function(html) {
+            var wrap = document.createElement('div');
+            wrap.id = 'todo-history-wrap';
+            wrap.innerHTML = html;
+            document.body.appendChild(wrap);
+        });
+}
+function closeHistoryPanel() {
+    var w = document.getElementById('todo-history-wrap');
+    if (w) w.remove();
+}
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.todo-history-close')) {
+        closeHistoryPanel();
+        return;
+    }
+    var rec = e.target.closest('.todo-recurrence');
+    if (rec) {
+        var item = rec.closest('.todo-item');
+        if (item && item.dataset.historyUrl) {
+            e.stopPropagation();
+            openHistoryPanel(item);
+        }
+    }
+});
+
 // --- Keyboard shortcut help overlay ---
 // HTMX swaps body content frequently and removes any element previously
 // appended to <body>. We therefore (a) keep `_helpOverlay` as a singleton we
@@ -967,15 +1201,18 @@ function ensureHelpOverlay() {
         _kbdRow('c', 'Mark hovered / selected done'),
         _kbdRow('h', 'Put hovered / selected on hold'),
         _kbdRow('d', 'Set / change due date (hovered)'),
+        _kbdRow('f', 'Set / change repetition rule (hovered)'),
         _kbdRow('p', 'Postpone hovered / selected by 1 day'),
         _kbdRow('Shift+P', 'Postpone… (chip palette + calendar)'),
         _kbdRow('u', 'Undo last action'),
+        _kbdRow('click ↻', 'Show repetition history for this item'),
         '</tbody></table>',
 
         _kbdSection('Adding / editing a todo'),
         '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;"><tbody>',
         _kbdRow('#tag', 'Attach a tag (single word)'),
         _kbdRow('^', 'Open the date picker — commits as a pill'),
+        _kbdRow('*', 'Open the repetition picker — commits as a pill'),
         '</tbody></table>',
 
         _kbdSection('Done list'),

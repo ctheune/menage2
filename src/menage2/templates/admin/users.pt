@@ -10,6 +10,11 @@
 
   <div metal:fill-slot="content" class="container-fluid px-3 py-3">
 
+    <div tal:condition="sweep_spawned is not None"
+         class="alert alert-info py-2 mb-3">
+      Recurrence sweep ran — spawned ${sweep_spawned} todo(s).
+    </div>
+
     <div class="card">
       <div class="table-responsive">
         <table class="table table-hover mb-0">
@@ -59,10 +64,19 @@
       </div>
     </div>
 
-    <div class="mt-4">
+    <div class="mt-4 d-flex gap-3 align-items-center">
       <a href="${request.route_url('admin_dashboard_token')}" class="link-secondary">
         Dashboard Secret URL →
       </a>
+      <span class="text-muted">·</span>
+      <form method="post"
+            action="${request.route_url('admin_recurrence_sweep')}"
+            class="d-inline m-0">
+        <button type="submit" class="btn btn-link btn-sm p-0 link-secondary"
+                title="Re-run the daily recurrence sweep regardless of the marker">
+          Rerun recurrence sweep
+        </button>
+      </form>
     </div>
 
   </div>

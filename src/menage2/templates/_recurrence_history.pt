@@ -1,0 +1,24 @@
+<div class="todo-history-panel">
+  <div class="todo-history-header">
+    <strong>Repetition history</strong>
+    <span tal:condition="rule_label" class="text-muted ms-2 small">${rule_label}</span>
+    <button type="button" class="todo-history-close" title="Close">×</button>
+  </div>
+  <ol class="todo-history-list" tal:condition="chain">
+    <li tal:repeat="entry chain"
+        tal:attributes="class python:'todo-history-entry' + (' is-current' if entry.id == current_id else '')">
+      <span class="todo-history-marker">●</span>
+      <span class="todo-history-text">${entry.text}</span>
+      <span tal:condition="entry.due_date" class="todo-history-date">
+        due ${format.date(entry.due_date, format='medium')}
+      </span>
+      <span tal:condition="entry.done_at" class="todo-history-done text-success">
+        done ${format.date(entry.done_at, format='medium')}
+      </span>
+      <span tal:condition="not (entry.done_at or entry.on_hold_at)" class="todo-history-status text-muted">
+        pending
+      </span>
+    </li>
+  </ol>
+  <p tal:condition="not chain" class="text-muted">No history.</p>
+</div>

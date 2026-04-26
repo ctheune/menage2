@@ -9,12 +9,32 @@ from pyramid.renderers import render
 from pyramid.view import view_config
 from sqlalchemy import asc, func, nulls_last, or_, select
 
-from menage2.dateparse import parse_date
-from menage2.models.todo import Todo, TodoStatus
+from menage2.dateparse import (
+    RecurrenceSpec,
+    label_recurrence,
+    parse_date,
+    parse_recurrence,
+)
+from menage2.models.todo import (
+    RecurrenceKind,
+    RecurrenceRule,
+    RecurrenceUnit,
+    Todo,
+    TodoStatus,
+)
+from menage2.recurrence import (
+    chain_history,
+    rule_to_spec,
+    spawn_after,
+    spawn_due_every_if_needed,
+    spawn_every_on_completion,
+    spec_to_rule,
+)
 
 _TAG_RE = re.compile(r"#(\S+)")
 # Match ^...  up to next marker or end-of-string. Lookahead never consumes.
 _DATE_RE = re.compile(r"\^([^#*^]+?)(?=\s*[#*^]|$)")
+_RECURRENCE_MARKER_RE = re.compile(r"\*([^#*^]+?)(?=\s*[#*^]|$)")
 
 
 @dataclass
@@ -22,14 +42,16 @@ class ParsedTodoInput:
     text: str
     tags: set[str] = field(default_factory=set)
     due_date: datetime.date | None = None
+    recurrence: RecurrenceSpec | None = None
 
 
 def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodoInput:
-    """Decompose a raw input string into text + #tags + ^due-date.
+    """Decompose a raw input string into text + #tags + ^due-date + *recurrence.
 
-    ``today`` is injected for testability. The ``^`` fragment runs from the
-    marker up to the next ``#``/``*``/``^`` or end-of-string. If that fragment
-    fails to parse it is left untouched in the text.
+    Each marker captures everything up to the next marker or end-of-string,
+    so multi-word phrases (``^next week``, ``*every wednesday``) work as long
+    as they're terminated by another marker or EOL. If a fragment fails to
+    parse it stays in the text untouched.
     """
     if today is None:
         today = datetime.date.today()
@@ -45,9 +67,40 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
             due_date = parsed.date
             text = text[:m.start()] + text[m.end():]
 
+    recurrence: RecurrenceSpec | None = None
+    m = _RECURRENCE_MARKER_RE.search(text)
+    if m:
+        spec = parse_recurrence(m.group(1).strip())
+        if spec:
+            recurrence = spec
+            text = text[:m.start()] + text[m.end():]
+
     text = _TAG_RE.sub("", text)
     text = re.sub(r"\s+", " ", text).strip()
-    return ParsedTodoInput(text=text, tags=tags, due_date=due_date)
+    return ParsedTodoInput(text=text, tags=tags, due_date=due_date, recurrence=recurrence)
+
+
+def _apply_recurrence_spec(todo: Todo, spec: RecurrenceSpec | None, dbsession) -> None:
+    """Attach a rule to a todo, updating in place when one already exists.
+
+    A ``None`` spec clears the link (the rule itself is left in place because
+    sibling todos in the spawn chain may still reference it).
+    """
+    if spec is None:
+        todo.recurrence_id = None
+        return
+    if todo.recurrence is not None:
+        r = todo.recurrence
+        r.kind = RecurrenceKind(spec.kind)
+        r.interval_value = spec.interval_value
+        r.interval_unit = RecurrenceUnit(spec.interval_unit)
+        r.weekday = spec.weekday
+        r.month_day = spec.month_day
+    else:
+        rule = spec_to_rule(spec)
+        dbsession.add(rule)
+        dbsession.flush()
+        todo.recurrence_id = rule.id
 
 
 def _insert(node: dict, segments: list, full_tag: str, todo: Todo) -> None:
@@ -241,6 +294,7 @@ def home(request):
 @view_config(route_name="list_todos", renderer="menage2:templates/list_todos.pt")
 def list_todos(request):
     today = _today()
+    spawn_due_every_if_needed(request.dbsession, today, _now_utc())
     todos = _active_todos(request.dbsession, today)
     groups = build_tag_tree(todos)
     groups_html = render(
@@ -281,6 +335,9 @@ def add_todo(request):
         created_at=_now_utc(),
     )
     request.dbsession.add(todo)
+    if parsed.recurrence is not None:
+        request.dbsession.flush()
+        _apply_recurrence_spec(todo, parsed.recurrence, request.dbsession)
     return HTTPSeeOther(next_url)
 
 
@@ -288,14 +345,18 @@ def add_todo(request):
 def todos_done(request):
     raw_ids = request.params.get("todo_ids", "")
     todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
+    today = _today()
+    now = _now_utc()
     texts = []
     for todo_id in todo_ids:
         todo = request.dbsession.get(Todo, todo_id)
         if todo:
             texts.append(todo.text)
             todo.status = TodoStatus.done
-            todo.done_at = _now_utc()
-    todos = _active_todos(request.dbsession, _today())
+            todo.done_at = now
+            spawn_after(todo, today, now, request.dbsession)
+            spawn_every_on_completion(todo, today, now, request.dbsession)
+    todos = _active_todos(request.dbsession, today)
     body = render(
         "menage2:templates/_todo_groups.pt",
         {"groups": build_tag_tree(todos), "today": _today()},
@@ -425,6 +486,71 @@ def parse_date_preview(request):
     return {"ok": True, "date": parsed.date.isoformat(), "label": parsed.label}
 
 
+@view_config(route_name="parse_recurrence_preview", request_method="GET", renderer="json")
+def parse_recurrence_preview(request):
+    raw = request.params.get("q", "").strip()
+    if not raw:
+        return {"ok": False}
+    spec = parse_recurrence(raw)
+    if not spec:
+        return {"ok": False}
+    return {
+        "ok": True,
+        "label": label_recurrence(spec),
+        "kind": spec.kind,
+        "interval_value": spec.interval_value,
+        "interval_unit": spec.interval_unit,
+        "weekday": spec.weekday,
+        "month_day": spec.month_day,
+    }
+
+
+@view_config(route_name="set_recurrence", request_method="POST")
+def set_recurrence(request):
+    """Set or clear the recurrence rule on a single todo."""
+    todo_id = int(request.matchdict["id"])
+    raw = request.params.get("recurrence", "").strip()
+    todo = request.dbsession.get(Todo, todo_id)
+    if not todo:
+        request.response.status_int = 404
+        return request.response
+    today = _today()
+    if not raw:
+        _apply_recurrence_spec(todo, None, request.dbsession)
+    else:
+        spec = parse_recurrence(raw)
+        if not spec:
+            request.response.status_int = 422
+            return request.response
+        _apply_recurrence_spec(todo, spec, request.dbsession)
+    todos = _active_todos(request.dbsession, today)
+    body = render(
+        "menage2:templates/_todo_groups.pt",
+        {"groups": build_tag_tree(todos), "today": today},
+        request=request,
+    )
+    request.response.content_type = "text/html"
+    request.response.text = body
+    return request.response
+
+
+@view_config(route_name="recurrence_history",
+             request_method="GET",
+             renderer="menage2:templates/_recurrence_history.pt")
+def recurrence_history(request):
+    todo_id = int(request.matchdict["id"])
+    todo = request.dbsession.get(Todo, todo_id)
+    if not todo:
+        request.response.status_int = 404
+        return {}
+    chain = chain_history(request.dbsession, todo)
+    return {
+        "chain": chain,
+        "current_id": todo.id,
+        "rule_label": label_recurrence(rule_to_spec(todo.recurrence)) if todo.recurrence else None,
+    }
+
+
 @view_config(route_name="set_due_date", request_method="POST")
 def set_due_date(request):
     """Set or clear the due date on a single todo. Empty string clears."""
@@ -506,6 +632,7 @@ def list_todos_done(request):
 @view_config(route_name="list_todos_scheduled", renderer="menage2:templates/list_todos_scheduled.pt")
 def list_todos_scheduled(request):
     today = _today()
+    spawn_due_every_if_needed(request.dbsession, today, _now_utc())
     todos = (
         request.dbsession.execute(
             select(Todo)
@@ -549,6 +676,7 @@ def edit_todo(request):
     todo.text = parsed.text
     todo.tags = parsed.tags
     todo.due_date = parsed.due_date
+    _apply_recurrence_spec(todo, parsed.recurrence, request.dbsession)
     return HTTPSeeOther(next_url)
 
 
