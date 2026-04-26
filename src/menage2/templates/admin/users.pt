@@ -1,18 +1,18 @@
 <div metal:use-macro="load: ../layout.pt">
   <span metal:fill-slot="title-mobile">Users</span>
-  <div metal:fill-slot="title">User Management</div>
+  <span metal:fill-slot="title">User Management</span>
 
-  <div metal:fill-slot="content" class="container py-4">
+  <span metal:fill-slot="actions">
+    <a href="${request.route_url('admin_user_new')}" class="btn btn-sm btn-dark">
+      <i class="bi bi-plus-lg"></i> Add User
+    </a>
+  </span>
 
-    <div class="mb-3">
-      <a href="${request.route_url('admin_user_new')}" class="btn btn-sm btn-dark">
-        <i class="bi bi-plus-lg"></i> Add User
-      </a>
-    </div>
+  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
 
     <div class="card">
       <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0">
+        <table class="table table-hover mb-0">
           <thead class="table-light">
             <tr>
               <th>Name</th>
@@ -20,30 +20,30 @@
               <th>Email</th>
               <th>Role</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             <tr tal:repeat="user users">
-              <td>${user.real_name}</td>
-              <td class="font-monospace text-muted small">${user.username}</td>
-              <td class="text-muted">${user.email}</td>
-              <td>
+              <td class="align-middle">${user.real_name}</td>
+              <td class="align-middle font-monospace text-muted small">${user.username}</td>
+              <td class="align-middle text-muted">${user.email}</td>
+              <td class="align-middle">
                 <span tal:condition="user.is_admin" class="badge bg-primary">Admin</span>
                 <span tal:condition="not user.is_admin" class="text-muted small">User</span>
               </td>
-              <td>
+              <td class="align-middle">
                 <span tal:condition="user.is_active" class="badge bg-success">Active</span>
                 <span tal:condition="not user.is_active" class="badge bg-secondary">Inactive</span>
               </td>
-              <td class="d-flex gap-2">
-                <a href="${request.route_url('admin_user_edit', id=user.id)}" class="link-secondary small">Edit</a>
+              <td class="align-middle text-nowrap">
+                <a href="${request.route_url('admin_user_edit', id=user.id)}" class="link-secondary small me-2">Edit</a>
                 <tal:block tal:condition="user.id != request.identity.id">
                   <tal:block tal:condition="user.is_active">
                     <form method="post" action="${request.route_url('admin_user_deactivate', id=user.id)}"
                           class="d-inline"
                           onsubmit="return confirm('Deactivate ${user.username}?')">
-                      <button type="submit" class="btn btn-link btn-sm p-0 text-warning">Deactivate</button>
+                      <button type="submit" class="btn btn-link btn-sm p-0 text-warning me-2">Deactivate</button>
                     </form>
                   </tal:block>
                   <form method="post" action="${request.route_url('admin_user_delete', id=user.id)}"

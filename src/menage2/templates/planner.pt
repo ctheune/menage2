@@ -1,14 +1,16 @@
 <div metal:use-macro="load: layout.pt">
   <span metal:fill-slot="title">
     Wochenplaner vom ${format.date(week.first.day, "long")} – ${format.date(week.last.day, "long")}
-    <span class="float-end d-flex gap-2">
-      <a href="#" hx-post="${request.route_url('send_to_shopping_list', id=week.id)}"
-         hx-target="body"
-         class="btn btn-sm btn-outline-secondary">Auf die Einkaufsliste</a>
-      <input type="submit" id="submit" form="edit-week" value="Speichern" class="btn btn-sm btn-secondary"/>
-    </span>
   </span>
-  <div metal:fill-slot="content" class="container-fluid py-3">
+
+  <span metal:fill-slot="actions">
+    <a href="#" hx-post="${request.route_url('send_to_shopping_list', id=week.id)}"
+       hx-target="body"
+       class="btn btn-sm btn-outline-secondary">Auf die Einkaufsliste</a>
+    <input type="submit" id="submit" form="edit-week" value="Speichern" class="btn btn-sm btn-secondary"/>
+  </span>
+
+  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
     <div class="text-end mb-2" hx-disinherit="*">
       <a href="#" hx-put="${request.route_url('add_day', position='before', id=week.id)}"
          hx-target="body"

@@ -12,8 +12,6 @@
            if .running is not empty call silence.play() end
         end"
      >
-  <h5 class="card-title">Timers</h5>
-
   <audio src="${request.static_url('menage2:static/alarm.wav')}" id="timers-audio-alarm" loop preload="auto"></audio>
   <audio src="${request.static_url('menage2:static/silence.wav')}" id="timers-audio-silence" loop preload="auto"></audio>
 

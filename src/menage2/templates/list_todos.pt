@@ -3,7 +3,7 @@
   <span metal:fill-slot="title-mobile">TODO</span>
   <div metal:fill-slot="title">TODO</div>
 
-  <div metal:fill-slot="content" class="container-sm py-3">
+  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
 
     <!-- Secondary action bar: postponed + done (OOB target must keep id) -->
     <div class="d-flex align-items-center gap-2 mb-3">

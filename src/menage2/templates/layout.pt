@@ -20,7 +20,7 @@
     <script src="${request.static_url('menage2:static/menage.js')}" defer></script>
   </head>
 
-  <body hx-boost="true">
+  <body class="bg-body-secondary" hx-boost="true">
 
   <nav class="navbar navbar-expand-md navbar-dark bg-dark">
     <div class="container-fluid">
@@ -44,7 +44,7 @@
             <li class="nav-item"><a class="nav-link text-secondary" href="${request.route_url('account')}">${request.identity.username}</a></li>
             <li class="nav-item">
               <form method="post" action="${request.route_url('logout')}" class="d-inline">
-                <button type="submit" class="nav-link btn btn-link text-secondary p-0">Sign out</button>
+                <button type="submit" class="nav-link btn btn-link text-secondary">Sign out</button>
               </form>
             </li>
           </tal:block>
@@ -56,12 +56,15 @@
     </div>
   </nav>
 
-  <div class="d-none d-md-block p-3">
-    <h4>
-      <metal:block define-slot="title">
-        Der unendliche Speiseplan
-      </metal:block>
-    </h4>
+  <div class="d-none d-md-block bg-white border-bottom">
+    <div class="px-3 py-2 d-flex align-items-center justify-content-between">
+      <h4 class="mb-0 lh-base">
+        <metal:block define-slot="title">Der unendliche Speiseplan</metal:block>
+      </h4>
+      <div class="d-flex gap-2">
+        <metal:block define-slot="actions"></metal:block>
+      </div>
+    </div>
     <metal:block define-slot="subtitle"></metal:block>
   </div>
 

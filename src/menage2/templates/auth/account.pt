@@ -14,7 +14,7 @@
               <dt class="col-4 text-muted">Username</dt><dd class="col-8">${user.username}</dd>
               <dt class="col-4 text-muted">Email</dt><dd class="col-8">${user.email}</dd>
               <tal:block tal:condition="user.is_admin">
-                <dt class="col-4 text-muted">Role</dt><dd class="col-8 text-primary">Administrator</dd>
+                <dt class="col-4 text-muted">Role</dt><dd class="col-8 text-danger">Administrator</dd>
               </tal:block>
             </dl>
           </div>
@@ -29,10 +29,6 @@
             </ul>
           </div>
         </div>
-
-        <form method="post" action="${request.route_url('logout')}">
-          <button type="submit" class="btn btn-link text-danger p-0">Sign out</button>
-        </form>
 
       </div>
     </div>

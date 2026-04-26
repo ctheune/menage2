@@ -2,10 +2,11 @@
   <span metal:fill-slot="title-mobile">${'Edit User' if user else 'New User'}</span>
   <div metal:fill-slot="title">${'Edit User: ' + user.username if user else 'Add User'}</div>
 
-  <div metal:fill-slot="content" class="container py-4">
+  <div metal:fill-slot="content" class="container py-3">
     <div class="row justify-content-center">
       <div class="col-12 col-sm-8 col-md-5 col-lg-4">
-
+        <div class="card">
+          <div class="card-body">
         <form method="post" action="${action}">
 
           <tal:block tal:condition="user is None">
@@ -70,7 +71,8 @@
             <a href="${request.route_url('admin_users')}" class="link-secondary">Cancel</a>
           </div>
         </form>
-
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -1,5 +1,4 @@
 <div class="card-body">
-  <h5 class="card-title">Wochenplan</h5>
 
   <div tal:repeat="day days" class="mb-3">
     <h6 class="${'fw-bold' if day.is_today() else 'fw-light'}">${format.date(day.day, "full")}</h6>

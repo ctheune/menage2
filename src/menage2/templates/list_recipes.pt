@@ -1,15 +1,16 @@
 <div metal:use-macro="load: layout.pt">
 
-  <div metal:fill-slot="title">
-    Die Rezepte
+  <span metal:fill-slot="title">Die Rezepte</span>
+
+  <span metal:fill-slot="actions">
     <input type="button"
         value="Neues Rezept"
         hx-put="${request.route_url('add_recipe')}"
         hx-target="body"
-        class="btn btn-sm btn-outline-secondary float-end" />
-  </div>
+        class="btn btn-sm btn-outline-secondary" />
+  </span>
 
-  <div metal:fill-slot="content" class="container-fluid py-3">
+  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
     <p tal:condition="not recipes" class="text-muted fst-italic">
       Noch keine Rezepte vorhanden.
       <input type="button"
