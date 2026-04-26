@@ -215,10 +215,21 @@ def user_testapp(testapp, regular_user):
 @pytest.fixture
 def clean_db(dbengine):
     """Truncate all tables before and after each browser test."""
+    import time as _time
+
+    names = ", ".join(f'"{t.name}"' for t in reversed(Base.metadata.sorted_tables))
+    truncate_sql = text(f"TRUNCATE {names} RESTART IDENTITY CASCADE")
+
     def _truncate():
-        with dbengine.begin() as conn:
-            names = ", ".join(f'"{t.name}"' for t in reversed(Base.metadata.sorted_tables))
-            conn.execute(text(f"TRUNCATE {names} RESTART IDENTITY CASCADE"))
+        for attempt in range(5):
+            try:
+                with dbengine.begin() as conn:
+                    conn.execute(truncate_sql)
+                return
+            except Exception:
+                if attempt == 4:
+                    raise
+                _time.sleep(0.2 * (attempt + 1))
 
     _truncate()
     yield

@@ -4,7 +4,7 @@
       <label class="fst-italic">
         <input type="radio" class="me-2" value="new" name="suggestion-${radio_uuid}"
             _="on change
-                get first .suggest-id in the closest parent td
+                get first .suggest-id in the closest parent <td/>
                 then set its value to 'new'
                 then get the next .suggest-input from it
                 then set its value to '${search}'
@@ -18,7 +18,7 @@
           name="suggestion-${radio_uuid}"
           value="${ingredient.id}"
           _="on change
-                get first .suggest-id in the closest parent td
+                get first .suggest-id in the closest parent <td/>
                 then set its value to '${ingredient.id}'
                 then get the next .suggest-input from it
                 then set its value to '${ingredient.description}'

@@ -133,8 +133,8 @@
       <h5 class="mt-3">Zutaten
         <button type="button" class="btn btn-link btn-sm text-success"
           _="on click get the next .template
-            then put its outerHTML after the last .table-row in the next .ingredient-table
-            then get the last .table-row in the next .ingredient-table
+            then put its outerHTML after the last .ingredient-row in the next .ingredient-table
+            then get the last .ingredient-row in the next .ingredient-table
             then set newRow to it
             then for input in <[name]/> in it
                 set sequence to the next .next-sequence
@@ -146,6 +146,8 @@
             "><i class="bi bi-plus-circle"></i></button>
       </h5>
 
+      <!-- Sequence markers live outside the table so they are valid HTML -->
+      <input type="hidden" name="${field_name('__start__')}" value="ingredients:sequence" />
       <table class="table table-sm ingredient-table mb-5">
         <thead>
           <tr>
@@ -155,11 +157,11 @@
             <th></th>
           </tr>
         </thead>
-        <tbody class="table-row-group">
-          <input type="hidden" name="${field_name('__start__')}" value="ingredients:sequence" />
-          <tr class="table-row" tal:repeat="used recipe.ingredients">
-            <input type="hidden" name="${field_name('__start__')}" value="mapping" />
+        <tbody>
+          <tr class="ingredient-row" tal:repeat="used recipe.ingredients">
             <td class="text-end">
+              <!-- mapping start sits inside first td to preserve field order -->
+              <input type="hidden" name="${field_name('__start__')}" value="mapping" />
               <input type="text" name="${field_name('amount')}" value="${used.amount}"
                      class="form-control form-control-sm text-end" style="width:5rem" />
             </td>
@@ -183,18 +185,20 @@
                 />
                 <div class="suggestion"></div>
               </div>
+              <!-- mapping end sits after the last field in this row -->
+              <input type="hidden" name="${field_name('__end__')}" value="mapping" />
             </td>
             <td>
-              <button type="button" class="btn btn-link btn-sm text-danger" _="on click remove closest tr">
+              <button type="button" class="btn btn-link btn-sm text-danger" _="on click remove closest <tr/>">
                 <i class="bi bi-x-lg"></i>
               </button>
             </td>
-            <input type="hidden" name="${field_name('__end__')}" value="mapping" />
           </tr>
 
-          <tr class="table-row template d-none">
-            <input type="hidden" name="__start__" value="mapping" />
+          <!-- Template row cloned by the ➕ button; hidden until cloned -->
+          <tr class="ingredient-row template d-none">
             <td class="text-end">
+              <input type="hidden" name="__start__" value="mapping" />
               <input type="text" name="amount" placeholder="1, 2, 3 ..."
                      class="form-control form-control-sm text-end" style="width:5rem" />
             </td>
@@ -215,18 +219,18 @@
                 />
                 <div class="suggestion"></div>
               </div>
+              <input type="hidden" name="__end__" value="mapping" />
             </td>
             <td>
-              <button type="button" class="btn btn-link btn-sm text-danger" _="on click remove closest tr">
+              <button type="button" class="btn btn-link btn-sm text-danger" _="on click remove closest <tr/>">
                 <i class="bi bi-x-lg"></i>
               </button>
             </td>
-            <input type="hidden" name="__end__" value="mapping" />
           </tr>
-          <input type="hidden" name="${field_name('__end__')}" value="sequence" />
-          <input type="hidden" class="next-sequence" value="${next_sequence()}"/>
         </tbody>
       </table>
+      <input type="hidden" name="${field_name('__end__')}" value="sequence" />
+      <input type="hidden" class="next-sequence" value="${next_sequence()}"/>
 
     </form>
 
