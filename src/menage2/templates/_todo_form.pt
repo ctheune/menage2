@@ -1,0 +1,15 @@
+<tal:block>
+  <form id="todo-form"
+        hx-post="${request.route_url('add_todo')}"
+        hx-target="body"
+        class="mb-2">
+    <div class="todo-tag-input" id="todo-tag-input">
+      <input type="text" id="todo-text" autocomplete="off"
+             enterkeyhint="done" placeholder="New todo…"
+             style="flex:1;min-width:6rem;background:transparent;" />
+    </div>
+    <input type="hidden" name="text" id="todo-hidden-text" />
+    <input type="hidden" name="next" value="${next_url}" />
+  </form>
+  <div id="todo-quick-pick" class="d-flex flex-wrap gap-1 mb-3"></div>
+</tal:block>

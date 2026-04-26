@@ -146,10 +146,10 @@ def test_swipe_right_marks_item_done(page):
     assert page.locator(".todo-item").count() == count_before - 1
 
 
-def test_swipe_left_postpones_item(page):
+def test_swipe_left_holds_item(page):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto("/todos")
-    _add_todo(page, "Swipe postpone item")
+    _add_todo(page, "Swipe hold item")
     page.wait_for_selector(".todo-item")
     count_before = page.locator(".todo-item").count()
 
@@ -163,4 +163,155 @@ def test_swipe_left_postpones_item(page):
     }""")
     page.wait_for_function(f"document.querySelectorAll('.todo-item').length < {count_before}", timeout=5000)
     assert page.locator(".todo-item").count() == count_before - 1
-    assert page.locator("text=Paused").first.is_visible()
+    assert page.locator("text=On hold").first.is_visible()
+
+
+# ---------------------------------------------------------------------------
+# Scheduling — due date feature
+# ---------------------------------------------------------------------------
+
+
+def _hover_and_blur(page, selector):
+    """Move pointer onto an item AND drop input focus so document keydown fires."""
+    page.hover(selector)
+    page.evaluate("document.activeElement && document.activeElement.blur && document.activeElement.blur()")
+
+
+def test_caret_opens_picker_and_adds_pill(page):
+    """Typing ^ in the composite input pops the picker; selecting a chip
+    inserts an editable date pill, and submitting attaches the due date."""
+    page.goto("/todos")
+    page.fill('#todo-text', "Buy bread ")
+    # Type ^ as a single keystroke so the input handler sees it.
+    page.locator('#todo-text').press("^")
+    page.wait_for_selector(".todo-popover[data-role='date-picker']", timeout=2000)
+    page.click("text=Today")
+    # Pill should now exist in the composite input.
+    page.wait_for_selector(".todo-date-pill", timeout=2000)
+    page.locator('#todo-text').press("Enter")
+    page.wait_for_load_state("networkidle")
+    item = page.locator('.todo-item[data-todo-text="Buy bread"]')
+    assert item.count() == 1
+    chip = item.locator(".todo-due")
+    assert chip.count() == 1
+    assert "todo-due--today" in chip.first.get_attribute("class")
+
+
+def test_d_key_opens_date_picker(page):
+    page.goto("/todos")
+    _add_todo(page, "Date picker subject")
+    page.wait_for_selector('.todo-item[data-todo-text="Date picker subject"]')
+    _hover_and_blur(page, '.todo-item[data-todo-text="Date picker subject"]')
+    page.keyboard.press("d")
+    page.wait_for_selector(".todo-popover[data-role='date-picker']", timeout=2000)
+    assert page.locator(".todo-popover[data-role='date-picker']").is_visible()
+
+
+def test_p_key_postpones_one_day(page):
+    """Pressing 'p' on a hovered item bumps its due_date to today+1 (off the active list)."""
+    page.goto("/todos")
+    _add_todo(page, "Postpone target")
+    page.wait_for_selector('.todo-item[data-todo-text="Postpone target"]')
+    _hover_and_blur(page, '.todo-item[data-todo-text="Postpone target"]')
+    page.keyboard.press("p")
+    page.wait_for_function(
+        "document.querySelectorAll('.todo-item[data-todo-text=\\\"Postpone target\\\"]').length === 0",
+        timeout=5000,
+    )
+    page.goto("/todos/scheduled")
+    assert page.locator("text=Postpone target").count() >= 1
+
+
+def test_shift_p_opens_postpone_palette(page):
+    page.goto("/todos")
+    _add_todo(page, "Palette target")
+    page.wait_for_selector('.todo-item[data-todo-text="Palette target"]')
+    _hover_and_blur(page, '.todo-item[data-todo-text="Palette target"]')
+    page.keyboard.press("Shift+P")
+    page.wait_for_selector(".todo-popover[data-role='postpone-palette']", timeout=2000)
+    assert page.locator(".todo-popover[data-role='postpone-palette']").is_visible()
+    assert page.locator("text=+1 week").is_visible()
+
+
+def test_h_key_puts_item_on_hold(page):
+    page.goto("/todos")
+    _add_todo(page, "Hold target")
+    page.wait_for_selector('.todo-item[data-todo-text="Hold target"]')
+    _hover_and_blur(page, '.todo-item[data-todo-text="Hold target"]')
+    page.keyboard.press("h")
+    page.wait_for_function(
+        "document.querySelectorAll('.todo-item[data-todo-text=\\\"Hold target\\\"]').length === 0",
+        timeout=5000,
+    )
+    assert page.locator("text=On hold").first.is_visible()
+
+
+def test_picker_custom_input_has_live_preview(page):
+    """Inside the picker, typing a natural-language phrase updates the preview."""
+    page.goto("/todos")
+    _add_todo(page, "preview probe")
+    page.wait_for_selector('.todo-item[data-todo-text="preview probe"]')
+    _hover_and_blur(page, '.todo-item[data-todo-text="preview probe"]')
+    page.keyboard.press("d")
+    page.wait_for_selector(".todo-popover[data-role='date-picker'] input", timeout=2000)
+    page.fill(".todo-popover input", "tomorrow")
+    page.wait_for_function(
+        "Array.from(document.querySelectorAll('.todo-popover-preview')).some(el => /tomorrow/i.test(el.textContent))",
+        timeout=5000,
+    )
+
+
+def test_help_overlay_opens_with_question_mark(page):
+    page.goto("/todos")
+    page.keyboard.press("?")
+    page.wait_for_selector("#kbd-help-overlay", state="visible", timeout=2000)
+    assert page.locator("#kbd-help-overlay").is_visible()
+    page.keyboard.press("Escape")
+    page.wait_for_selector("#kbd-help-overlay", state="hidden", timeout=2000)
+
+
+def test_help_overlay_works_on_scheduled_view(page):
+    page.goto("/todos/scheduled")
+    page.keyboard.press("?")
+    page.wait_for_selector("#kbd-help-overlay", state="visible", timeout=2000)
+    assert page.locator("#kbd-help-overlay").is_visible()
+
+
+def test_help_overlay_works_on_done_view(page):
+    page.goto("/todos/done")
+    page.keyboard.press("?")
+    page.wait_for_selector("#kbd-help-overlay", state="visible", timeout=2000)
+    assert page.locator("#kbd-help-overlay").is_visible()
+
+
+def test_help_overlay_persists_after_htmx_swap(page):
+    """Adding a todo causes a body swap; ? must still open the help dialog."""
+    page.goto("/todos")
+    _add_todo(page, "after-swap probe")
+    page.evaluate("document.activeElement && document.activeElement.blur()")
+    page.keyboard.press("?")
+    page.wait_for_selector("#kbd-help-overlay", state="visible", timeout=2000)
+
+
+def test_scheduled_view_can_edit_item(page):
+    """Editing a scheduled item via the form keeps the user on /todos/scheduled."""
+    page.goto("/todos")
+    # Add an item with a future date via the picker
+    page.fill('#todo-text', "scheduled item ")
+    page.locator('#todo-text').press("^")
+    page.wait_for_selector(".todo-popover[data-role='date-picker']")
+    page.click("text=+1 week")
+    page.wait_for_selector(".todo-date-pill")
+    page.locator('#todo-text').press("Enter")
+    page.wait_for_load_state("networkidle")
+
+    page.goto("/todos/scheduled")
+    page.wait_for_selector('.todo-item[data-todo-text="scheduled item"]')
+    page.locator('.todo-item[data-todo-text="scheduled item"] .todo-edit-btn').click()
+    page.wait_for_function("document.getElementById('todo-text').value === 'scheduled item'")
+    page.fill('#todo-text', "scheduled item edited")
+    page.locator('#todo-text').press("Enter")
+    page.wait_for_load_state("networkidle")
+    # Must still be on the scheduled page after edit
+    assert "/todos/scheduled" in page.url
+    assert page.locator('.todo-item[data-todo-text="scheduled item edited"]').count() == 1

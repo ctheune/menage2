@@ -32,7 +32,9 @@
         class="todo-item mb-1 shadow-sm"
         data-todo-text="${todo.text}"
         data-todo-tags="${python:','.join(sorted(todo.tags))}"
-        data-edit-url="${request.route_url('edit_todo', id=todo.id)}">
+        data-due-date="${todo.due_date.isoformat() if todo.due_date else ''}"
+        data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
+        data-set-due-url="${request.route_url('set_due_date', id=todo.id)}">
 
       <div class="todo-content d-flex align-items-center gap-2 py-2 px-3 bg-white">
         <input type="checkbox" class="form-check-input todo-checkbox flex-shrink-0"
@@ -43,6 +45,16 @@
           <span tal:condition="todo.note"
                 class="d-block text-muted" style="font-size:0.7rem">${todo.note}</span>
         </span>
+
+        <tal:block tal:condition="todo.due_date">
+          <span tal:define="overdue python:todo.due_date < today;
+                            today_due python:todo.due_date == today"
+                class="todo-due flex-shrink-0 small"
+                tal:attributes="class python: 'todo-due flex-shrink-0 small ' + ('todo-due--overdue' if overdue else ('todo-due--today' if today_due else 'todo-due--future'));
+                                title python: format.date(todo.due_date, format='full')">
+            <tal:block tal:condition="overdue">▲ </tal:block>${format.date(todo.due_date, format='medium')}
+          </span>
+        </tal:block>
 
         <button type="button" class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted" title="Edit">✎</button>
       </div>

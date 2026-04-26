@@ -1,0 +1,60 @@
+<div metal:use-macro="load: layout.pt">
+
+  <span metal:fill-slot="title-mobile">Scheduled</span>
+  <div metal:fill-slot="title">Scheduled todos</div>
+
+  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
+
+    <div class="mb-3">
+      <a href="${request.route_url('list_todos')}" class="link-secondary">← Back to Todos</a>
+    </div>
+
+    <!-- Same composite-input form as the main view; the hidden `next` keeps
+         the user on this page after a submit/edit. -->
+    <tal:block tal:replace="structure form_html"/>
+
+    <p tal:condition="not groups" class="text-muted fst-italic">
+      Nothing scheduled. Add a date to a todo with <code>^date</code> or press <kbd>d</kbd>.
+    </p>
+
+    <tal:block tal:repeat="group groups">
+      <div class="scheduled-day-header"
+           tal:define="delta python:(group['date'] - today).days">
+        <strong>
+          <tal:block tal:condition="delta == 1">tomorrow</tal:block>
+          <tal:block tal:condition="0 &lt; delta &lt; 7">${format.date(group['date'], format='EEEE')}</tal:block>
+          <tal:block tal:condition="delta >= 7">${format.date(group['date'], format='EEEE, d MMM')}</tal:block>
+        </strong>
+        <span class="text-muted small ms-2">${format.date(group['date'], format='medium')}</span>
+      </div>
+
+      <ul class="list-unstyled mb-3">
+        <li tal:repeat="todo group['items']"
+            id="todo-${todo.id}"
+            class="todo-item mb-1 shadow-sm"
+            data-todo-text="${todo.text}"
+            data-todo-tags="${python:','.join(sorted(todo.tags))}"
+            data-due-date="${todo.due_date.isoformat()}"
+            data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
+            data-set-due-url="${request.route_url('set_due_date', id=todo.id)}">
+
+          <div class="todo-content d-flex align-items-center gap-2 py-2 px-3 bg-white">
+            <input type="checkbox" class="form-check-input todo-checkbox flex-shrink-0"
+                   data-id="${todo.id}" />
+
+            <span class="flex-grow-1 text-truncate small">
+              <span>${todo.text}</span>
+              <span tal:repeat="tag python:sorted(todo.tags)"
+                    class="badge bg-secondary rounded-pill ms-1">#${tag}</span>
+              <span tal:condition="todo.note"
+                    class="d-block text-muted" style="font-size:0.7rem">${todo.note}</span>
+            </span>
+
+            <button type="button" class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted" title="Edit">✎</button>
+          </div>
+        </li>
+      </ul>
+    </tal:block>
+
+  </div>
+</div>

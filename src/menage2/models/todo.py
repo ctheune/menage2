@@ -1,7 +1,7 @@
 import datetime
 import enum
 
-from sqlalchemy import Column, DateTime, Enum, Integer, Text
+from sqlalchemy import Column, Date, DateTime, Enum, Index, Integer, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.types import TypeDecorator
 
@@ -22,7 +22,7 @@ class TagSet(TypeDecorator):
 class TodoStatus(enum.Enum):
     todo = "todo"
     done = "done"
-    postponed = "postponed"
+    on_hold = "on_hold"
 
 
 class Todo(Base):
@@ -42,5 +42,8 @@ class Todo(Base):
         default=lambda: datetime.datetime.now(datetime.timezone.utc),
     )
     done_at = Column(DateTime(timezone=True))
-    postponed_at = Column(DateTime(timezone=True))
+    on_hold_at = Column(DateTime(timezone=True))
+    due_date = Column(Date)
     note = Column(Text)
+
+    __table_args__ = (Index("ix_todos_due_date", "due_date"),)

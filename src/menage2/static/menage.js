@@ -91,7 +91,7 @@ document.addEventListener('touchend', function(e) {
         swipePost(list.dataset.doneUrl, todoId, list);
     } else if (dx <= -_SWIPE_THRESHOLD && list && todoId) {
         inner.style.transform = 'translateX(-100vw)';
-        swipePost(list.dataset.postponeUrl, todoId, list);
+        swipePost(list.dataset.holdUrl, todoId, list);
     } else {
         inner.style.transform = 'translateX(0)';
         delete item.dataset.swipeDir;
@@ -127,6 +127,7 @@ document.addEventListener('click', function(e) {
         id: li.id.replace('todo-', ''),
         text: li.dataset.todoText || '',
         tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
+        dueDate: li.dataset.dueDate || null,
         editUrl: li.dataset.editUrl || ''
     }}));
 });
@@ -144,7 +145,10 @@ function initTagInput() {
     var tags = JSON.parse(sessionStorage.getItem('todo-tags') || '[]');
     var addUrl = form.getAttribute('hx-post');
     var savedTags = null; // tags saved before entering edit mode
+    var savedDateISO = null; // due-date saved before entering edit mode
     var editingId = null;
+    var dateISO = null;     // currently-attached due date (ISO string or null)
+    var dateLabel = null;   // human-friendly label cached from the picker
 
     function renderPills() {
         container.querySelectorAll('.todo-tag-pill').forEach(function(el) { el.remove(); });
@@ -197,9 +201,60 @@ function initTagInput() {
         renderQuickPick();
     }
 
+    // --- Date pill (the ^ marker) ---
+    function _formatDateLabel(iso) {
+        // Best-effort fallback when the picker didn't supply a label (e.g. when
+        // the pill is rebuilt from the data-due-date attribute on edit).
+        var d = new Date(iso + 'T00:00:00');
+        var weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+        var month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+        return weekday + ', ' + d.getDate() + ' ' + month;
+    }
+
+    function renderDatePill() {
+        container.querySelectorAll('.todo-date-pill').forEach(function(el) { el.remove(); });
+        if (!dateISO) return;
+        var label = dateLabel || _formatDateLabel(dateISO);
+        var pill = document.createElement('span');
+        pill.className = 'todo-date-pill';
+        pill.dataset.iso = dateISO;
+        pill.title = dateISO;
+        pill.innerHTML = '↗ ' + label
+            + ' <button class="todo-date-remove" type="button" title="Remove date">×</button>';
+        // Insert before the text input so it sits visually with other pills.
+        container.insertBefore(pill, textInput);
+    }
+
+    function setDate(iso, label) {
+        dateISO = iso || null;
+        dateLabel = label || null;
+        renderDatePill();
+    }
+
+    function clearDate() { setDate(null, null); }
+
+    function openDatePillPicker() {
+        openPicker({
+            anchorEl: container,
+            initialISO: dateISO,
+            title: 'When is this due?',
+            onCommit: function(iso) {
+                setDate(iso, null);
+                textInput.focus();
+            },
+            onCancel: function() {
+                textInput.focus();
+            }
+        });
+    }
+
     container.addEventListener('click', function(e) {
-        var btn = e.target.closest('.todo-tag-remove');
-        if (btn) { removeTag(btn.dataset.tag); return; }
+        var rmTag = e.target.closest('.todo-tag-remove');
+        if (rmTag) { removeTag(rmTag.dataset.tag); return; }
+        var rmDate = e.target.closest('.todo-date-remove');
+        if (rmDate) { e.stopPropagation(); clearDate(); return; }
+        var datePill = e.target.closest('.todo-date-pill');
+        if (datePill) { e.stopPropagation(); openDatePillPicker(); return; }
         textInput.focus();
     });
 
@@ -307,12 +362,14 @@ function initTagInput() {
     textInput.addEventListener('blur', function() { setTimeout(hideAc, 150); });
 
     // --- Edit mode ---
-    function enterEditMode(id, text, tagList, editUrl) {
+    function enterEditMode(id, text, tagList, dueDate, editUrl) {
         savedTags = tags.slice();
+        savedDateISO = dateISO;
         editingId = id;
         tags = tagList.slice();
         renderPills();
         renderQuickPick();
+        setDate(dueDate || null, null);
         textInput.value = text;
         form.setAttribute('hx-post', editUrl);
         htmx.process(form);
@@ -327,6 +384,8 @@ function initTagInput() {
         savedTags = null;
         renderPills();
         renderQuickPick();
+        setDate(savedDateISO, null);
+        savedDateISO = null;
         textInput.value = '';
         form.setAttribute('hx-post', addUrl);
         htmx.process(form);
@@ -336,11 +395,21 @@ function initTagInput() {
 
     document.addEventListener('todoEditStart', function(e) {
         var d = e.detail;
-        enterEditMode(d.id, d.text, d.tags, d.editUrl);
+        enterEditMode(d.id, d.text, d.tags, d.dueDate, d.editUrl);
     });
 
     textInput.addEventListener('input', function() {
         var val = textInput.value;
+
+        // ^ \u2192 open date picker, strip the marker from the input
+        var caretIdx = val.indexOf('^');
+        if (caretIdx !== -1) {
+            textInput.value = val.slice(0, caretIdx) + val.slice(caretIdx + 1);
+            hideAc();
+            openDatePillPicker();
+            return;
+        }
+
         var re = /#(\S+) /g;
         var match;
         var extracted = [];
@@ -364,7 +433,9 @@ function initTagInput() {
         var allTags = tags.slice();
         typedTags.forEach(function(t) { if (allTags.indexOf(t) === -1) allTags.push(t); });
         var cleanText = rawText.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
-        return [cleanText].concat(allTags.map(function(t) { return '#' + t; })).join(' ').trim();
+        var parts = [cleanText].concat(allTags.map(function(t) { return '#' + t; }));
+        if (dateISO) parts.push('^' + dateISO);
+        return parts.join(' ').trim();
     }
 
     // Capture phase: compute the composite text while the input still has the user's value,
@@ -375,11 +446,13 @@ function initTagInput() {
         if (editingId) {
             tags = savedTags !== null ? savedTags : [];
             savedTags = null;
+            savedDateISO = null;
             editingId = null;
             container.classList.remove('todo-tag-input--editing');
             textInput.placeholder = 'New todo\u2026';
         }
         sessionStorage.setItem('todo-tags', JSON.stringify(tags));
+        clearDate();
         textInput.value = '';
     }, true);
 
@@ -406,6 +479,7 @@ function initTagInput() {
 
     renderPills();
     renderQuickPick();
+    renderDatePill();
 }
 
 // Show error toast when todo text is empty (only tags entered)
@@ -497,6 +571,7 @@ document.addEventListener('keydown', function(e) {
             id: li.id.replace('todo-', ''),
             text: li.dataset.todoText || '',
             tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
+            dueDate: li.dataset.dueDate || null,
             editUrl: li.dataset.editUrl || ''
         }}));
         return;
@@ -507,33 +582,40 @@ document.addEventListener('keydown', function(e) {
 
     var key = e.key;
 
-    if (key === 'c' || key === 'p') {
+    function _targetIds() {
         var boxes = Array.from(document.querySelectorAll('input.todo-checkbox:checked'));
-        // Fall back to hovered item if nothing is checked
-        var ids;
         if (boxes.length > 0) {
-            ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
-        } else if (_hoveredTodoItem) {
+            return boxes.map(function(b) { return b.dataset.id; }).join(',');
+        }
+        if (_hoveredTodoItem) {
             var hovered = _hoveredTodoItem.querySelector('.todo-checkbox');
-            if (!hovered) return;
-            ids = hovered.dataset.id;
-        } else {
-            return;
+            return hovered ? hovered.dataset.id : null;
         }
-        e.preventDefault();
-
-        if (key === 'c') {
-            htmx.ajax('POST', list.dataset.doneUrl,
-                       {target: list, swap: 'innerHTML', values: {todo_ids: ids}});
-        } else {
-            htmx.ajax('POST', list.dataset.postponeUrl,
-                       {target: list, swap: 'innerHTML', values: {todo_ids: ids}});
-        }
+        return null;
     }
 
-    if (e.shiftKey && key === 'P') {
-        var pausedBtn = document.querySelector('button[hx-post*="activate-postponed"]');
-        if (pausedBtn) { e.preventDefault(); pausedBtn.click(); }
+    if (key === 'c' || key === 'h' || key === 'p') {
+        var ids = _targetIds();
+        if (!ids) return;
+        e.preventDefault();
+        var url = key === 'c' ? list.dataset.doneUrl
+                : key === 'h' ? list.dataset.holdUrl
+                : list.dataset.postponeUrl;
+        htmx.ajax('POST', url, {target: list, swap: 'innerHTML', values: {todo_ids: ids}});
+        return;
+    }
+
+    if (key === 'P' && e.shiftKey) {
+        var ids2 = _targetIds();
+        if (!ids2) return;
+        e.preventDefault();
+        openPostponePicker(_hoveredTodoItem, ids2);
+        return;
+    }
+
+    if (key === 'd' && _hoveredTodoItem) {
+        e.preventDefault();
+        openSetDuePicker(_hoveredTodoItem);
         return;
     }
 
@@ -548,13 +630,328 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
+// --- Unified date picker ----------------------------------------------------
+//
+// A single popover used by the ^-pill flow, the d-key flow, and Shift+P. It
+// shows a row of quick chips (today, tomorrow, the next three weekdays, +1
+// week, "no date"), a free-text field with live parser preview, and a month
+// calendar grid. The caller passes a mode + onCommit callback.
+//
+//   mode: 'pill'    → onCommit(iso, label) — caller inserts a pill
+//         'set-due' → caller does whatever it wants on commit (we just call
+//                     onCommit; helpers below POST to set_due_date)
+//
+// Always returns ISO ('YYYY-MM-DD') or null for "no date".
+
+function _isoDate(d) {
+    return d.getFullYear() + '-'
+         + String(d.getMonth() + 1).padStart(2, '0') + '-'
+         + String(d.getDate()).padStart(2, '0');
+}
+
+function _addDays(d, n) {
+    var x = new Date(d);
+    x.setDate(x.getDate() + n);
+    return x;
+}
+
+function _quickOptions() {
+    var t = new Date();
+    var weekdayShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var opts = [
+        {label: 'Today', iso: _isoDate(t)},
+        {label: 'Tomorrow', iso: _isoDate(_addDays(t, 1))},
+    ];
+    for (var i = 2; i <= 4; i++) {
+        var d = _addDays(t, i);
+        opts.push({label: weekdayShort[d.getDay()], iso: _isoDate(d)});
+    }
+    opts.push({label: '+1 week', iso: _isoDate(_addDays(t, 7))});
+    opts.push({label: 'No date', iso: null});
+    return opts;
+}
+
+function openPicker(opts) {
+    closePopovers();
+    var pop = document.createElement('div');
+    pop.className = 'todo-popover';
+    pop.dataset.role = opts.role || 'date-picker';
+
+    if (opts.title) {
+        var h = document.createElement('div');
+        h.style.cssText = 'font-size:0.75rem;font-weight:600;color:var(--bs-secondary-color);margin-bottom:0.35rem;';
+        h.textContent = opts.title;
+        pop.appendChild(h);
+    }
+
+    // --- Quick chips row ---
+    var chips = document.createElement('div');
+    chips.className = 'todo-popover-actions';
+    chips.style.marginTop = '0';
+    pop.appendChild(chips);
+
+    // --- Custom text input + live preview ---
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'tomorrow / next wed / 2026-05-12 …';
+    input.value = opts.initialISO || '';
+    pop.appendChild(input);
+
+    var preview = document.createElement('div');
+    preview.className = 'todo-popover-preview';
+    pop.appendChild(preview);
+
+    // --- Calendar ---
+    var cal = document.createElement('div');
+    pop.appendChild(cal);
+
+    // --- Footer actions ---
+    var footer = document.createElement('div');
+    footer.className = 'todo-popover-actions';
+    var setBtn = document.createElement('button');
+    setBtn.type = 'button';
+    setBtn.textContent = opts.commitLabel || 'Set';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    footer.appendChild(setBtn);
+    footer.appendChild(cancelBtn);
+    pop.appendChild(footer);
+
+    anchorPopover(pop, opts.anchorEl);
+
+    // --- State ---
+    var pendingISO = opts.initialISO || null;
+    var pendingMonth = pendingISO
+        ? new Date(pendingISO + 'T00:00:00')
+        : new Date();
+    pendingMonth.setDate(1);
+
+    function commit(iso) {
+        if (typeof opts.onCommit === 'function') opts.onCommit(iso);
+        closePopovers();
+    }
+
+    function cancel() {
+        if (typeof opts.onCancel === 'function') opts.onCancel();
+        closePopovers();
+    }
+
+    // --- Render quick chips ---
+    _quickOptions().forEach(function(opt) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = opt.label;
+        btn.addEventListener('click', function() { commit(opt.iso); });
+        chips.appendChild(btn);
+    });
+
+    // --- Render calendar ---
+    function renderCalendar() {
+        cal.innerHTML = '';
+
+        var nav = document.createElement('div');
+        nav.style.cssText = 'display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;font-weight:600;color:var(--bs-secondary-color);margin:0.25rem 0;';
+        var prev = document.createElement('button');
+        prev.type = 'button';
+        prev.textContent = '‹';
+        prev.style.cssText = 'background:none;border:none;cursor:pointer;font-size:1rem;color:inherit;padding:0 0.5rem;';
+        prev.addEventListener('click', function() {
+            pendingMonth.setMonth(pendingMonth.getMonth() - 1);
+            renderCalendar();
+        });
+        var next = document.createElement('button');
+        next.type = 'button';
+        next.textContent = '›';
+        next.style.cssText = prev.style.cssText;
+        next.addEventListener('click', function() {
+            pendingMonth.setMonth(pendingMonth.getMonth() + 1);
+            renderCalendar();
+        });
+        var navLabel = document.createElement('span');
+        navLabel.textContent = pendingMonth.toLocaleDateString(undefined, {month: 'long', year: 'numeric'});
+        nav.appendChild(prev);
+        nav.appendChild(navLabel);
+        nav.appendChild(next);
+        cal.appendChild(nav);
+
+        var grid = document.createElement('div');
+        grid.className = 'todo-mini-cal';
+        ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].forEach(function(d) {
+            var hCell = document.createElement('div');
+            hCell.className = 'todo-mini-cal-cell todo-mini-cal-header';
+            hCell.textContent = d;
+            grid.appendChild(hCell);
+        });
+
+        var first = new Date(pendingMonth);
+        first.setDate(1);
+        var startWeekday = (first.getDay() + 6) % 7; // Mon=0
+        var daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+        var todayISO = _isoDate(new Date());
+
+        for (var i = 0; i < startWeekday; i++) {
+            var blank = document.createElement('div');
+            blank.className = 'todo-mini-cal-cell muted';
+            grid.appendChild(blank);
+        }
+        for (var d = 1; d <= daysInMonth; d++) {
+            var cell = document.createElement('div');
+            cell.className = 'todo-mini-cal-cell';
+            cell.textContent = d;
+            var iso = _isoDate(new Date(first.getFullYear(), first.getMonth(), d));
+            if (iso === todayISO) cell.classList.add('today');
+            if (iso === pendingISO) cell.classList.add('selected');
+            cell.addEventListener('click', (function(iso) { return function() { commit(iso); }; }(iso)));
+            grid.appendChild(cell);
+        }
+        cal.appendChild(grid);
+    }
+
+    // --- Live preview from custom input ---
+    var previewTimer = null;
+    function updatePreview() {
+        clearTimeout(previewTimer);
+        var q = input.value.trim();
+        if (!q) {
+            preview.textContent = '';
+            preview.classList.remove('todo-popover-preview--invalid');
+            pendingISO = null;
+            return;
+        }
+        previewTimer = setTimeout(function() {
+            fetch('/todos/parse-date?q=' + encodeURIComponent(q))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.ok) {
+                        pendingISO = data.date;
+                        preview.textContent = '→ ' + data.label + ' (' + data.date + ')';
+                        preview.classList.remove('todo-popover-preview--invalid');
+                        // Re-render calendar to month containing the new date
+                        var newMonth = new Date(data.date + 'T00:00:00');
+                        if (newMonth.getMonth() !== pendingMonth.getMonth()
+                            || newMonth.getFullYear() !== pendingMonth.getFullYear()) {
+                            pendingMonth = newMonth;
+                            pendingMonth.setDate(1);
+                        }
+                        renderCalendar();
+                    } else {
+                        pendingISO = null;
+                        preview.textContent = '? cannot parse';
+                        preview.classList.add('todo-popover-preview--invalid');
+                    }
+                })
+                .catch(function() {});
+        }, 120);
+    }
+
+    input.addEventListener('input', updatePreview);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); commit(pendingISO); }
+        else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+    setBtn.addEventListener('click', function() { commit(pendingISO); });
+    cancelBtn.addEventListener('click', cancel);
+
+    renderCalendar();
+    if (opts.initialISO) updatePreview();
+    setTimeout(function() { input.focus(); input.select(); }, 0);
+    return pop;
+}
+
+// Anchor a popover element below `anchorEl`. Removes any existing popovers first.
+function anchorPopover(pop, anchorEl) {
+    document.body.appendChild(pop);
+    var rect = anchorEl ? anchorEl.getBoundingClientRect()
+                        : {top: 100, left: 100, bottom: 100, right: 100};
+    var top = window.scrollY + rect.bottom + 4;
+    var left = window.scrollX + Math.min(rect.left, window.innerWidth - 320);
+    pop.style.top = top + 'px';
+    pop.style.left = Math.max(8, left) + 'px';
+}
+
+function closePopovers() {
+    document.querySelectorAll('.todo-popover').forEach(function(el) { el.remove(); });
+}
+
+// Click-outside closes any open popover.
+document.addEventListener('mousedown', function(e) {
+    if (e.target.closest('.todo-popover')) return;
+    if (e.target.closest('.todo-due')) return;
+    if (e.target.closest('.todo-date-pill')) return;
+    closePopovers();
+});
+
+// --- Helpers wrapping openPicker for specific contexts ---
+
+function openSetDuePicker(itemEl) {
+    var url = itemEl.dataset.setDueUrl;
+    if (!url) return;
+    var list = document.getElementById('todo-list');
+    openPicker({
+        anchorEl: itemEl,
+        initialISO: itemEl.dataset.dueDate || null,
+        title: 'Due date',
+        onCommit: function(iso) {
+            htmx.ajax('POST', url, {
+                target: list || document.body, swap: list ? 'innerHTML' : 'none',
+                values: {due_date: iso || ''}
+            });
+        }
+    });
+}
+
+function openPostponePicker(itemEl, ids) {
+    var list = document.getElementById('todo-list');
+    if (!list) return;
+    openPicker({
+        anchorEl: itemEl,
+        title: 'Postpone…',
+        role: 'postpone-palette',
+        onCommit: function(iso) {
+            htmx.ajax('POST', list.dataset.postponeUrl, {
+                target: list, swap: 'innerHTML',
+                values: {todo_ids: ids, due_date: iso || ''}
+            });
+        }
+    });
+}
+
+// Click on the due-date chip opens the set-due picker for that row.
+document.addEventListener('click', function(e) {
+    var chip = e.target.closest('.todo-due');
+    if (!chip) return;
+    var item = chip.closest('.todo-item');
+    if (!item || !item.dataset.setDueUrl) return;
+    e.stopPropagation();
+    openSetDuePicker(item);
+});
+
 // --- Keyboard shortcut help overlay ---
-(function() {
-    var overlay = document.createElement('div');
-    overlay.id = 'kbd-help-overlay';
-    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;align-items:center;justify-content:center;';
-    overlay.innerHTML = [
-        '<div style="background:#fff;border-radius:0.75rem;padding:1.5rem 2rem;max-width:26rem;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2);">',
+// HTMX swaps body content frequently and removes any element previously
+// appended to <body>. We therefore (a) keep `_helpOverlay` as a singleton we
+// can re-attach on every load and (b) bind the keydown handler exactly once
+// against `document`, which is never replaced.
+var _helpOverlay = null;
+
+function _kbdSection(title) {
+    return '<p style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;margin:0 0 0.35rem;">' + title + '</p>';
+}
+
+function _kbdRow(key, desc) {
+    return '<tr><td style="padding:0.25rem 0.75rem 0.25rem 0;white-space:nowrap;">'
+         + '<kbd style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:0.25rem;padding:0.1rem 0.4rem;font-family:monospace;font-size:0.8rem;">'
+         + key + '</kbd></td>'
+         + '<td style="padding:0.25rem 0;color:#374151;">' + desc + '</td></tr>';
+}
+
+function ensureHelpOverlay() {
+    if (_helpOverlay && document.body.contains(_helpOverlay)) return _helpOverlay;
+    _helpOverlay = document.createElement('div');
+    _helpOverlay.id = 'kbd-help-overlay';
+    _helpOverlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;align-items:center;justify-content:center;';
+    _helpOverlay.innerHTML = [
+        '<div style="background:#fff;border-radius:0.75rem;padding:1.5rem 2rem;max-width:28rem;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2);max-height:90vh;overflow:auto;">',
         '<h2 style="font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;margin:0 0 1rem;">Keyboard shortcuts</h2>',
 
         _kbdSection('Everywhere'),
@@ -568,9 +965,17 @@ document.addEventListener('keydown', function(e) {
         _kbdRow('click', 'Select / deselect item'),
         _kbdRow('e', 'Edit hovered item'),
         _kbdRow('c', 'Mark hovered / selected done'),
-        _kbdRow('p', 'Postpone hovered / selected'),
-        _kbdRow('Shift+P', 'Unpause all postponed items'),
+        _kbdRow('h', 'Put hovered / selected on hold'),
+        _kbdRow('d', 'Set / change due date (hovered)'),
+        _kbdRow('p', 'Postpone hovered / selected by 1 day'),
+        _kbdRow('Shift+P', 'Postpone… (chip palette + calendar)'),
         _kbdRow('u', 'Undo last action'),
+        '</tbody></table>',
+
+        _kbdSection('Adding / editing a todo'),
+        '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;"><tbody>',
+        _kbdRow('#tag', 'Attach a tag (single word)'),
+        _kbdRow('^', 'Open the date picker — commits as a pill'),
         '</tbody></table>',
 
         _kbdSection('Done list'),
@@ -581,42 +986,40 @@ document.addEventListener('keydown', function(e) {
 
         '</div>'
     ].join('');
-    document.body.appendChild(overlay);
-
-    function _kbdSection(title) {
-        return '<p style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;margin:0 0 0.35rem;">' + title + '</p>';
-    }
-
-    function _kbdRow(key, desc) {
-        return '<tr><td style="padding:0.25rem 0.75rem 0.25rem 0;white-space:nowrap;">'
-             + '<kbd style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:0.25rem;padding:0.1rem 0.4rem;font-family:monospace;font-size:0.8rem;">'
-             + key + '</kbd></td>'
-             + '<td style="padding:0.25rem 0;color:#374151;">' + desc + '</td></tr>';
-    }
-
-    function showHelp() {
-        overlay.style.display = 'flex';
-    }
-    function hideHelp() {
-        overlay.style.display = 'none';
-    }
-
-    overlay.addEventListener('click', function(e) {
-        if (e.target === overlay) hideHelp();
+    document.body.appendChild(_helpOverlay);
+    _helpOverlay.addEventListener('click', function(e) {
+        if (e.target === _helpOverlay) hideHelp();
     });
+    return _helpOverlay;
+}
 
-    document.addEventListener('keydown', function(e) {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-        if (e.key === '?') { e.preventDefault(); showHelp(); return; }
-        if (e.key === 'Escape') { hideHelp(); }
-    });
-}());
+function showHelp() {
+    var o = ensureHelpOverlay();
+    o.style.display = 'flex';
+}
+
+function hideHelp() {
+    if (_helpOverlay) _helpOverlay.style.display = 'none';
+}
+
+// Bound once on document — never replaced by HTMX. `?` should fire even when
+// the user is mid-typing in the add-todo input: opening help shouldn't depend
+// on what's focused.
+document.addEventListener('keydown', function(e) {
+    if (e.key === '?') { e.preventDefault(); showHelp(); return; }
+    if (e.key === 'Escape' && _helpOverlay && _helpOverlay.style.display === 'flex') {
+        e.preventDefault();
+        hideHelp();
+    }
+});
 
 htmx.onLoad(function(content) {
+    ensureHelpOverlay();
     initSortables(content);
     initTodoSwipe(content);
     initTagInput();
 });
+ensureHelpOverlay();
 initSortables(document);
 initTodoSwipe(document);
 initTagInput();

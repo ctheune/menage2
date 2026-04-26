@@ -5,21 +5,36 @@
 
   <div metal:fill-slot="content" class="container-fluid px-3 py-3">
 
-    <!-- Secondary action bar: postponed + done (OOB target must keep id) -->
-    <div class="d-flex align-items-center gap-2 mb-3">
-      <div id="postponed-section">
-        <tal:block tal:condition="postponed_count > 0">
-          <button hx-post="${request.route_url('todos_activate_all_postponed')}"
+    <!-- Secondary action bar: on-hold + scheduled + done (OOB targets must keep ids) -->
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+      <div id="on-hold-section">
+        <tal:block tal:condition="on_hold_count > 0">
+          <button hx-post="${request.route_url('todos_activate_all_on_hold')}"
                   hx-target="body"
                   class="btn btn-sm btn-secondary rounded-pill">
-            <i class="bi bi-pause-fill"></i> Paused
-            <span class="badge bg-light text-secondary ms-1">${postponed_count}</span>
+            <i class="bi bi-pause-fill"></i> On hold
+            <span class="badge bg-light text-secondary ms-1">${on_hold_count}</span>
           </button>
         </tal:block>
-        <tal:block tal:condition="postponed_count == 0">
+        <tal:block tal:condition="on_hold_count == 0">
           <span class="badge bg-secondary rounded-pill py-2 px-3">
-            <i class="bi bi-pause-fill"></i> Paused
+            <i class="bi bi-pause-fill"></i> On hold
             <span class="badge bg-dark ms-1">0</span>
+          </span>
+        </tal:block>
+      </div>
+      <div id="scheduled-section">
+        <tal:block tal:condition="scheduled_count > 0">
+          <a href="${request.route_url('list_todos_scheduled')}"
+             class="btn btn-sm btn-outline-primary rounded-pill">
+            <i class="bi bi-calendar-event"></i> Scheduled
+            <span class="badge bg-primary text-white ms-1">${scheduled_count}</span>
+          </a>
+        </tal:block>
+        <tal:block tal:condition="scheduled_count == 0">
+          <span class="badge bg-light text-muted rounded-pill py-2 px-3 border">
+            <i class="bi bi-calendar-event"></i> Scheduled
+            <span class="badge bg-secondary ms-1">0</span>
           </span>
         </tal:block>
       </div>
@@ -30,80 +45,16 @@
       </a>
     </div>
 
-    <!-- Add todo form -->
-    <form id="todo-form"
-          hx-post="${request.route_url('add_todo')}"
-          hx-target="body"
-          class="mb-2">
-      <div class="todo-tag-input" id="todo-tag-input">
-        <input type="text" id="todo-text" autocomplete="off"
-               enterkeyhint="done" placeholder="New todo…"
-               style="flex:1;min-width:6rem;background:transparent;" />
-      </div>
-      <input type="hidden" name="text" id="todo-hidden-text" />
-    </form>
-    <div id="todo-quick-pick" class="d-flex flex-wrap gap-1 mb-3"></div>
+    <!-- Add / edit todo form (shared across views; rendered server-side) -->
+    <tal:block tal:replace="structure form_html"/>
 
-    <!-- Todo list -->
+    <!-- Todo list (markup rendered server-side via _todo_groups.pt) -->
     <div id="todo-list"
          data-done-url="${request.route_url('todos_done')}"
+         data-hold-url="${request.route_url('todos_hold')}"
          data-postpone-url="${request.route_url('todos_postpone')}"
          data-undo-url="${request.route_url('todo_undo')}">
-
-      <tal:block tal:condition="groups">
-        <div class="d-flex gap-2 align-items-center mb-2">
-          <button onclick="setAllGroups(true)"
-                  class="btn btn-link btn-sm p-0 text-secondary">
-            <i class="bi bi-arrows-expand"></i> expand all
-          </button>
-          <span class="text-secondary">·</span>
-          <button onclick="setAllGroups(false)"
-                  class="btn btn-link btn-sm p-0 text-secondary">
-            <i class="bi bi-arrows-collapse"></i> collapse all
-          </button>
-        </div>
-      </tal:block>
-
-      <tal:block tal:repeat="group groups">
-        <div class="tag-group-header"
-             data-tag="${group['full_tag']}"
-             data-parent-tag="${group['parent_tag']}"
-             data-open="true"
-             style="padding-left:${group['depth'] * 1.25}rem">
-          <span class="tag-toggle">▾</span>
-          <tal:block tal:condition="group['depth'] > 0 and group['name'] != '(untagged)'">└ </tal:block>${group['name']}
-          <span class="tag-count-badge">${group['total_count']}</span>
-        </div>
-
-        <ul tal:condition="group['items']"
-            data-parent-tag="${group['full_tag']}"
-            class="border-start border-2 mb-1 list-unstyled"
-            style="margin-left:${group['depth'] * 1.25}rem">
-          <li tal:repeat="todo group['items']"
-              id="todo-${todo.id}"
-              class="todo-item mb-1 shadow-sm"
-              data-todo-text="${todo.text}"
-              data-todo-tags="${python:','.join(sorted(todo.tags))}"
-              data-edit-url="${request.route_url('edit_todo', id=todo.id)}">
-
-            <div class="todo-content d-flex align-items-center gap-2 py-2 px-3 bg-white">
-              <input type="checkbox" class="form-check-input todo-checkbox flex-shrink-0"
-                     data-id="${todo.id}" />
-
-              <span class="flex-grow-1 text-truncate small">
-                <span>${todo.text}</span>
-                <span tal:condition="todo.note"
-                      class="d-block text-muted" style="font-size:0.7rem">${todo.note}</span>
-              </span>
-
-              <button type="button" class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted" title="Edit">✎</button>
-            </div>
-          </li>
-        </ul>
-      </tal:block>
-
-      <p tal:condition="not groups" class="text-muted fst-italic px-3">No todos yet.</p>
-
+      <tal:block tal:replace="structure groups_html"/>
     </div>
   </div>
 

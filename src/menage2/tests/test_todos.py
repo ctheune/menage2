@@ -5,22 +5,31 @@ import pytest
 
 from menage2.models.todo import Todo, TodoStatus
 from menage2.views.todo import (
+    ParsedTodoInput,
+    _bump_due_date,
     add_todo,
     build_tag_tree,
     edit_todo,
     list_todos,
     list_todos_done,
+    list_todos_scheduled,
     parse_todo_input,
+    set_due_date,
     todo_undo,
-    todos_activate_all_postponed,
+    todos_activate_all_on_hold,
     todos_activate_batch,
     todos_done,
+    todos_hold,
     todos_postpone,
 )
 
 
 def _now():
     return datetime.datetime.now(datetime.timezone.utc)
+
+
+def _today():
+    return datetime.date.today()
 
 
 def _todo(text="Test", tags=None, status=TodoStatus.todo, **kwargs):
@@ -34,32 +43,63 @@ def _todo(text="Test", tags=None, status=TodoStatus.todo, **kwargs):
 
 
 def test_parse_todo_input_extracts_tags():
-    text, tags = parse_todo_input("Buy milk #shopping #food:dairy")
-    assert text == "Buy milk"
-    assert tags == {"shopping", "food:dairy"}
+    parsed = parse_todo_input("Buy milk #shopping #food:dairy")
+    assert parsed.text == "Buy milk"
+    assert parsed.tags == {"shopping", "food:dairy"}
+    assert parsed.due_date is None
 
 
 def test_parse_todo_input_collapses_whitespace():
-    text, tags = parse_todo_input("  Get  #a  bread  ")
-    assert text == "Get bread"
+    parsed = parse_todo_input("  Get  #a  bread  ")
+    assert parsed.text == "Get bread"
 
 
 def test_parse_todo_input_no_tags():
-    text, tags = parse_todo_input("plain text")
-    assert text == "plain text"
-    assert tags == set()
+    parsed = parse_todo_input("plain text")
+    assert parsed.text == "plain text"
+    assert parsed.tags == set()
 
 
 def test_parse_todo_input_dashes_and_special_chars():
-    text, tags = parse_todo_input("Buy things #einkaufen:bio-laden #to-do")
-    assert text == "Buy things"
-    assert tags == {"einkaufen:bio-laden", "to-do"}
+    parsed = parse_todo_input("Buy things #einkaufen:bio-laden #to-do")
+    assert parsed.text == "Buy things"
+    assert parsed.tags == {"einkaufen:bio-laden", "to-do"}
 
 
 def test_parse_todo_input_only_tags():
-    text, tags = parse_todo_input("#foo #bar")
-    assert text == ""
-    assert tags == {"foo", "bar"}
+    parsed = parse_todo_input("#foo #bar")
+    assert parsed.text == ""
+    assert parsed.tags == {"foo", "bar"}
+
+
+def test_parse_todo_input_extracts_simple_date():
+    today = datetime.date(2026, 4, 29)
+    parsed = parse_todo_input("Buy bread ^tomorrow", today=today)
+    assert parsed.text == "Buy bread"
+    assert parsed.due_date == datetime.date(2026, 4, 30)
+
+
+def test_parse_todo_input_extracts_multiword_date_before_tag():
+    today = datetime.date(2026, 4, 29)
+    parsed = parse_todo_input("Buy bread ^next week #shopping", today=today)
+    assert parsed.text == "Buy bread"
+    assert parsed.tags == {"shopping"}
+    assert parsed.due_date == datetime.date(2026, 5, 4)  # next Monday
+
+
+def test_parse_todo_input_unparseable_date_kept_as_text():
+    today = datetime.date(2026, 4, 29)
+    parsed = parse_todo_input("Buy ^next week bread", today=today)
+    # Whole "^next week bread" fragment fails to parse → leave it in text.
+    assert parsed.due_date is None
+    assert "^next week bread" in parsed.text
+
+
+def test_parse_todo_input_iso_date():
+    today = datetime.date(2026, 4, 29)
+    parsed = parse_todo_input("Pay rent ^2026-05-01", today=today)
+    assert parsed.text == "Pay rent"
+    assert parsed.due_date == datetime.date(2026, 5, 1)
 
 
 def test_build_tag_tree_single_level():
@@ -157,6 +197,30 @@ def test_build_tag_tree_prefix_parent_node_is_empty():
 
 
 # ---------------------------------------------------------------------------
+# Postpone interval math
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("current,interval,expected", [
+    # Undated → snap to today, then bump
+    (None, "1d", "2026-04-30"),
+    (None, "1w", "2026-05-06"),
+    (None, "1mo", "2026-05-29"),
+    # Future-dated → bump from current
+    (datetime.date(2026, 5, 5), "1d", "2026-05-06"),
+    (datetime.date(2026, 5, 5), "2w", "2026-05-19"),
+    # Overdue → snap to today first
+    (datetime.date(2026, 4, 1), "1d", "2026-04-30"),
+    (datetime.date(2026, 4, 1), "1w", "2026-05-06"),
+    # Today → bump from today
+    (datetime.date(2026, 4, 29), "3d", "2026-05-02"),
+])
+def test_bump_due_date(current, interval, expected):
+    today = datetime.date(2026, 4, 29)
+    assert _bump_due_date(current, today, interval) == datetime.date.fromisoformat(expected)
+
+
+# ---------------------------------------------------------------------------
 # View tests (with DB)
 # ---------------------------------------------------------------------------
 
@@ -171,6 +235,16 @@ def test_add_todo_creates_record(app_request, dbsession):
     assert todo.status == TodoStatus.todo
     assert todo.created_at is not None
     assert todo.created_at.tzinfo is not None
+    assert todo.due_date is None
+
+
+def test_add_todo_persists_due_date(app_request, dbsession):
+    app_request.method = "POST"
+    app_request.POST["text"] = "Pay rent ^2030-05-01"
+    add_todo(app_request)
+    todo = dbsession.query(Todo).one()
+    assert todo.text == "Pay rent"
+    assert todo.due_date == datetime.date(2030, 5, 1)
 
 
 def test_add_todo_empty_text_redirects(app_request, dbsession):
@@ -222,7 +296,21 @@ def test_todos_done_response_has_hx_trigger(app_request, dbsession):
     assert trigger["showUndoToast"]["label"] == "Test"
 
 
-def test_todos_postpone_sets_status(app_request, dbsession):
+def test_todos_hold_sets_status(app_request, dbsession):
+    todo = _todo()
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    todos_hold(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.status == TodoStatus.on_hold
+    assert todo.on_hold_at is not None
+    assert todo.on_hold_at.tzinfo is not None
+
+
+def test_todos_postpone_sets_due_date_one_day_default(app_request, dbsession):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
@@ -231,9 +319,35 @@ def test_todos_postpone_sets_status(app_request, dbsession):
     todos_postpone(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
-    assert todo.status == TodoStatus.postponed
-    assert todo.postponed_at is not None
-    assert todo.postponed_at.tzinfo is not None
+    assert todo.due_date == _today() + datetime.timedelta(days=1)
+    assert todo.status == TodoStatus.todo  # status untouched
+
+
+def test_todos_postpone_with_interval(app_request, dbsession):
+    todo = _todo()
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    app_request.POST["interval"] = "1w"
+    todos_postpone(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.due_date == _today() + datetime.timedelta(days=7)
+
+
+def test_todos_postpone_overdue_snaps_to_today_first(app_request, dbsession):
+    todo = _todo(due_date=_today() - datetime.timedelta(days=5))
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    app_request.POST["interval"] = "1d"
+    todos_postpone(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    # Overdue items snap to today, then +1 day.
+    assert todo.due_date == _today() + datetime.timedelta(days=1)
 
 
 def test_todos_activate_batch_restores_status(app_request, dbsession):
@@ -263,17 +377,17 @@ def test_todos_done_marks_multiple(app_request, dbsession):
         assert t.status == TodoStatus.done
 
 
-def test_todos_activate_all_postponed(app_request, dbsession):
-    todos = [_todo(f"P{i}", status=TodoStatus.postponed) for i in range(2)]
+def test_todos_activate_all_on_hold(app_request, dbsession):
+    todos = [_todo(f"H{i}", status=TodoStatus.on_hold) for i in range(2)]
     for t in todos:
         dbsession.add(t)
     dbsession.flush()
-    todos_activate_all_postponed(app_request)
+    todos_activate_all_on_hold(app_request)
     dbsession.flush()
     for t in todos:
         dbsession.refresh(t)
         assert t.status == TodoStatus.todo
-        assert t.postponed_at is None
+        assert t.on_hold_at is None
 
 
 def test_todo_undo_reverts_done_to_todo(app_request, dbsession):
@@ -290,8 +404,8 @@ def test_todo_undo_reverts_done_to_todo(app_request, dbsession):
     assert todo.done_at is None
 
 
-def test_todo_undo_reverts_postponed_to_todo(app_request, dbsession):
-    todo = _todo(status=TodoStatus.postponed, postponed_at=_now())
+def test_todo_undo_reverts_on_hold_to_todo(app_request, dbsession):
+    todo = _todo(status=TodoStatus.on_hold, on_hold_at=_now())
     dbsession.add(todo)
     dbsession.flush()
     app_request.method = "POST"
@@ -301,7 +415,7 @@ def test_todo_undo_reverts_postponed_to_todo(app_request, dbsession):
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.todo
-    assert todo.postponed_at is None
+    assert todo.on_hold_at is None
 
 
 def test_todo_undo_returns_list_html_with_confirm_trigger(app_request, dbsession):
@@ -331,8 +445,8 @@ def test_list_todos_done_ordered_by_done_at(app_request, dbsession):
 def test_list_todos_only_shows_active(app_request, dbsession):
     t_active = _todo("Active")
     t_done = _todo("Done", status=TodoStatus.done, done_at=_now())
-    t_postponed = _todo("Postponed", status=TodoStatus.postponed)
-    dbsession.add_all([t_active, t_done, t_postponed])
+    t_held = _todo("Held", status=TodoStatus.on_hold)
+    dbsession.add_all([t_active, t_done, t_held])
     dbsession.flush()
     info = list_todos(app_request)
     all_items = [item for g in info["groups"] for item in g["items"]]
@@ -340,12 +454,115 @@ def test_list_todos_only_shows_active(app_request, dbsession):
     assert all_items[0].text == "Active"
 
 
-def test_list_todos_counts_postponed(app_request, dbsession):
-    dbsession.add(_todo("P1", status=TodoStatus.postponed))
-    dbsession.add(_todo("P2", status=TodoStatus.postponed))
+def test_list_todos_hides_future_dated(app_request, dbsession):
+    today = _today()
+    visible = _todo("Visible", due_date=today)
+    overdue = _todo("Overdue", due_date=today - datetime.timedelta(days=2))
+    future = _todo("Future", due_date=today + datetime.timedelta(days=3))
+    undated = _todo("Undated")
+    dbsession.add_all([visible, overdue, future, undated])
     dbsession.flush()
     info = list_todos(app_request)
-    assert info["postponed_count"] == 2
+    all_items = [item for g in info["groups"] for item in g["items"]]
+    texts = {t.text for t in all_items}
+    assert texts == {"Visible", "Overdue", "Undated"}
+
+
+def test_list_todos_counts(app_request, dbsession):
+    today = _today()
+    dbsession.add(_todo("H1", status=TodoStatus.on_hold))
+    dbsession.add(_todo("H2", status=TodoStatus.on_hold))
+    dbsession.add(_todo("S1", due_date=today + datetime.timedelta(days=2)))
+    dbsession.flush()
+    info = list_todos(app_request)
+    assert info["on_hold_count"] == 2
+    assert info["scheduled_count"] == 1
+
+
+def test_list_todos_sorted_due_first_then_undated(app_request, dbsession):
+    today = _today()
+    a_undated = _todo("A_undated", tags={"x"})
+    b_due_today = _todo("B_today", tags={"x"}, due_date=today)
+    c_overdue = _todo("C_overdue", tags={"x"}, due_date=today - datetime.timedelta(days=3))
+    dbsession.add_all([a_undated, b_due_today, c_overdue])
+    dbsession.flush()
+    info = list_todos(app_request)
+    items = info["groups"][0]["items"]
+    # Most overdue first, then today, then undated.
+    assert [t.text for t in items] == ["C_overdue", "B_today", "A_undated"]
+
+
+# ---------------------------------------------------------------------------
+# Scheduled view
+# ---------------------------------------------------------------------------
+
+
+def test_list_todos_scheduled_only_future(app_request, dbsession):
+    today = _today()
+    today_item = _todo("Today", due_date=today)
+    future = _todo("Future", due_date=today + datetime.timedelta(days=3))
+    far_future = _todo("Far", due_date=today + datetime.timedelta(days=10))
+    dbsession.add_all([today_item, future, far_future])
+    dbsession.flush()
+    info = list_todos_scheduled(app_request)
+    flat = [item for g in info["groups"] for item in g["items"]]
+    assert [t.text for t in flat] == ["Future", "Far"]
+
+
+def test_list_todos_scheduled_grouped_by_date(app_request, dbsession):
+    today = _today()
+    a = _todo("A", due_date=today + datetime.timedelta(days=2))
+    b = _todo("B", due_date=today + datetime.timedelta(days=2))
+    c = _todo("C", due_date=today + datetime.timedelta(days=5))
+    dbsession.add_all([a, b, c])
+    dbsession.flush()
+    info = list_todos_scheduled(app_request)
+    assert len(info["groups"]) == 2
+    assert len(info["groups"][0]["items"]) == 2
+    assert len(info["groups"][1]["items"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# set_due_date
+# ---------------------------------------------------------------------------
+
+
+def test_set_due_date_with_natural_language(app_request, dbsession):
+    todo = _todo()
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["due_date"] = "tomorrow"
+    set_due_date(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.due_date == _today() + datetime.timedelta(days=1)
+
+
+def test_set_due_date_clears_when_empty(app_request, dbsession):
+    todo = _todo(due_date=_today() + datetime.timedelta(days=2))
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["due_date"] = ""
+    set_due_date(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.due_date is None
+
+
+def test_set_due_date_invalid_input_returns_422(app_request, dbsession):
+    todo = _todo()
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["due_date"] = "not a date"
+    response = set_due_date(app_request)
+    assert response.status_int == 422
+    assert todo.due_date is None
 
 
 # ---------------------------------------------------------------------------
@@ -355,7 +572,8 @@ def test_list_todos_counts_postponed(app_request, dbsession):
 
 def test_get_todos_page(authenticated_testapp):
     res = authenticated_testapp.get("/todos", status=200)
-    assert b"Add todo" in res.body
+    assert b'id="todo-form"' in res.body
+    assert b'placeholder="New todo' in res.body
 
 
 def test_add_todo_workflow(authenticated_testapp, dbsession):
@@ -373,11 +591,19 @@ def test_done_view_shows_completed(authenticated_testapp, dbsession):
     assert b"Completed" in res.body
 
 
-def test_activate_postponed_restores(authenticated_testapp, dbsession):
-    todo = _todo("PostponedItem", status=TodoStatus.postponed)
+def test_scheduled_view_lists_future_items(authenticated_testapp, dbsession):
+    todo = _todo("Pay rent", due_date=_today() + datetime.timedelta(days=5))
     dbsession.add(todo)
     dbsession.flush()
-    authenticated_testapp.post("/todos/activate-postponed", status=303)
+    res = authenticated_testapp.get("/todos/scheduled", status=200)
+    assert b"Pay rent" in res.body
+
+
+def test_activate_on_hold_restores(authenticated_testapp, dbsession):
+    todo = _todo("HeldItem", status=TodoStatus.on_hold)
+    dbsession.add(todo)
+    dbsession.flush()
+    authenticated_testapp.post("/todos/activate-on-hold", status=303)
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.todo
@@ -393,6 +619,24 @@ def test_batch_done_endpoint(authenticated_testapp, dbsession):
     for t in todos:
         dbsession.refresh(t)
         assert t.status == TodoStatus.done
+
+
+def test_postpone_endpoint_bumps_due_date(authenticated_testapp, dbsession):
+    todo = _todo("Bump me")
+    dbsession.add(todo)
+    dbsession.flush()
+    authenticated_testapp.post("/todos/postpone-items", {"todo_ids": str(todo.id), "interval": "2w"}, status=200)
+    dbsession.refresh(todo)
+    assert todo.due_date == _today() + datetime.timedelta(days=14)
+
+
+def test_set_due_date_endpoint(authenticated_testapp, dbsession):
+    todo = _todo("Schedule me")
+    dbsession.add(todo)
+    dbsession.flush()
+    authenticated_testapp.post(f"/todos/{todo.id}/due-date", {"due_date": "tomorrow"}, status=200)
+    dbsession.refresh(todo)
+    assert todo.due_date == _today() + datetime.timedelta(days=1)
 
 
 def test_edit_todo_updates_text_and_tags(app_request, dbsession):
