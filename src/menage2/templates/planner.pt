@@ -17,6 +17,7 @@
 
     <form hx-post="${request.route_url('edit_week', id=week.id)}" hx-trigger="change" hx-select="#edit-week" hx-indicator="#submit" id="edit-week">
       <div tal:repeat="day week.days" class="card mb-3">
+        <div class="card-header">${format.date(day.day, "full")}</div>
         <div class="card-body">
           <div class="float-end d-flex gap-2" hx-disinherit="*">
             <a href="#" hx-delete="${request.route_url('delete_day', day=day.id)}"
@@ -25,7 +26,6 @@
                tal:condition="repeat.day.start or repeat.day.end"
                title="Remove this day from the plan">🗑️</a>
           </div>
-          <h5 class="card-title">${format.date(day.day, "full")}</h5>
           <div class="d-flex flex-wrap gap-4">
             <div>
               <h6>Rezept aus dem Rezeptbuch</h6>
@@ -41,7 +41,7 @@
                   <a href="#" hx-post="${request.route_url('toggle_day_shopping', day=day.id)}"
                      hx-target="body"
                      tal:attributes="title python:'Von Einkaufsliste ausschließen' if not day.exclude_from_shopping else 'Auf Einkaufsliste aufnehmen'"
-                     class="ms-3 fs-5"
+                     class="ms-3 fs-5 text-decoration-none"
                      style="${'opacity:0.3' if day.exclude_from_shopping else ''}">🛒</a>
                 </span>
               </div>
