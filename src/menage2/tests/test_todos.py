@@ -353,43 +353,43 @@ def test_list_todos_counts_postponed(app_request, dbsession):
 # ---------------------------------------------------------------------------
 
 
-def test_get_todos_page(testapp):
-    res = testapp.get("/todos", status=200)
+def test_get_todos_page(authenticated_testapp):
+    res = authenticated_testapp.get("/todos", status=200)
     assert b"Add todo" in res.body
 
 
-def test_add_todo_workflow(testapp, dbsession):
-    testapp.post("/todos/add", {"text": "Walk dog #chores"}, status=303)
-    res = testapp.get("/todos", status=200)
+def test_add_todo_workflow(authenticated_testapp, dbsession):
+    authenticated_testapp.post("/todos/add", {"text": "Walk dog #chores"}, status=303)
+    res = authenticated_testapp.get("/todos", status=200)
     assert b"Walk dog" in res.body
     assert b"chores" in res.body
 
 
-def test_done_view_shows_completed(testapp, dbsession):
+def test_done_view_shows_completed(authenticated_testapp, dbsession):
     todo = _todo("Completed", status=TodoStatus.done, done_at=_now())
     dbsession.add(todo)
     dbsession.flush()
-    res = testapp.get("/todos/done", status=200)
+    res = authenticated_testapp.get("/todos/done", status=200)
     assert b"Completed" in res.body
 
 
-def test_activate_postponed_restores(testapp, dbsession):
+def test_activate_postponed_restores(authenticated_testapp, dbsession):
     todo = _todo("PostponedItem", status=TodoStatus.postponed)
     dbsession.add(todo)
     dbsession.flush()
-    testapp.post("/todos/activate-postponed", status=303)
+    authenticated_testapp.post("/todos/activate-postponed", status=303)
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.todo
 
 
-def test_batch_done_endpoint(testapp, dbsession):
+def test_batch_done_endpoint(authenticated_testapp, dbsession):
     todos = [_todo(f"Batch{i}") for i in range(2)]
     for t in todos:
         dbsession.add(t)
     dbsession.flush()
     ids = ",".join(str(t.id) for t in todos)
-    res = testapp.post("/todos/done-items", {"todo_ids": ids}, status=200)
+    res = authenticated_testapp.post("/todos/done-items", {"todo_ids": ids}, status=200)
     for t in todos:
         dbsession.refresh(t)
         assert t.status == TodoStatus.done
@@ -421,11 +421,11 @@ def test_edit_todo_only_tags_returns_422(app_request, dbsession):
     assert todo.text == "Something"
 
 
-def test_edit_todo_workflow(testapp, dbsession):
+def test_edit_todo_workflow(authenticated_testapp, dbsession):
     todo = _todo("Original")
     dbsession.add(todo)
     dbsession.flush()
-    testapp.post(f"/todos/{todo.id}/edit", {"text": "Updated #work"}, status=303)
+    authenticated_testapp.post(f"/todos/{todo.id}/edit", {"text": "Updated #work"}, status=303)
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.text == "Updated"

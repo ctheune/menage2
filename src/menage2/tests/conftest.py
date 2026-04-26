@@ -1,17 +1,32 @@
 import os
+import socket
+import subprocess
+import threading
+import time
+from datetime import datetime, timezone
+from urllib.parse import urlparse
 
-import alembic
 import alembic.command
 import alembic.config
 import pytest
 import transaction
 import webtest
+from argon2 import PasswordHasher
 from pyramid.paster import get_appsettings
 from pyramid.scripting import prepare
 from pyramid.testing import DummyRequest, testConfig
+from sqlalchemy import text
+from sqlalchemy.orm import sessionmaker
 
 from menage2 import main, models
 from menage2.models.meta import Base
+from menage2.models.user import User
+
+_ph = PasswordHasher()
+
+
+def _now():
+    return datetime.now(timezone.utc)
 
 
 def pytest_addoption(parser):
@@ -20,7 +35,6 @@ def pytest_addoption(parser):
 
 @pytest.fixture(scope="session")
 def ini_file(request):
-    # potentially grab this path from a pytest option
     return os.path.abspath(request.config.option.ini or "testing.ini")
 
 
@@ -30,29 +44,62 @@ def app_settings(ini_file):
 
 
 @pytest.fixture(scope="session")
-def dbengine(app_settings, ini_file):
+def setup_database(app_settings, ini_file):
+    """Drop, recreate, and migrate the test database once per session."""
+    db_name = urlparse(app_settings["sqlalchemy.url"]).path.lstrip("/")
+    subprocess.run(["dropdb", "--if-exists", db_name], check=True)
+    subprocess.run(["createdb", db_name], check=True)
+    alembic.command.upgrade(alembic.config.Config(ini_file), "head")
+
+
+@pytest.fixture(scope="session")
+def dbengine(app_settings, setup_database):
     engine = models.get_engine(app_settings)
-
-    alembic_cfg = alembic.config.Config(ini_file)
-    Base.metadata.drop_all(bind=engine)
-    alembic.command.stamp(alembic_cfg, None, purge=True)
-
-    # run migrations to initialize the database
-    # depending on how we want to initialize the database from scratch
-    # we could alternatively call:
-    # Base.metadata.create_all(bind=engine)
-    # alembic.command.stamp(alembic_cfg, "head")
-    alembic.command.upgrade(alembic_cfg, "head")
-
     yield engine
-
-    Base.metadata.drop_all(bind=engine)
-    alembic.command.stamp(alembic_cfg, None, purge=True)
+    engine.dispose()
 
 
 @pytest.fixture(scope="session")
 def app(app_settings, dbengine):
     return main({}, dbengine=dbengine, **app_settings)
+
+
+@pytest.fixture(scope="session")
+def live_server(app):
+    """Start the Pyramid app on an ephemeral port and yield its base URL."""
+    from waitress import create_server
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("localhost", 0))
+        port = s.getsockname()[1]
+
+    import logging
+    logging.getLogger("waitress").setLevel(logging.ERROR)
+    server = create_server(app, host="localhost", port=port)
+
+    def _run():
+        try:
+            server.run()
+        except OSError:
+            pass  # expected when server.close() interrupts the select loop
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("localhost", port), timeout=0.5):
+                break
+        except OSError:
+            time.sleep(0.05)
+    else:
+        server.close()
+        raise RuntimeError(f"Test server did not start on port {port}")
+
+    yield f"http://localhost:{port}"
+
+    server.close()
 
 
 @pytest.fixture
@@ -74,9 +121,6 @@ def dbsession(app, tm):
 
 @pytest.fixture
 def testapp(app, tm, dbsession):
-    # override request.dbsession and request.tm with our own
-    # externally-controlled values that are shared across requests but aborted
-    # at the end
     testapp = webtest.TestApp(
         app,
         extra_environ={
@@ -86,60 +130,116 @@ def testapp(app, tm, dbsession):
             "app.dbsession": dbsession,
         },
     )
-
     return testapp
 
 
 @pytest.fixture
 def app_request(app, tm, dbsession):
-    """
-    A real request.
-
-    This request is almost identical to a real request but it has some
-    drawbacks in tests as it's harder to mock data and is heavier.
-
-    """
     with prepare(registry=app.registry) as env:
         request = env["request"]
         request.host = "example.com"
-
-        # without this, request.dbsession will be joined to the same transaction
-        # manager but it will be using a different sqlalchemy.orm.Session using
-        # a separate database transaction
         request.dbsession = dbsession
         request.tm = tm
-
         yield request
 
 
 @pytest.fixture
 def dummy_request(tm, dbsession):
-    """
-    A lightweight dummy request.
-
-    This request is ultra-lightweight and should be used only when the request
-    itself is not a large focus in the call-stack.  It is much easier to mock
-    and control side-effects using this object, however:
-
-    - It does not have request extensions applied.
-    - Threadlocals are not properly pushed.
-
-    """
     request = DummyRequest()
     request.host = "example.com"
     request.dbsession = dbsession
     request.tm = tm
-
     return request
 
 
 @pytest.fixture
 def dummy_config(dummy_request):
-    """
-    A dummy :class:`pyramid.config.Configurator` object.  This allows for
-    mock configuration, including configuration for ``dummy_request``, as well
-    as pushing the appropriate threadlocals.
-
-    """
     with testConfig(request=dummy_request) as config:
         yield config
+
+
+# ---------------------------------------------------------------------------
+# Auth fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def admin_user(dbsession):
+    user = User(
+        username="admin",
+        real_name="Admin User",
+        email="admin@example.com",
+        password_hash=_ph.hash("correct-password"),
+        is_admin=True,
+        is_active=True,
+        created_at=_now(),
+    )
+    dbsession.add(user)
+    dbsession.flush()
+    return user
+
+
+@pytest.fixture
+def regular_user(dbsession):
+    user = User(
+        username="user",
+        real_name="Regular User",
+        email="user@example.com",
+        password_hash=_ph.hash("user-password"),
+        is_admin=False,
+        is_active=True,
+        created_at=_now(),
+    )
+    dbsession.add(user)
+    dbsession.flush()
+    return user
+
+
+@pytest.fixture
+def authenticated_testapp(testapp, admin_user):
+    """testapp with an active admin session cookie."""
+    testapp.post("/login", {"username": "admin", "password": "correct-password"}, status=303)
+    return testapp
+
+
+@pytest.fixture
+def user_testapp(testapp, regular_user):
+    """testapp with a regular (non-admin) user session cookie."""
+    testapp.post("/login", {"username": "user", "password": "user-password"}, status=303)
+    return testapp
+
+
+# ---------------------------------------------------------------------------
+# Browser test fixtures (Playwright via live_server)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def clean_db(dbengine):
+    """Truncate all tables before and after each browser test."""
+    def _truncate():
+        with dbengine.begin() as conn:
+            names = ", ".join(f'"{t.name}"' for t in reversed(Base.metadata.sorted_tables))
+            conn.execute(text(f"TRUNCATE {names} RESTART IDENTITY CASCADE"))
+
+    _truncate()
+    yield
+    _truncate()
+
+
+@pytest.fixture
+def browser_admin_user(clean_db, dbengine):
+    """Insert a fresh admin user directly into the test DB for browser tests."""
+    Session = sessionmaker(bind=dbengine)
+    session = Session()
+    user = User(
+        username="admin",
+        real_name="Test Admin",
+        email="admin@test.local",
+        password_hash=_ph.hash("testpassword1!"),
+        is_admin=True,
+        is_active=True,
+        created_at=_now(),
+    )
+    session.add(user)
+    session.commit()
+    session.close()
+    return {"username": "admin", "password": "testpassword1!"}

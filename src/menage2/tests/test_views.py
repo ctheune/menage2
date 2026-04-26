@@ -14,14 +14,14 @@ def test_list_recipes_success(app_request, dbsession):
     assert info["recipes"][0].title == "Gulasch"
 
 
-def test_list_recipes_empty_shows_add_button(testapp):
-    res = testapp.get("/recipes", status=200)
+def test_list_recipes_empty_shows_add_button(authenticated_testapp):
+    res = authenticated_testapp.get("/recipes", status=200)
     assert b"add_recipe" in res.body or b"Rezept" in res.body
     assert b"Neues Rezept" in res.body or b"Erstes Rezept" in res.body
 
 
-def test_list_weeks_empty_shows_add_button(testapp):
-    res = testapp.get("/weeks", status=200)
+def test_list_weeks_empty_shows_add_button(authenticated_testapp):
+    res = authenticated_testapp.get("/weeks", status=200)
     assert b"Neue Woche" in res.body or b"Erste Woche" in res.body
 
 

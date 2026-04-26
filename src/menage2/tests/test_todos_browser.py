@@ -1,29 +1,50 @@
 """Browser-based tests for the todo feature.
 
-Prerequisites:
-  1. `devenv up` must be running (dev server on http://localhost:6543)
-  2. Run `uv run playwright install chromium` once to install the browser
+The test server (port 6544) must be running — `devenv up` starts it automatically.
+Run with: uv run pytest src/menage2/tests/test_todos_browser.py
 """
 import pytest
 
-LIVE_URL = "http://localhost:6543"
-
 
 @pytest.fixture(scope="session")
-def browser_context_args(browser_context_args):
-    return {**browser_context_args, "viewport": {"width": 390, "height": 844}}
+def browser_context_args(browser_context_args, live_server):
+    """Set base_url and viewport for all browser tests."""
+    return {**browser_context_args, "base_url": live_server, "viewport": {"width": 390, "height": 844}}
+
+
+@pytest.fixture(autouse=True)
+def login(page, context, browser_admin_user, live_server):
+    """Insert admin, inject session cookie before each browser test."""
+    resp = context.request.post(
+        f"{live_server}/login",
+        form={
+            "username": browser_admin_user["username"],
+            "password": browser_admin_user["password"],
+            "came_from": "/todos",
+        },
+        max_redirects=0,
+    )
+    assert resp.status == 303, f"Login failed with HTTP {resp.status}"
+    cookie_header = resp.headers.get("set-cookie", "")
+    cookie_part = cookie_header.split(";")[0]
+    name, value = cookie_part.split("=", 1)
+    context.add_cookies([{
+        "name": name.strip(),
+        "value": value.strip(),
+        "domain": "localhost",
+        "path": "/",
+    }])
 
 
 def _add_todo(page, text):
-    """Type text into the composite widget and submit."""
     page.fill('#todo-text', text)
     page.press('#todo-text', "Enter")
     page.wait_for_load_state("networkidle")
 
 
 def test_add_todo_plain_text(page):
-    """Typing plain text and pressing Enter creates a todo (exercises htmx:configRequest path)."""
-    page.goto(f"{LIVE_URL}/todos")
+    """Typing plain text and pressing Enter creates a todo."""
+    page.goto("/todos")
     count_before = page.locator(".todo-item").count()
     _add_todo(page, "Buy bread")
     assert page.locator(".todo-item").count() == count_before + 1
@@ -32,10 +53,10 @@ def test_add_todo_plain_text(page):
 
 def test_add_todo_with_inline_tag(page):
     """A #tag followed by space is extracted as a pill; remaining text becomes the todo."""
-    page.goto(f"{LIVE_URL}/todos")
+    page.goto("/todos")
     count_before = page.locator(".todo-item").count()
     page.fill('#todo-text', "Buy bread #shopping ")
-    page.wait_for_timeout(100)  # let the input event extract the tag pill
+    page.wait_for_timeout(100)
     page.press('#todo-text', "Enter")
     page.wait_for_load_state("networkidle")
     assert page.locator(".todo-item").count() == count_before + 1
@@ -45,7 +66,7 @@ def test_add_todo_with_inline_tag(page):
 
 def test_add_todo_only_tags_shows_error(page):
     """Submitting only a tag (no text) shows the error toast, not a new todo."""
-    page.goto(f"{LIVE_URL}/todos")
+    page.goto("/todos")
     page.fill('#todo-text', "#shopping ")
     page.wait_for_timeout(100)
     page.press('#todo-text', "Enter")
@@ -54,13 +75,12 @@ def test_add_todo_only_tags_shows_error(page):
 
 
 def _check_and_blur(page, nth=0):
-    """Check a todo checkbox and blur it so keyboard shortcuts work."""
     page.locator(".todo-checkbox").nth(nth).check()
     page.evaluate("document.activeElement.blur()")
 
 
 def test_keyboard_c_single_item_marks_done(page):
-    page.goto(f"{LIVE_URL}/todos")
+    page.goto("/todos")
     _add_todo(page, "Keyboard test item")
     page.wait_for_selector(".todo-checkbox")
     count_before = page.locator(".todo-checkbox").count()
@@ -71,7 +91,7 @@ def test_keyboard_c_single_item_marks_done(page):
 
 
 def test_undo_toast_appears_after_done(page):
-    page.goto(f"{LIVE_URL}/todos")
+    page.goto("/todos")
     _add_todo(page, "Undo test item")
     page.wait_for_selector(".todo-checkbox")
     _check_and_blur(page)
@@ -81,7 +101,7 @@ def test_undo_toast_appears_after_done(page):
 
 
 def test_undo_with_u_key_restores_item(page):
-    page.goto(f"{LIVE_URL}/todos")
+    page.goto("/todos")
     _add_todo(page, "Undo restore item")
     page.wait_for_selector(".todo-checkbox")
     count_before = page.locator(".todo-checkbox").count()
@@ -95,7 +115,7 @@ def test_undo_with_u_key_restores_item(page):
 
 
 def test_done_view_shows_completed_items(page):
-    page.goto(f"{LIVE_URL}/todos")
+    page.goto("/todos")
     _add_todo(page, "Done view test")
     page.wait_for_selector('.todo-item[data-todo-text="Done view test"]')
     count_before = page.locator(".todo-checkbox").count()
@@ -103,13 +123,13 @@ def test_done_view_shows_completed_items(page):
     page.evaluate("document.activeElement.blur()")
     page.keyboard.press("c")
     page.wait_for_function(f"document.querySelectorAll('.todo-checkbox').length < {count_before}", timeout=5000)
-    page.goto(f"{LIVE_URL}/todos/done")
+    page.goto("/todos/done")
     assert page.locator("text=Done view test").count() >= 1
 
 
 def test_swipe_right_marks_item_done(page):
     page.set_viewport_size({"width": 390, "height": 844})
-    page.goto(f"{LIVE_URL}/todos")
+    page.goto("/todos")
     _add_todo(page, "Swipe done item")
     page.wait_for_selector(".todo-item")
     count_before = page.locator(".todo-item").count()
@@ -128,7 +148,7 @@ def test_swipe_right_marks_item_done(page):
 
 def test_swipe_left_postpones_item(page):
     page.set_viewport_size({"width": 390, "height": 844})
-    page.goto(f"{LIVE_URL}/todos")
+    page.goto("/todos")
     _add_todo(page, "Swipe postpone item")
     page.wait_for_selector(".todo-item")
     count_before = page.locator(".todo-item").count()

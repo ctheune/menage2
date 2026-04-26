@@ -1,0 +1,77 @@
+<div metal:use-macro="load: ../layout.pt">
+  <span metal:fill-slot="title-mobile">Users</span>
+  <div metal:fill-slot="title">User Management</div>
+
+  <div metal:fill-slot="content" class="px-4 py-6 max-w-3xl">
+
+    <div class="flex justify-between items-center mb-4">
+      <a href="${request.route_url('admin_user_new')}"
+         class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium py-1.5 px-3 rounded">
+        + Add User
+      </a>
+    </div>
+
+    <div class="bg-white rounded shadow overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-slate-600 text-left">
+          <tr>
+            <th class="px-4 py-2">Name</th>
+            <th class="px-4 py-2">Username</th>
+            <th class="px-4 py-2">Email</th>
+            <th class="px-4 py-2">Role</th>
+            <th class="px-4 py-2">Status</th>
+            <th class="px-4 py-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <tr tal:repeat="user users" class="hover:bg-slate-50">
+            <td class="px-4 py-2">${user.real_name}</td>
+            <td class="px-4 py-2 font-mono text-xs">${user.username}</td>
+            <td class="px-4 py-2 text-slate-500">${user.email}</td>
+            <td class="px-4 py-2">
+              <tal:block tal:condition="user.is_admin">
+                <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Admin</span>
+              </tal:block>
+              <tal:block tal:condition="not user.is_admin">
+                <span class="text-xs text-slate-400">User</span>
+              </tal:block>
+            </td>
+            <td class="px-4 py-2">
+              <tal:block tal:condition="user.is_active">
+                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
+              </tal:block>
+              <tal:block tal:condition="not user.is_active">
+                <span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactive</span>
+              </tal:block>
+            </td>
+            <td class="px-4 py-2 space-x-2">
+              <a href="${request.route_url('admin_user_edit', id=user.id)}"
+                 class="text-slate-600 hover:underline text-xs">Edit</a>
+              <tal:block tal:condition="user.id != request.identity.id">
+                <tal:block tal:condition="user.is_active">
+                  <form method="post" action="${request.route_url('admin_user_deactivate', id=user.id)}"
+                        style="display:inline"
+                        onsubmit="return confirm('Deactivate ${user.username}?')">
+                    <button type="submit" class="text-amber-600 hover:underline text-xs">Deactivate</button>
+                  </form>
+                </tal:block>
+                <form method="post" action="${request.route_url('admin_user_delete', id=user.id)}"
+                      style="display:inline"
+                      onsubmit="return confirm('Delete ${user.username}? This cannot be undone.')">
+                  <button type="submit" class="text-red-600 hover:underline text-xs">Delete</button>
+                </form>
+              </tal:block>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mt-6 text-sm">
+      <a href="${request.route_url('admin_dashboard_token')}" class="text-slate-600 hover:underline">
+        Dashboard Secret URL →
+      </a>
+    </div>
+
+  </div>
+</div>

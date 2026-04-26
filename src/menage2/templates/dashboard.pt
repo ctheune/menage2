@@ -12,7 +12,7 @@
       <!-- Left column -->
 
       <div class="basis-1/2 p-3 pt-3 my-2 mr-4 bg-sky-100 rounded-xl shadow-lg items-center"
-          hx-get="${request.route_url('dashboard_recipes')}"
+          hx-get="${dashboard_recipes_url}"
           hx-trigger="load, every 10m">
           ...
       </div>
@@ -29,7 +29,7 @@
         <div class="p-3 pt-3 my-2 mr-4 bg-lime-100 rounded-xl shadow-lg items-center">
           <h2 class="font-bold mb-4">Richtung Stadt</h2>
 
-          <div hx-get="${request.route_url('dashboard_pt_departures')}"
+          <div hx-get="${dashboard_pt_departures_url}"
                hx-trigger="load, every 10s">
             ...
           </div>
@@ -40,7 +40,7 @@
 
           <h2 class="font-bold mb-4">Zum Bahnhof</h2>
 
-          <div hx-get="${request.route_url('dashboard_pt_hbf')}"
+          <div hx-get="${dashboard_pt_hbf_url}"
                hx-trigger="load, every 10s">
             ...
           </div>

@@ -1,0 +1,41 @@
+<div metal:use-macro="load: ../layout.pt">
+  <span metal:fill-slot="title-mobile">Account</span>
+  <div metal:fill-slot="title">My Account</div>
+
+  <div metal:fill-slot="content" class="px-4 py-6 max-w-lg">
+
+    <div class="bg-white rounded shadow p-4 mb-4">
+      <h2 class="font-semibold text-slate-700 mb-2">Profile</h2>
+      <dl class="text-sm space-y-1">
+        <div class="flex gap-2"><dt class="text-slate-500 w-28">Name</dt><dd>${user.real_name}</dd></div>
+        <div class="flex gap-2"><dt class="text-slate-500 w-28">Username</dt><dd>${user.username}</dd></div>
+        <div class="flex gap-2"><dt class="text-slate-500 w-28">Email</dt><dd>${user.email}</dd></div>
+        <tal:block tal:condition="user.is_admin">
+          <div class="flex gap-2"><dt class="text-slate-500 w-28">Role</dt><dd class="text-indigo-600 font-medium">Administrator</dd></div>
+        </tal:block>
+      </dl>
+    </div>
+
+    <div class="bg-white rounded shadow p-4 mb-4">
+      <h2 class="font-semibold text-slate-700 mb-2">Security</h2>
+      <div class="space-y-2 text-sm">
+        <a href="${request.route_url('account_change_password')}"
+           class="block text-slate-700 hover:text-slate-900 hover:underline">
+          Change Password
+        </a>
+        <a href="${request.route_url('account_passkeys')}"
+           class="block text-slate-700 hover:text-slate-900 hover:underline">
+          Manage Passkeys
+        </a>
+      </div>
+    </div>
+
+    <form method="post" action="${request.route_url('logout')}">
+      <button type="submit"
+              class="text-sm text-red-600 hover:underline">
+        Sign out
+      </button>
+    </form>
+
+  </div>
+</div>

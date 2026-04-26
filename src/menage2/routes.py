@@ -14,6 +14,33 @@ def includeme(config):
     config.add_route("ingredient_recipes", "/ingredient/{id}/recipes")
     config.add_route("ingredient_toggle_tag", "/ingredient/{id}/tag/{tag}")
 
+    # Auth
+    config.add_route("login", "/login")
+    config.add_route("logout", "/logout")
+    config.add_route("setup", "/setup")
+    config.add_route("forgot_password", "/forgot-password")
+    config.add_route("reset_password", "/reset-password/{token}")
+
+    # WebAuthn JSON endpoints
+    config.add_route("login_passkey_begin", "/login/passkey/begin")
+    config.add_route("login_passkey_complete", "/login/passkey/complete")
+
+    # Account management (authenticated users)
+    config.add_route("account", "/account")
+    config.add_route("account_change_password", "/account/password")
+    config.add_route("account_passkeys", "/account/passkeys")
+    config.add_route("account_passkey_delete", "/account/passkeys/{id}/delete")
+    config.add_route("account_passkey_register_begin", "/account/passkeys/register/begin")
+    config.add_route("account_passkey_register_complete", "/account/passkeys/register/complete")
+
+    # Admin
+    config.add_route("admin_users", "/admin/users")
+    config.add_route("admin_user_new", "/admin/users/new")
+    config.add_route("admin_user_edit", "/admin/users/{id}/edit")
+    config.add_route("admin_user_deactivate", "/admin/users/{id}/deactivate")
+    config.add_route("admin_user_delete", "/admin/users/{id}/delete")
+    config.add_route("admin_dashboard_token", "/admin/dashboard-token")
+
     config.add_route("home", "/")
     config.add_route("list_recipes", "/recipes")
     config.add_route("add_recipe", "/recipe")
@@ -31,10 +58,10 @@ def includeme(config):
     config.add_route("toggle_day_shopping", "/day/{day}/toggle-shopping")
     config.add_route("delete_day", "/day/{day}")
 
-    config.add_route("dashboard", "/dashboard")
-    config.add_route("dashboard_recipes", "/dashboard/recipes")
-    config.add_route("dashboard_pt_departures", "/dashboard/pt/departures")
-    config.add_route("dashboard_pt_hbf", "/dashboard/pt/hbf")
+    config.add_route("dashboard", "/dashboard/{token}")
+    config.add_route("dashboard_recipes", "/dashboard/{token}/recipes")
+    config.add_route("dashboard_pt_departures", "/dashboard/{token}/pt/departures")
+    config.add_route("dashboard_pt_hbf", "/dashboard/{token}/pt/hbf")
 
     config.add_route("letscook", "/lets-cook")
 

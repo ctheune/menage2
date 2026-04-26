@@ -1,0 +1,50 @@
+<div metal:use-macro="load: ../layout.pt">
+  <span metal:fill-slot="title-mobile">Dashboard URL</span>
+  <div metal:fill-slot="title">Dashboard Secret URL</div>
+
+  <div metal:fill-slot="content" class="px-4 py-6 max-w-2xl">
+
+    <div class="bg-white rounded shadow p-4 mb-4">
+      <p class="text-sm text-slate-600 mb-4">
+        The kitchen dashboard is accessible via a secret URL. Only share this URL with devices
+        that should display the dashboard. Resetting it will invalidate any existing bookmarks.
+      </p>
+
+      <tal:block tal:condition="token is not None">
+        <div class="mb-4">
+          <label class="block text-xs font-medium text-slate-500 mb-1">Current Dashboard URL</label>
+          <div class="flex items-center gap-2">
+            <input type="text" readonly
+                   value="${dashboard_url}"
+                   class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm bg-slate-50 font-mono text-xs"
+                   onclick="this.select()" />
+            <button type="button"
+                    class="text-xs text-slate-600 border border-slate-300 rounded px-2 py-1.5 hover:bg-slate-50"
+                    onclick="navigator.clipboard.writeText('${dashboard_url}')">
+              Copy
+            </button>
+          </div>
+        </div>
+      </tal:block>
+
+      <tal:block tal:condition="token is None">
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 px-3 py-2 rounded text-sm mb-4">
+          No dashboard URL has been generated yet.
+        </div>
+      </tal:block>
+
+      <form method="post" action="${request.route_url('admin_dashboard_token')}"
+            onsubmit="return ${('confirm(\'Reset the dashboard URL? All existing bookmarks will stop working.\')') if token else 'true'}">
+        <button type="submit"
+                class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium py-1.5 px-3 rounded">
+          ${('Reset URL' if token else 'Generate URL')}
+        </button>
+      </form>
+    </div>
+
+    <div class="text-sm">
+      <a href="${request.route_url('admin_users')}" class="text-slate-600 hover:underline">← Back to users</a>
+    </div>
+
+  </div>
+</div>
