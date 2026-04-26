@@ -115,31 +115,19 @@ def _done_count(request) -> int:
     ).scalar()
 
 
-_PILL_STYLE = (
-    "display:inline-flex;align-items:center;gap:0.35rem;"
-    "border-radius:9999px;padding:0.25rem 0.65rem;"
-    "font-size:0.75rem;font-weight:500;"
-)
-_BADGE_STYLE = (
-    "display:inline-flex;align-items:center;justify-content:center;"
-    "background:rgba(255,255,255,0.25);border-radius:9999px;"
-    "padding:0 0.4rem;font-size:0.7rem;font-weight:700;min-width:1.2em;"
-)
-
-
 def _postponed_section_oob(request) -> str:
     count = _postponed_count(request)
     activate_url = request.route_url("todos_activate_all_postponed")
     if count > 0:
         btn = (
             f'<button hx-post="{activate_url}" hx-target="body" '
-            f'style="{_PILL_STYLE}background:#64748b;color:#fff;cursor:pointer;">'
-            f'⏸ Paused <span style="{_BADGE_STYLE}">{count}</span></button>'
+            f'class="btn btn-sm btn-secondary rounded-pill">'
+            f'&#9646; Paused <span class="badge bg-light text-secondary ms-1">{count}</span></button>'
         )
     else:
         btn = (
-            f'<span style="{_PILL_STYLE}background:#e2e8f0;color:#94a3b8;">'
-            f'⏸ Paused <span style="{_BADGE_STYLE}background:rgba(0,0,0,0.1);color:#94a3b8;">0</span></span>'
+            f'<span class="badge bg-secondary rounded-pill py-2 px-3">'
+            f'&#9646; Paused <span class="badge bg-dark ms-1">0</span></span>'
         )
     return f'<div id="postponed-section" hx-swap-oob="true">{btn}</div>'
 

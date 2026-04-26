@@ -1,10 +1,5 @@
 <div metal:use-macro="load: layout.pt">
-    <div metal:fill-slot="content">
-
-        <div class="content">
-            <h1><span class="font-semi-bold">Pyramid</span> <span class="smaller">Starter project</span></h1>
-            <p class="lead"><span class="font-semi-bold">404</span> Page Not Found</p>
-        </div>
-
+    <div metal:fill-slot="content" class="container py-4">
+        <h1>404 – Page Not Found</h1>
     </div>
 </div>

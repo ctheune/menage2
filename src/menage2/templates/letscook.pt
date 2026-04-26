@@ -7,47 +7,37 @@
       <title>Menage – Let's Cook!</title>
   </metal:block>
 
-  <div metal:fill-slot="content" class="px-8 py-4 text-xl dashboard">
+  <div metal:fill-slot="content" class="container-fluid py-3">
 
-    <div class="flex flex-row">
+    <div class="row g-3">
 
-      <div class="basis-3/4 p-3 pt-3 my-2 mr-4 bg-sky-100 rounded-xl shadow-lg items-center">
-        <h2 class="font-bold mb-4">#50 Chili sin carne</h2>
+      <div class="col-9">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">#50 Chili sin carne</h5>
 
-        <p class="mb-2 font-light text-slate-400">Sojagranulat im Verhältnis 1:2 mit Brühe ansetzen. (Timer)</p>
-
-        <p class="mb-2 font-light text-slate-400">Brühe aufsetzen.</p>
-
-        <p class="mb-2 font-light text-slate-400">Zwiebeln und Knoblauch würfeln.</p>
-
-        <p class="mb-2 font-bold p-4">Einen großen Topf auf den Herd stellen und erhitzen.
-
-        <span class="float-right m-4 mt-0">✅</span>
-        </p>
-
-        <p class="mb-2">Boden des Topfes mit Olivenöl bedecken. Erst Zwiebeln, dann Knoblauch anbraten. (Timer)</p>
-
-        <p class="mb-2">Ein Drittel des Sojagranulats mit anbraten, dann mit Rotwein ablöschen und das restliche Sojagranulat dazugeben.</p>
-
-        <p class="mb-2">Die Gewürze (Kreuzkümmel, Salz, Pfeffer) im Mörser zerkleinern und zum Chili geben, den Rotwein einreduzieren lassen. Herd runter schalten auf halbe Flamme.
-        </p>
-
-        <p class="mb-2">Gummihandschuhe anziehen und alle Chilis hacken (je nach Geschmack mit oder ohne Kerne) und zum Chili geben.
-        </p>
-
-        <p class="mb-2">Bohnen und Mais abtropfen lassen und zum Fleisch geben, ebenso die Tomaten. Tomatenmark zum Abschmecken dazu und gute 45 min. köcheln lassen. (Timer)
-        </p>
-
-        <p class="mb-2">Dann die Schokolade in Stücke brechen, im Chili verteilen und wiederum gut 45 min. köcheln lassen.</p>
-
-        <p class="mb-2">Tisch decken, als Beilagen Tacos, Naturjoghurt und Käse dazustellen. Getränke: Rotwein oder Bier.</p>
-
-        <p class="mb-2">Nach Belieben nochmals mit Pfeffer und Salz abschmecken.</p>
-
+            <p class="text-muted fw-light">Sojagranulat im Verhältnis 1:2 mit Brühe ansetzen. (Timer)</p>
+            <p class="text-muted fw-light">Brühe aufsetzen.</p>
+            <p class="text-muted fw-light">Zwiebeln und Knoblauch würfeln.</p>
+            <p class="fw-bold p-3">Einen großen Topf auf den Herd stellen und erhitzen.
+              <span class="float-end">✅</span>
+            </p>
+            <p>Boden des Topfes mit Olivenöl bedecken. Erst Zwiebeln, dann Knoblauch anbraten. (Timer)</p>
+            <p>Ein Drittel des Sojagranulats mit anbraten, dann mit Rotwein ablöschen und das restliche Sojagranulat dazugeben.</p>
+            <p>Die Gewürze (Kreuzkümmel, Salz, Pfeffer) im Mörser zerkleinern und zum Chili geben, den Rotwein einreduzieren lassen. Herd runter schalten auf halbe Flamme.</p>
+            <p>Gummihandschuhe anziehen und alle Chilis hacken (je nach Geschmack mit oder ohne Kerne) und zum Chili geben.</p>
+            <p>Bohnen und Mais abtropfen lassen und zum Fleisch geben, ebenso die Tomaten. Tomatenmark zum Abschmecken dazu und gute 45 min. köcheln lassen. (Timer)</p>
+            <p>Dann die Schokolade in Stücke brechen, im Chili verteilen und wiederum gut 45 min. köcheln lassen.</p>
+            <p>Tisch decken, als Beilagen Tacos, Naturjoghurt und Käse dazustellen. Getränke: Rotwein oder Bier.</p>
+            <p>Nach Belieben nochmals mit Pfeffer und Salz abschmecken.</p>
+          </div>
+        </div>
       </div>
 
-      <div class="basis-1/4 p-3 pt-3 my-2 mr-4 bg-yellow-100 rounded-xl shadow-lg items-center" hx-get="${request.route_url('timers')}" hx-trigger="load">
-        ...
+      <div class="col-3">
+        <div class="card h-100" hx-get="${request.route_url('timers')}" hx-trigger="load">
+          <div class="card-body">...</div>
+        </div>
       </div>
 
     </div>

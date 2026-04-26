@@ -415,8 +415,7 @@ document.body.addEventListener('showAddTodoError', function(e) {
 
     var toast = document.createElement('div');
     toast.id = 'error-toast';
-    toast.className = 'fixed bottom-6 left-6 rounded-xl z-[9999] text-base font-semibold';
-    toast.style.cssText = 'background:#dc2626;color:#fff;padding:0.875rem 1.25rem;box-shadow:0 8px 32px rgba(0,0,0,0.45),0 2px 8px rgba(0,0,0,0.3);pointer-events:none;';
+    toast.style.cssText = 'position:fixed;bottom:1.5rem;left:1.5rem;z-index:9999;background:#dc2626;color:#fff;padding:0.875rem 1.25rem;border-radius:0.75rem;box-shadow:0 8px 32px rgba(0,0,0,0.45);pointer-events:none;font-weight:600;';
     toast.textContent = 'A todo needs text, not just tags.';
     document.body.appendChild(toast);
     setTimeout(function() { toast.remove(); }, 5000);
@@ -435,8 +434,8 @@ document.body.addEventListener('showUndoToast', function(e) {
     toast.dataset.todoIds = e.detail.ids;
     toast.dataset.prevStatus = e.detail.prevStatus;
     toast.dataset.label = e.detail.label || '';
-    toast.className = 'undo-toast rounded-xl text-base font-semibold cursor-pointer';
-    toast.style.cssText = 'background:#fef3c7;color:#78350f;border:1px solid #f59e0b;padding:0.875rem 1.25rem;box-shadow:0 8px 32px rgba(0,0,0,0.2),0 2px 8px rgba(0,0,0,0.1);';
+    toast.className = 'undo-toast';
+    toast.style.cssText = 'background:#fef3c7;color:#78350f;border:1px solid #f59e0b;padding:0.875rem 1.25rem;border-radius:0.75rem;box-shadow:0 8px 32px rgba(0,0,0,0.2);cursor:pointer;font-weight:600;';
     toast.textContent = (e.detail.label || 'Item') + ' ' + (e.detail.action || 'completed') + '. (Undo)';
 
     toast.addEventListener('click', function() {

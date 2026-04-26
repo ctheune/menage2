@@ -7,7 +7,7 @@
          else
            call alarm.pause()
   ">
-  <h2 class="font-bold mb-4">Timers</h2>
+  <h5 class="card-title">Timers</h5>
 
   <audio src="${request.static_url('menage2:static/alarm.wav')}" loop preload="auto"></audio>
 

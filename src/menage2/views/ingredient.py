@@ -34,8 +34,8 @@ def list_ingredients(request):
 
 
 class TagToggle:
-    inactive_color = "bg-slate-400"
-    active_color = "bg-cyan-400"
+    inactive_color = "badge bg-secondary"
+    active_color = "badge bg-info text-dark"
 
     def __init__(self, name: str, active: bool):
         self.name = name

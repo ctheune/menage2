@@ -5,46 +5,44 @@
       <title>Menage – Dashboard</title>
   </metal:block>
 
-  <div metal:fill-slot="content" class="px-8 py-4 text-xl dashboard">
+  <div metal:fill-slot="content" class="container-fluid py-3">
 
-    <div class="flex flex-row">
+    <div class="row g-3">
 
       <!-- Left column -->
-
-      <div class="basis-1/2 p-3 pt-3 my-2 mr-4 bg-sky-100 rounded-xl shadow-lg items-center"
-          hx-get="${dashboard_recipes_url}"
-          hx-trigger="load, every 10m">
-          ...
+      <div class="col-md-6">
+        <div class="card h-100"
+            hx-get="${dashboard_recipes_url}"
+            hx-trigger="load, every 10m">
+            ...
+        </div>
       </div>
 
-
       <!-- Right column -->
+      <div class="col-md-6 d-flex flex-column gap-3">
 
-      <div class="basis-1/2">
-
-        <div class="p-3 pt-3 my-2 mr-4 bg-yellow-100 rounded-xl shadow-lg items-center" hx-get="${request.route_url('timers')}" hx-trigger="load">
+        <div class="card" hx-get="${request.route_url('timers')}" hx-trigger="load">
           ...
         </div>
 
-        <div class="p-3 pt-3 my-2 mr-4 bg-lime-100 rounded-xl shadow-lg items-center">
-          <h2 class="font-bold mb-4">Richtung Stadt</h2>
-
-          <div hx-get="${dashboard_pt_departures_url}"
-               hx-trigger="load, every 10s">
-            ...
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Richtung Stadt</h5>
+            <div hx-get="${dashboard_pt_departures_url}"
+                 hx-trigger="load, every 10s">
+              ...
+            </div>
           </div>
-
         </div>
 
-        <div class="p-3 pt-3 my-2 mr-4 bg-lime-100 rounded-xl shadow-lg items-center">
-
-          <h2 class="font-bold mb-4">Zum Bahnhof</h2>
-
-          <div hx-get="${dashboard_pt_hbf_url}"
-               hx-trigger="load, every 10s">
-            ...
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Zum Bahnhof</h5>
+            <div hx-get="${dashboard_pt_hbf_url}"
+                 hx-trigger="load, every 10s">
+              ...
+            </div>
           </div>
-
         </div>
 
       </div>

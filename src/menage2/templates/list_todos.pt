@@ -3,30 +3,30 @@
   <span metal:fill-slot="title-mobile">TODO</span>
   <div metal:fill-slot="title">TODO</div>
 
-  <div metal:fill-slot="content" class="px-4 py-4 max-w-2xl">
+  <div metal:fill-slot="content" class="container-sm py-3">
 
     <!-- Secondary action bar: postponed + done (OOB target must keep id) -->
-    <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
+    <div class="d-flex align-items-center gap-2 mb-3">
       <div id="postponed-section">
         <tal:block tal:condition="postponed_count > 0">
           <button hx-post="${request.route_url('todos_activate_all_postponed')}"
                   hx-target="body"
-                  style="display:inline-flex;align-items:center;gap:0.35rem;border-radius:9999px;padding:0.25rem 0.65rem;font-size:0.75rem;font-weight:500;background:#64748b;color:#fff;cursor:pointer;">
-            ⏸ Paused
-            <span style="display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.25);border-radius:9999px;padding:0 0.4rem;font-size:0.7rem;font-weight:700;min-width:1.2em;">${postponed_count}</span>
+                  class="btn btn-sm btn-secondary rounded-pill">
+            <i class="bi bi-pause-fill"></i> Paused
+            <span class="badge bg-light text-secondary ms-1">${postponed_count}</span>
           </button>
         </tal:block>
         <tal:block tal:condition="postponed_count == 0">
-          <span style="display:inline-flex;align-items:center;gap:0.35rem;border-radius:9999px;padding:0.25rem 0.65rem;font-size:0.75rem;font-weight:500;background:#e2e8f0;color:#94a3b8;">
-            ⏸ Paused
-            <span style="display:inline-flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.1);color:#94a3b8;border-radius:9999px;padding:0 0.4rem;font-size:0.7rem;font-weight:700;min-width:1.2em;">0</span>
+          <span class="badge bg-secondary rounded-pill py-2 px-3">
+            <i class="bi bi-pause-fill"></i> Paused
+            <span class="badge bg-dark ms-1">0</span>
           </span>
         </tal:block>
       </div>
       <a href="${request.route_url('list_todos_done')}"
-         style="display:inline-flex;align-items:center;gap:0.35rem;border-radius:9999px;padding:0.25rem 0.65rem;font-size:0.75rem;font-weight:500;background:#e2e8f0;color:#475569;text-decoration:none;">
-        ✓ Done
-        <span style="display:inline-flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.1);border-radius:9999px;padding:0 0.4rem;font-size:0.7rem;font-weight:700;min-width:1.2em;">${done_count}</span>
+         class="btn btn-sm btn-outline-secondary rounded-pill">
+        <i class="bi bi-check-lg"></i> Done
+        <span class="badge bg-secondary ms-1">${done_count}</span>
       </a>
     </div>
 
@@ -38,11 +38,11 @@
       <div class="todo-tag-input" id="todo-tag-input">
         <input type="text" id="todo-text" autocomplete="off"
                enterkeyhint="done" placeholder="New todo…"
-               style="flex:1;min-width:6rem;border:none;outline:none;font-size:0.875rem;background:transparent;" />
+               style="flex:1;min-width:6rem;background:transparent;" />
       </div>
       <input type="hidden" name="text" id="todo-hidden-text" />
     </form>
-    <div id="todo-quick-pick" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.75rem;min-height:1.5rem;"></div>
+    <div id="todo-quick-pick" class="d-flex flex-wrap gap-1 mb-3"></div>
 
     <!-- Todo list -->
     <div id="todo-list"
@@ -51,15 +51,15 @@
          data-undo-url="${request.route_url('todo_undo')}">
 
       <tal:block tal:condition="groups">
-        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
+        <div class="d-flex gap-2 align-items-center mb-2">
           <button onclick="setAllGroups(true)"
-                  style="font-size:0.7rem;color:#64748b;background:none;border:none;cursor:pointer;padding:0;">
-            ⊞ expand all
+                  class="btn btn-link btn-sm p-0 text-secondary">
+            <i class="bi bi-arrows-expand"></i> expand all
           </button>
-          <span style="color:#cbd5e1;font-size:0.7rem;">·</span>
+          <span class="text-secondary">·</span>
           <button onclick="setAllGroups(false)"
-                  style="font-size:0.7rem;color:#64748b;background:none;border:none;cursor:pointer;padding:0;">
-            ⊟ collapse all
+                  class="btn btn-link btn-sm p-0 text-secondary">
+            <i class="bi bi-arrows-collapse"></i> collapse all
           </button>
         </div>
       </tal:block>
@@ -77,7 +77,7 @@
 
         <ul tal:condition="group['items']"
             data-parent-tag="${group['full_tag']}"
-            class="border-l-2 border-slate-200 mb-1"
+            class="border-start border-2 mb-1 list-unstyled"
             style="margin-left:${group['depth'] * 1.25}rem">
           <li tal:repeat="todo group['items']"
               id="todo-${todo.id}"
@@ -86,24 +86,23 @@
               data-todo-tags="${python:','.join(sorted(todo.tags))}"
               data-edit-url="${request.route_url('edit_todo', id=todo.id)}">
 
-            <div class="todo-content flex items-center gap-2 py-2 px-3 bg-white">
-              <input type="checkbox" class="todo-checkbox shrink-0"
+            <div class="todo-content d-flex align-items-center gap-2 py-2 px-3 bg-white">
+              <input type="checkbox" class="form-check-input todo-checkbox flex-shrink-0"
                      data-id="${todo.id}" />
 
-              <span class="flex-1 min-w-0" style="font-size:0.875rem;display:flex;flex-direction:column;gap:0.1rem;">
+              <span class="flex-grow-1 text-truncate small">
                 <span>${todo.text}</span>
                 <span tal:condition="todo.note"
-                      style="font-size:0.7rem;color:#94a3b8;">${todo.note}</span>
+                      class="d-block text-muted" style="font-size:0.7rem">${todo.note}</span>
               </span>
 
-              <button type="button" class="todo-edit-btn shrink-0" title="Edit"
-                      style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:0.85rem;padding:0 0.15rem;line-height:1;">✎</button>
+              <button type="button" class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted" title="Edit">✎</button>
             </div>
           </li>
         </ul>
       </tal:block>
 
-      <p tal:condition="not groups" class="text-slate-500 text-sm italic px-4">No todos yet.</p>
+      <p tal:condition="not groups" class="text-muted fst-italic px-3">No todos yet.</p>
 
     </div>
   </div>

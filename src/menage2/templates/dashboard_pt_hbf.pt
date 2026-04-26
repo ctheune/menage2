@@ -1,16 +1,16 @@
-<table class="w-full">
+<table class="table table-sm">
   <thead>
     <tr>
-      <th class="text-left w-36">Verbindung</th>
-      <th class="text-right w-28">Abfahrt</th>
-      <th class="text-right w-28">Ankunft</th>
+      <th>Verbindung</th>
+      <th class="text-end">Abfahrt</th>
+      <th class="text-end">Ankunft</th>
     </tr>
-  </thead> 
-  <tbody class="font-light">
+  </thead>
+  <tbody class="fw-light">
     <tr tal:repeat="journey journeys">
       <td class="align-top">${journey.lines}</td>
-      <td class="text-right align-top">${journey.whenRelative}</td>
-      <td class="text-right align-top">${journey.arrives}</td>
+      <td class="text-end align-top">${journey.whenRelative}</td>
+      <td class="text-end align-top">${journey.arrives}</td>
     </tr>
   </tbody>
 </table>

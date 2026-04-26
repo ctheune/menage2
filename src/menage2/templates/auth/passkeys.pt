@@ -2,74 +2,72 @@
   <span metal:fill-slot="title-mobile">Passkeys</span>
   <div metal:fill-slot="title">Manage Passkeys</div>
 
-  <div metal:fill-slot="content" class="px-4 py-6 max-w-lg">
+  <div metal:fill-slot="content" class="container py-4">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-7 col-lg-5">
 
-    <div class="bg-white rounded shadow p-4 mb-4">
-      <h2 class="font-semibold text-slate-700 mb-3">Your Passkeys</h2>
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Your Passkeys</h5>
 
-      <tal:block tal:condition="len(passkeys) == 0">
-        <p class="text-slate-500 text-sm">No passkeys registered yet.</p>
-      </tal:block>
+            <p tal:condition="len(passkeys) == 0" class="text-muted">No passkeys registered yet.</p>
 
-      <ul tal:condition="len(passkeys) > 0" class="divide-y divide-slate-100">
-        <li tal:repeat="pk passkeys" class="py-3 flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-slate-800">${pk.device_name}</p>
-            <p class="text-xs text-slate-500">Added ${pk.created_at.strftime('%Y-%m-%d')}</p>
-            <tal:block tal:condition="pk.last_used_at is not None">
-              <p class="text-xs text-slate-400">Last used ${pk.last_used_at.strftime('%Y-%m-%d')}</p>
-            </tal:block>
+            <ul tal:condition="len(passkeys) > 0" class="list-group list-group-flush">
+              <li tal:repeat="pk passkeys" class="list-group-item d-flex align-items-center justify-content-between px-0">
+                <div>
+                  <p class="mb-0">${pk.device_name}</p>
+                  <small class="text-muted">Added ${pk.created_at.strftime('%Y-%m-%d')}</small>
+                  <tal:block tal:condition="pk.last_used_at is not None">
+                    <br/><small class="text-muted">Last used ${pk.last_used_at.strftime('%Y-%m-%d')}</small>
+                  </tal:block>
+                </div>
+                <form method="post" action="${request.route_url('account_passkey_delete', id=pk.id)}"
+                      onsubmit="return confirm('Remove this passkey?')">
+                  <button type="submit" class="btn btn-link btn-sm text-danger p-0">Remove</button>
+                </form>
+              </li>
+            </ul>
           </div>
-          <form method="post" action="${request.route_url('account_passkey_delete', id=pk.id)}"
-                onsubmit="return confirm('Remove this passkey?')">
-            <button type="submit"
-                    class="text-xs text-red-600 hover:text-red-800 hover:underline">
-              Remove
-            </button>
-          </form>
-        </li>
-      </ul>
-    </div>
-
-    <div class="bg-white rounded shadow p-4 mb-4">
-      <h2 class="font-semibold text-slate-700 mb-3">Add a Passkey</h2>
-      <div class="space-y-3">
-        <div>
-          <label for="device_name" class="block text-sm text-slate-600 mb-1">Device name (optional)</label>
-          <input type="text" id="device_name" value="My Passkey"
-                 class="border border-slate-300 rounded px-3 py-2 text-sm w-full" />
         </div>
-        <button type="button" id="register-passkey-btn"
-                class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium py-2 px-4 rounded"
-                onclick="registerPasskey()">
-          🔑 Register Passkey
-        </button>
-        <p id="passkey-status" class="text-sm text-slate-500"></p>
+
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Add a Passkey</h5>
+            <div class="mb-3">
+              <label for="device_name" class="form-label">Device name (optional)</label>
+              <input type="text" id="device_name" value="My Passkey" class="form-control" />
+            </div>
+            <button type="button" id="register-passkey-btn"
+                    class="btn btn-dark"
+                    onclick="registerPasskey()">
+              <i class="bi bi-key"></i> Register Passkey
+            </button>
+            <p id="passkey-status" class="text-muted mt-2 mb-0"></p>
+          </div>
+        </div>
+
+        <a href="${request.route_url('account')}" class="link-secondary">← Back to account</a>
+
+        <script src="${request.static_url('menage2:static/passkeys.js')}"></script>
+        <script>
+          function registerPasskey() {
+            const deviceName = document.getElementById('device_name').value || 'My Passkey';
+            const status = document.getElementById('passkey-status');
+            status.textContent = 'Starting registration…';
+            startPasskeyRegistration(
+              '${request.route_url("account_passkey_register_begin")}',
+              '${request.route_url("account_passkey_register_complete")}',
+              deviceName
+            ).then(() => {
+              status.textContent = 'Passkey registered! Reloading…';
+              window.location.reload();
+            }).catch(err => {
+              status.textContent = 'Registration failed: ' + err.message;
+            });
+          }
+        </script>
+
       </div>
     </div>
-
-    <div class="text-sm">
-      <a href="${request.route_url('account')}" class="text-slate-600 hover:underline">← Back to account</a>
-    </div>
-
-    <script src="${request.static_url('menage2:static/passkeys.js')}"></script>
-    <script>
-      function registerPasskey() {
-        const deviceName = document.getElementById('device_name').value || 'My Passkey';
-        const status = document.getElementById('passkey-status');
-        status.textContent = 'Starting registration…';
-        startPasskeyRegistration(
-          '${request.route_url("account_passkey_register_begin")}',
-          '${request.route_url("account_passkey_register_complete")}',
-          deviceName
-        ).then(() => {
-          status.textContent = 'Passkey registered! Reloading…';
-          window.location.reload();
-        }).catch(err => {
-          status.textContent = 'Registration failed: ' + err.message;
-        });
-      }
-    </script>
-
   </div>
 </div>

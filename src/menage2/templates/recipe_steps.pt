@@ -5,26 +5,26 @@
       <title>Menage – ${recipe.title}</title>
   </metal:block>
 
-  <div metal:fill-slot="content" class="px-8 py-4">
+  <div metal:fill-slot="content" class="container py-3">
 
-    <h1 class="text-xl font-bold">${recipe.title}</h1>
+    <h4>${recipe.title}</h4>
 
-    <a tal:omit-tag="not recipe.source_url" href="${recipe.source_url}" class="underline">
+    <a tal:omit-tag="not recipe.source_url" href="${recipe.source_url}" class="text-decoration-underline">
         <span tal:condition="recipe.source">${recipe.source}</span>
         <span tal:condition="not recipe.source">${recipe.source_url}</span>
     </a>
 
-      <div class="flex">
-        <div tal:content="structure steps_html" class="markdown"/>
-        <div class="ml-8 w-64">
-          <h1 class="text-lg py-2 font-bold">Zutaten</h1>
-          <ul>
-            <li tal:repeat="ingredient recipe.ingredients">
-              ${ingredient.amount} ${ingredient.unit} ${ingredient.ingredient.description}
-            </li>
-          </ul>
-        </div>
+    <div class="d-flex gap-4 mt-3">
+      <div tal:content="structure steps_html" class="markdown flex-grow-1"/>
+      <div>
+        <h5>Zutaten</h5>
+        <ul class="list-unstyled">
+          <li tal:repeat="ingredient recipe.ingredients">
+            ${ingredient.amount} ${ingredient.unit} ${ingredient.ingredient.description}
+          </li>
+        </ul>
       </div>
+    </div>
   </div>
 
 </div>

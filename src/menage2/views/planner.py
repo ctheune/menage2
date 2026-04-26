@@ -16,13 +16,12 @@ def list_weeks(request):
     return {"weeks": weeks}
 
 
-@view_config(route_name="show_week", renderer="menage2:templates/show_week.pt")
 @view_config(
     route_name="edit_week",
     renderer="menage2:templates/planner.pt",
     request_method="GET",
 )
-def show_week(request):
+def edit_week_get(request):
     week = (
         request.dbsession.query(models.Week)
         .filter(models.Week.id == request.matchdict["id"])

@@ -2,67 +2,66 @@
 <html lang="${request.locale_name}">
   <head>
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Menage 2</title>
 
     <link href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQEAYAAABPYyMiAAAABmJLR0T///////8JWPfcAAAACXBIWXMAAABIAAAASABGyWs+AAAAF0lEQVRIx2NgGAWjYBSMglEwCkbBSAcACBAAAeaR9cIAAAAASUVORK5CYII=" rel="icon" type="image/x-icon" />
-
-    <!-- Make it a proper webapp on ios -->
     <link rel="apple-touch-icon" href="${request.static_url('menage2:static/applogo.png')}">
     <meta name="apple-mobile-web-app-title" content="Menage">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="viewport" content="width=device-width, user-scalable=no" />
 
-    <!-- Custom styles for this scaffold -->
-    <link href="${request.static_url('menage2:static/tailwind.css')}" rel="stylesheet">
+    <link href="${request.static_url('menage2:static/bootstrap.min.css')}" rel="stylesheet">
+    <link href="${request.static_url('menage2:static/bootstrap-icons.min.css')}" rel="stylesheet">
     <link href="${request.static_url('menage2:static/theme.css')}" rel="stylesheet">
 
     <script src="${request.static_url('menage2:static/htmx.min.js')}" defer></script>
     <script src="${request.static_url('menage2:static/hyperscript.min.js')}" defer></script>
+    <script src="${request.static_url('menage2:static/bootstrap.bundle.min.js')}" defer></script>
     <script src="${request.static_url('menage2:static/menage.js')}" defer></script>
-
   </head>
 
-  <body class="bg-slate-300" hx-boost="true">
+  <body hx-boost="true">
 
-  <nav class="bg-slate-800 shadow-lg text-slate-50 print:hidden">
-    <div class="nav-header">
-      <span class="font-semibold">Menage</span>
-      <span class="nav-page-title text-sm text-slate-300">
+  <nav class="navbar navbar-expand-md navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="${request.route_url('home')}">Menage</a>
+      <span class="navbar-text d-md-none small">
         <metal:block define-slot="title-mobile"></metal:block>
       </span>
-      <button class="nav-burger-btn text-2xl leading-none"
-              _="on click toggle .nav-open on #nav-links">&#9776;</button>
-      <div id="nav-links" class="nav-menu">
-        <a class="hover:text-slate-300" href="${request.route_url('list_recipes')}">Rezepte</a>
-        <a class="hover:text-slate-300" href="${request.route_url('list_ingredients')}">Zutaten</a>
-        <a class="hover:text-slate-300" href="${request.route_url('list_weeks')}">Wochenpläne</a>
-        <a class="hover:text-slate-300" href="${request.route_url('list_todos')}">TODO</a>
-        <tal:block tal:condition="request.identity is not None and request.identity.is_admin">
-          <a class="hover:text-slate-300" href="${request.route_url('admin_users')}">Admin</a>
-        </tal:block>
-        <tal:block tal:condition="request.identity is not None">
-          <a class="hover:text-slate-300 text-slate-400 text-sm" href="${request.route_url('account')}">${request.identity.username}</a>
-          <form method="post" action="${request.route_url('logout')}" style="display:inline">
-            <button type="submit" class="hover:text-slate-300 text-slate-400 text-sm">Sign out</button>
-          </form>
-        </tal:block>
-        <tal:block tal:condition="request.identity is None">
-          <a class="hover:text-slate-300" href="${request.route_url('login')}">Login</a>
-        </tal:block>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav-links" aria-controls="nav-links" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="nav-links">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="${request.route_url('list_recipes')}">Rezepte</a></li>
+          <li class="nav-item"><a class="nav-link" href="${request.route_url('list_ingredients')}">Zutaten</a></li>
+          <li class="nav-item"><a class="nav-link" href="${request.route_url('list_weeks')}">Wochenpläne</a></li>
+          <li class="nav-item"><a class="nav-link" href="${request.route_url('list_todos')}">TODO</a></li>
+          <tal:block tal:condition="request.identity is not None and request.identity.is_admin">
+            <li class="nav-item"><a class="nav-link" href="${request.route_url('admin_users')}">Admin</a></li>
+          </tal:block>
+          <tal:block tal:condition="request.identity is not None">
+            <li class="nav-item"><a class="nav-link text-secondary" href="${request.route_url('account')}">${request.identity.username}</a></li>
+            <li class="nav-item">
+              <form method="post" action="${request.route_url('logout')}" class="d-inline">
+                <button type="submit" class="nav-link btn btn-link text-secondary p-0">Sign out</button>
+              </form>
+            </li>
+          </tal:block>
+          <tal:block tal:condition="request.identity is None">
+            <li class="nav-item"><a class="nav-link" href="${request.route_url('login')}">Login</a></li>
+          </tal:block>
+        </ul>
       </div>
     </div>
   </nav>
 
-  <div class="hidden md:block p-8 pb-0 print:block print:p-0 print:mb-8">
-    <h1 class="text-xl font-bold">
+  <div class="d-none d-md-block p-3">
+    <h4>
       <metal:block define-slot="title">
-      Der unendliche Speiseplan
+        Der unendliche Speiseplan
       </metal:block>
-    </h1>
+    </h4>
     <metal:block define-slot="subtitle"></metal:block>
   </div>
 

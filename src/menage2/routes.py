@@ -49,7 +49,6 @@ def includeme(config):
 
     config.add_route("list_weeks", "/weeks")
     config.add_route("add_week", "/week/new")
-    config.add_route("show_week", "/week/{id}")
     config.add_route("edit_week", "/week/{id}/edit")
     config.add_route("add_day", "/week/{id}/new-day/{position}")
     config.add_route("send_to_shopping_list", "/week/{id}/shoppinglist")

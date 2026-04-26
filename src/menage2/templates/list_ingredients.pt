@@ -4,30 +4,30 @@
     Zutaten
   </div>
 
-  <div metal:fill-slot="content" class="px-8 py-4">
-      <ul id="ingredients">
-          <li tal:repeat="ingredient ingredients">
-              ${ingredient.description}
-              
-              <span class="bg-amber-200 text-xs p-1 rounded-full"
-                hx-get="${request.route_url('ingredient_recipes', id=ingredient.id)}"
-                hx-target="next .recipes">${len(ingredient.recipes)} 
-                <tal:block condition="len(ingredient.recipes) == 1">Rezept</tal:block>
-                <tal:block condition="len(ingredient.recipes) != 1">Rezepte</tal:block>
-              </span>
+  <div metal:fill-slot="content" class="container py-3">
+    <ul id="ingredients" class="list-group">
+      <li tal:repeat="ingredient ingredients" class="list-group-item d-flex align-items-center gap-2">
+        <span class="flex-grow-1">${ingredient.description}</span>
 
-              <span>
-                <span tal:repeat="tag tags(ingredient)"
-                  class="${tag.color} text-xs p-1 rounded-full ml-1"
-                  hx-patch="${request.route_url('ingredient_toggle_tag', id=ingredient.id, tag=tag.name)}"
-                  hx-target="#ingredients" hx-select="#ingredients">
-                  ${tag.name}
-                </span>
-              </span>
+        <span class="badge bg-warning text-dark"
+          hx-get="${request.route_url('ingredient_recipes', id=ingredient.id)}"
+          hx-target="next .recipes">
+          ${len(ingredient.recipes)}
+          <tal:block condition="len(ingredient.recipes) == 1">Rezept</tal:block>
+          <tal:block condition="len(ingredient.recipes) != 1">Rezepte</tal:block>
+        </span>
 
-              <div class="recipes ml-4">
-              </div>
-          </li>
-      </ul>
+        <span>
+          <span tal:repeat="tag tags(ingredient)"
+            class="${tag.color}"
+            hx-patch="${request.route_url('ingredient_toggle_tag', id=ingredient.id, tag=tag.name)}"
+            hx-target="#ingredients" hx-select="#ingredients">
+            ${tag.name}
+          </span>
+        </span>
+
+        <div class="recipes ms-2"></div>
+      </li>
+    </ul>
   </div>
 </div>
