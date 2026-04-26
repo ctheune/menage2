@@ -174,7 +174,7 @@ function initTagInput() {
         });
     }
 
-    function showQuickPick() { if (quickPick) quickPick.style.display = ''; }
+    function showQuickPick() { if (quickPick && quickPick.children.length > 0) quickPick.style.display = ''; }
     function hideQuickPick() { if (quickPick) quickPick.style.display = 'none'; }
 
     hideQuickPick();
