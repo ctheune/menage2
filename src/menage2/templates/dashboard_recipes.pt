@@ -5,7 +5,7 @@
 
     <p class="${'fw-bold' if day.is_today() else ''}">
     <tal:block condition="day.dinner">
-      #${day.dinner_id} – ${day.dinner.title}
+      ${day.dinner.title}
 
       <a tal:condition="day.dinner.recipe" class="text-decoration-none"
         href="${request.route_url('recipe_steps', id=day.dinner.id)}" target="_blank">
