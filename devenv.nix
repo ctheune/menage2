@@ -1,7 +1,7 @@
 { pkgs, lib, config, inputs, ... }:
 
 {
-  # https://devenv.sh/languages/
+  packages = [ pkgs.opencode ];
   languages.python.enable = true;
 
   tasks."menage:upgrade-db".exec = "uv run alembic -c development.ini upgrade head";

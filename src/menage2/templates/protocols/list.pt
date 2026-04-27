@@ -1,0 +1,59 @@
+<div metal:use-macro="load: ../layout.pt">
+
+  <span metal:fill-slot="title-mobile">Protocols</span>
+  <div metal:fill-slot="title">Protocols</div>
+
+  <span metal:fill-slot="actions">
+    <form method="post" action="${request.route_url('new_protocol')}"
+          class="d-flex gap-2 align-items-center">
+      <input type="text" name="title" placeholder="Title…"
+             class="form-control form-control-sm" style="max-width:14rem"/>
+      <button type="submit" class="btn btn-sm btn-dark">
+        <i class="bi bi-plus-lg"></i> New protocol
+      </button>
+    </form>
+  </span>
+
+  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
+
+    <p tal:condition="not active" class="text-muted fst-italic">
+      No protocols yet. Create one — e.g. "Weekly inventory" or "Monthly cosmetics check".
+    </p>
+
+    <ul class="list-unstyled" tal:condition="active">
+      <li tal:repeat="p active" class="card mb-2 shadow-sm">
+        <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+          <a href="${request.route_url('edit_protocol', id=p.id)}"
+             class="flex-grow-1 link-dark text-decoration-none">
+            <strong>${p.title}</strong>
+            <span class="text-muted small ms-2">${len(p.items)} ${'item' if len(p.items) == 1 else 'items'}</span>
+            <span tal:condition="rule_label(p)"
+                  class="text-warning-emphasis small ms-2">
+              ↻ ${rule_label(p)}
+            </span>
+          </a>
+          <form method="post" action="${request.route_url('start_protocol_run', id=p.id)}"
+                class="d-inline m-0">
+            <button type="submit" class="btn btn-sm btn-outline-primary">
+              Start now
+            </button>
+          </form>
+        </div>
+      </li>
+    </ul>
+
+    <details tal:condition="archived" class="mt-4">
+      <summary class="text-muted small">Archived (${len(archived)})</summary>
+      <ul class="list-unstyled mt-2">
+        <li tal:repeat="p archived" class="d-flex align-items-center gap-2 mb-1">
+          <span class="text-muted">${p.title}</span>
+          <form method="post" action="${request.route_url('unarchive_protocol', id=p.id)}"
+                class="d-inline m-0">
+            <button type="submit" class="btn btn-link btn-sm p-0 text-secondary">unarchive</button>
+          </form>
+        </li>
+      </ul>
+    </details>
+
+  </div>
+</div>

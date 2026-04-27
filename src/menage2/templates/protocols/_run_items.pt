@@ -1,0 +1,53 @@
+<div class="protocol-run-summary mb-3 d-flex align-items-center gap-2">
+  <span class="text-muted small">
+    ${len(items)} ${'item' if len(items) == 1 else 'items'}
+    <span tal:condition="run.opened_at"> · opened ${humanize_ago(run.opened_at)}</span>
+  </span>
+  <span tal:condition="all_resolved" class="badge bg-success">All resolved · run closed</span>
+</div>
+
+<ul class="list-unstyled mb-0" tal:condition="items">
+  <li tal:repeat="item items"
+      id="run-item-${item.id}"
+      tal:attributes="class python: 'protocol-run-item card mb-2 shadow-sm status-' + item.status.value;
+                      data-item-id item.id;
+                      data-done-url request.route_url('run_item_done', id=run.id, item_id=item.id);
+                      data-send-url request.route_url('run_item_send', id=run.id, item_id=item.id);
+                      data-edit-url request.route_url('run_item_edit', id=run.id, item_id=item.id)">
+    <div class="card-body py-2 px-3 d-flex align-items-baseline gap-2">
+
+      <span class="protocol-run-item-marker flex-shrink-0">
+        <tal:block tal:condition="item.status.value == 'pending'">○</tal:block>
+        <tal:block tal:condition="item.status.value == 'done'">✓</tal:block>
+        <tal:block tal:condition="item.status.value == 'sent_to_todo'">→</tal:block>
+      </span>
+
+      <span class="flex-grow-1">
+        <span class="${'text-decoration-line-through text-muted' if item.status.value != 'pending' else ''}">${item.text}</span>
+        <span tal:repeat="tag python:sorted(item.tags)"
+              class="badge bg-secondary rounded-pill ms-1">#${tag}</span>
+        <span tal:condition="item.note"
+              class="d-block text-muted" style="font-size:0.75rem">${item.note}</span>
+      </span>
+
+      <tal:block tal:condition="item.status.value == 'pending'">
+        <button type="button"
+                class="protocol-run-action btn btn-link btn-sm p-1 text-success"
+                data-action="done"
+                title="Done — nothing to do">✓</button>
+        <button type="button"
+                class="protocol-run-action btn btn-link btn-sm p-1 text-primary"
+                data-action="send"
+                title="Send to todo list">→</button>
+        <button type="button"
+                class="protocol-run-action btn btn-link btn-sm p-1 text-muted"
+                data-action="edit"
+                title="Tweak before sending">✎</button>
+      </tal:block>
+    </div>
+  </li>
+</ul>
+
+<p tal:condition="not items" class="text-muted fst-italic">
+  This protocol has no items in its template.
+</p>

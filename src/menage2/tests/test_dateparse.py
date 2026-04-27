@@ -306,6 +306,20 @@ def test_parse_recurrence_month_day(raw, day):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("raw,wd,n", [
+    ("every second friday", 4, 2),
+    ("every other monday", 0, 2),
+    ("every 2nd friday", 4, 2),
+    ("every third wednesday", 2, 3),
+    ("every 4th sunday", 6, 4),
+])
+def test_parse_recurrence_ordinal_weekday(raw, wd, n):
+    spec = parse_recurrence(raw)
+    assert spec == RecurrenceSpec(
+        kind="every", interval_value=n, interval_unit="week", weekday=wd
+    )
+
+
 @pytest.mark.parametrize("spec,expected", [
     (RecurrenceSpec("every", 1, "day"), "every day"),
     (RecurrenceSpec("every", 1, "week"), "every week"),
@@ -313,6 +327,8 @@ def test_parse_recurrence_month_day(raw, day):
     (RecurrenceSpec("after", 1, "month"), "after a month"),
     (RecurrenceSpec("after", 3, "day"), "after 3 days"),
     (RecurrenceSpec("every", 1, "week", weekday=2), "every Wednesday"),
+    (RecurrenceSpec("every", 2, "week", weekday=4), "every other Friday"),
+    (RecurrenceSpec("every", 3, "week", weekday=4), "every 3rd Friday"),
     (RecurrenceSpec("every", 1, "month", month_day=1), "every 1st"),
     (RecurrenceSpec("every", 1, "month", month_day=2), "every 2nd"),
     (RecurrenceSpec("every", 1, "month", month_day=3), "every 3rd"),
@@ -340,6 +356,10 @@ def test_label_recurrence(spec, expected):
     (RecurrenceSpec("every", 1, "week", weekday=0), "2026-04-29", "2026-05-04"),
     # Anchor=Wednesday, weekday=Wed → next Wed = +7
     (RecurrenceSpec("every", 1, "week", weekday=2), "2026-04-29", "2026-05-06"),
+    # "every other Friday": anchor=Friday → skip 1 extra week → +14 days
+    (RecurrenceSpec("every", 2, "week", weekday=4), "2026-05-01", "2026-05-15"),
+    # "every 3rd Friday": anchor=Friday → +21 days
+    (RecurrenceSpec("every", 3, "week", weekday=4), "2026-05-01", "2026-05-22"),
     # Month day — anchor=Apr 29, day=15 → May 15
     (RecurrenceSpec("every", 1, "month", month_day=15), "2026-04-29", "2026-05-15"),
     # Month day — anchor=Apr 14, day=15 → Apr 15 (same month, future)

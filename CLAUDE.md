@@ -8,14 +8,18 @@ Menage is a software suite for managing household day to day tasks:
 
 * use git
 
-* use devenv to provide a development environment
-  * `devenv test` to run tests if no `devenv up` is already running. if `devenv up` is running, then use `uv run pytest`.
+* you are running inside a devenv
+  * `uv run pytest` to run tests. run `devenv up` in the background if it isn't running already and stop it when done with the tests.
 
 * use `uv run alembic -c development.ini revision --autogenerate -m "<message>"` to generate database upgrades when changing the structure. however, verify the generated file whether it matches the changes you made or whether you need to adjust things for proper upgrades. downgrades are not important.
 
 # Architectural decisions
 
 * the app must be usable in multiple browser tabs, don't persist state in sessions when this would break this goal
+
+# Tool use - file writing
+
+To avoid encoding issues, always encode unicode characters outside ascii as hex characters as appropriate for the language (javascript, json, python, ...)
 
 # Frameworks
 

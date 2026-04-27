@@ -264,6 +264,11 @@ def _ordinal_to_int(text: str) -> int | None:
     return n if 1 <= n <= 31 else None
 
 
+_ORDINAL_WORDS = {
+    "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "other": 2,
+}
+
+
 def parse_recurrence(text: str) -> RecurrenceSpec | None:
     """Resolve a recurrence fragment into a RecurrenceSpec.
 
@@ -272,6 +277,7 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
     * ``every day`` / ``every week`` / ``every month`` / ``every year``
     * ``every N days`` / ``every 2 weeks``
     * ``every monday`` / ``every wed``
+    * ``every second friday`` / ``every 2nd friday`` / ``every other monday``
     * ``every 15th`` / ``every 1st``
     * ``after a day`` / ``after 1 week`` / ``after N months``
 
@@ -280,6 +286,17 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
     if not text or not text.strip():
         return None
     s = _normalize(text)
+
+    # "every second friday" / "every 2nd friday" / "every other monday"
+    m = re.fullmatch(r"every\s+(\w+)\s+(\w+)", s)
+    if m and m.group(2) in _WEEKDAYS:
+        ord_str = m.group(1)
+        n = _ORDINAL_WORDS.get(ord_str) or _ordinal_to_int(ord_str)
+        if n is not None and n >= 1:
+            return RecurrenceSpec(
+                kind="every", interval_value=n, interval_unit="week",
+                weekday=_WEEKDAYS[m.group(2)],
+            )
 
     # "every <weekday>"
     m = re.fullmatch(r"every\s+(\w+)", s)
@@ -327,7 +344,16 @@ def label_recurrence(spec: RecurrenceSpec) -> str:
     if spec.weekday is not None:
         names = ["Monday", "Tuesday", "Wednesday", "Thursday",
                  "Friday", "Saturday", "Sunday"]
-        return f"every {names[spec.weekday]}"
+        day = names[spec.weekday]
+        n = spec.interval_value
+        if n == 1:
+            return f"every {day}"
+        if n == 2:
+            return f"every other {day}"
+        suffix = "th"
+        if n % 100 not in (11, 12, 13):
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+        return f"every {n}{suffix} {day}"
     if spec.month_day is not None:
         suffix = "th"
         if spec.month_day % 100 not in (11, 12, 13):
@@ -349,7 +375,8 @@ def next_occurrence(spec: RecurrenceSpec, anchor_date: datetime.date) -> datetim
     when there is no previous one yet).
     """
     if spec.weekday is not None:
-        return _soonest_weekday(anchor_date, spec.weekday)
+        return _soonest_weekday(anchor_date, spec.weekday,
+                                extra_weeks=spec.interval_value - 1)
 
     if spec.month_day is not None:
         # Next calendar occurrence of the requested day-of-month.

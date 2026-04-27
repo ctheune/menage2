@@ -116,7 +116,7 @@ document.addEventListener('click', function(e) {
     checkbox.checked = !checkbox.checked;
 });
 
-// Delegated handler for the edit pencil button — fires todoEditStart event
+// Delegated handler for the edit pencil button \u2014 fires todoEditStart event
 document.addEventListener('click', function(e) {
     var btn = e.target.closest('.todo-edit-btn');
     if (!btn) return;
@@ -138,31 +138,208 @@ function initTagInput() {
     if (!container || container.dataset.tagInputInit) return;
     container.dataset.tagInputInit = '1';
 
-    var textInput = document.getElementById('todo-text');
-    var hiddenInput = document.getElementById('todo-hidden-text');
+    var textOuter = document.getElementById('todo-text');
     var form = document.getElementById('todo-form');
     var quickPick = document.getElementById('todo-quick-pick');
 
     var tags = JSON.parse(sessionStorage.getItem('todo-tags') || '[]');
     var addUrl = form.getAttribute('hx-post');
-    var savedTags = null;       // tags saved before entering edit mode
-    var savedDateISO = null;    // due-date saved before entering edit mode
-    var savedRecLabel = null;   // recurrence saved before entering edit mode
+    var savedTags = null;
+    var savedDateISO = null;
+    var savedRecLabel = null;
+    var savedNoteText = null;
     var editingId = null;
-    var dateISO = null;         // currently-attached due date (ISO string or null)
-    var dateLabel = null;       // human-friendly label cached from the picker
-    var recLabel = null;        // currently-attached recurrence label (text)
+    var dateISO = null;
+    var dateLabel = null;
+    var recLabel = null;
+    var noteText = '';
+    var _placeholder = 'New todo\u2026';
 
-    function renderPills() {
-        container.querySelectorAll('.todo-tag-pill').forEach(function(el) { el.remove(); });
-        tags.forEach(function(tag) {
-            var pill = document.createElement('span');
-            pill.className = 'todo-tag-pill';
-            pill.innerHTML = '#' + tag + ' <button class="todo-tag-remove" type="button" data-tag="' + tag + '">\u00d7</button>';
-            container.insertBefore(pill, textInput);
-        });
-        sessionStorage.setItem('todo-tags', JSON.stringify(tags));
+    // --- Segment helpers ---
+    // DOM structure: [span.todo-text-seg] [span.pill] [span.todo-text-seg] [span.pill] ...
+    // Pills sit inline between editable segments; empty segs between pills give the cursor
+    // a place to land, creating one virtual textfield.
+
+    function createTextSeg(text) {
+        var seg = document.createElement('span');
+        seg.className = 'todo-text-seg';
+        seg.contentEditable = 'true';
+        seg.setAttribute('spellcheck', 'true');
+        seg.setAttribute('enterkeyhint', 'done');
+        if (text) seg.textContent = text;
+        return seg;
     }
+
+    function getAllSegs() { return Array.from(textOuter.querySelectorAll('.todo-text-seg')); }
+
+    function getActiveSeg() {
+        var a = document.activeElement;
+        return (a && a.classList.contains('todo-text-seg') && textOuter.contains(a)) ? a : null;
+    }
+
+    function getFirstSeg() { return textOuter.querySelector('.todo-text-seg'); }
+    function getLastSeg() { var s = getAllSegs(); return s[s.length - 1] || null; }
+
+    function placeCursorAtEnd(seg) {
+        var range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(seg); range.collapse(false);
+        if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+    }
+
+    function placeCursorAtStart(seg) {
+        var range = document.createRange(), sel = window.getSelection();
+        range.setStart(seg, 0); range.collapse(true);
+        if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+    }
+
+    function focusFirstSeg() { var s = getFirstSeg(); if (s) { s.focus(); placeCursorAtEnd(s); } }
+    function focusLastSeg()  { var s = getLastSeg();  if (s) { s.focus(); placeCursorAtEnd(s); } }
+
+    function isAtEnd(seg) {
+        var sel = window.getSelection();
+        if (!sel || !sel.rangeCount || !sel.getRangeAt(0).collapsed) return false;
+        var cursor = sel.getRangeAt(0);
+        if (!seg.contains(cursor.startContainer)) return false;
+        try {
+            var test = document.createRange();
+            test.setStart(cursor.startContainer, cursor.startOffset);
+            test.setEnd(seg, seg.childNodes.length);
+            return test.toString() === '';
+        } catch (e) { return false; }
+    }
+
+    function isAtStart(seg) {
+        var sel = window.getSelection();
+        if (!sel || !sel.rangeCount || !sel.getRangeAt(0).collapsed) return false;
+        var cursor = sel.getRangeAt(0);
+        if (!seg.contains(cursor.startContainer)) return false;
+        try {
+            var test = document.createRange();
+            test.setStart(seg, 0);
+            test.setEnd(cursor.startContainer, cursor.startOffset);
+            return test.toString() === '';
+        } catch (e) { return false; }
+    }
+
+    // --- ContentEditable helpers ---
+
+    function getPlainText() {
+        return getAllSegs().map(function(s) { return s.textContent; }).join('').replace(/\s+/g, ' ').trim();
+    }
+
+    function getTextBeforeCursor() {
+        var sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return '';
+        var range = sel.getRangeAt(0);
+        var activeSeg = getActiveSeg();
+        if (!activeSeg) return '';
+        var text = '';
+        var segs = getAllSegs();
+        for (var i = 0; i < segs.length; i++) {
+            if (segs[i] !== activeSeg) { text += segs[i].textContent; continue; }
+            var anchor = range.startContainer, offset = range.startOffset;
+            if (anchor === activeSeg) {
+                for (var j = 0; j < offset; j++) {
+                    var c = activeSeg.childNodes[j];
+                    if (c && c.nodeType === Node.TEXT_NODE) text += c.textContent;
+                }
+            } else {
+                var node = activeSeg.firstChild;
+                while (node) {
+                    if (node === anchor) { if (node.nodeType === Node.TEXT_NODE) text += node.textContent.slice(0, offset); break; }
+                    if (node.nodeType === Node.TEXT_NODE) text += node.textContent;
+                    node = node.nextSibling;
+                }
+            }
+            break;
+        }
+        return text;
+    }
+
+    function updateEmptyClass() {
+        var first = getFirstSeg();
+        if (!first) return;
+        var hasContent = getPlainText().length > 0 || !!textOuter.querySelector('[data-pill]');
+        first.classList.toggle('todo-input-empty', !hasContent);
+    }
+
+    // --- Pill factories ---
+
+    function createTagPill(tag) {
+        var pill = document.createElement('span');
+        pill.className = 'todo-tag-pill';
+        pill.dataset.pill = 'tag';
+        pill.dataset.tag = tag;
+        pill.innerHTML = '#' + tag + ' <button class="todo-tag-remove" type="button" tabindex="-1" data-tag="' + tag + '">\xd7</button>';
+        return pill;
+    }
+
+    function createDatePill() {
+        var label = dateLabel || _formatDateLabel(dateISO);
+        var pill = document.createElement('span');
+        pill.className = 'todo-date-pill';
+        pill.dataset.pill = 'date';
+        pill.dataset.iso = dateISO;
+        pill.title = dateISO;
+        pill.innerHTML = '\u2197 ' + label + ' <button class="todo-date-remove" type="button" tabindex="-1" title="Remove date">\xd7</button>';
+        return pill;
+    }
+
+    function createRecPill() {
+        var pill = document.createElement('span');
+        pill.className = 'todo-rec-pill';
+        pill.dataset.pill = 'rec';
+        pill.dataset.label = recLabel;
+        pill.title = recLabel;
+        pill.innerHTML = '\u21bb ' + recLabel + ' <button class="todo-rec-remove" type="button" tabindex="-1" title="Remove repeat">\xd7</button>';
+        return pill;
+    }
+
+    function createNotePill() {
+        var pill = document.createElement('span');
+        pill.className = 'todo-note-pill';
+        pill.dataset.pill = 'note';
+        pill.title = noteText;
+        pill.innerHTML = '~ ' + noteText + ' <button class="todo-note-remove" type="button" tabindex="-1" title="Remove note">\xd7</button>';
+        return pill;
+    }
+
+    // Rebuild DOM: [seg(text)] [pill] [empty-seg] [pill] [empty-seg] ...
+    // Pills are inline between editable spans; passing overrideText replaces first-seg content.
+    function renderAllPills(overrideText) {
+        var hadFocus = textOuter.contains(document.activeElement);
+        var first = getFirstSeg();
+        var rawSaved = overrideText !== undefined ? overrideText : (first ? first.textContent : '');
+
+        // Build pill list first so we know whether to add a trailing space
+        var pillList = [];
+        tags.forEach(function(tag) { pillList.push(createTagPill(tag)); });
+        if (dateISO) pillList.push(createDatePill());
+        if (recLabel) pillList.push(createRecPill());
+        if (noteText) pillList.push(createNotePill());
+
+        // Normalize: collapse \u00a0, trim trailing whitespace, add exactly one
+        // trailing space as separator when pills follow non-empty text
+        var savedText = rawSaved.replace(/\u00a0/g, ' ').trimEnd();
+        if (pillList.length > 0 && savedText.length > 0) savedText += ' ';
+
+        textOuter.innerHTML = '';
+
+        var firstSeg = createTextSeg(savedText);
+        firstSeg.dataset.placeholder = _placeholder;
+        textOuter.appendChild(firstSeg);
+
+        pillList.forEach(function(pill) {
+            textOuter.appendChild(pill);
+            textOuter.appendChild(createTextSeg(''));
+        });
+
+        sessionStorage.setItem('todo-tags', JSON.stringify(tags));
+        updateEmptyClass();
+        if (hadFocus) focusLastSeg();
+    }
+
+    // --- Quick pick row ---
 
     function renderQuickPick() {
         if (!quickPick) return;
@@ -185,122 +362,96 @@ function initTagInput() {
     function hideQuickPick() { if (quickPick) quickPick.style.display = 'none'; }
 
     hideQuickPick();
-    textInput.addEventListener('focus', showQuickPick);
-    textInput.addEventListener('blur', function() { setTimeout(hideQuickPick, 150); });
+    textOuter.addEventListener('focusin', function(e) {
+        if (e.target.classList.contains('todo-text-seg')) showQuickPick();
+    });
+    textOuter.addEventListener('focusout', function() {
+        setTimeout(function() { if (!textOuter.contains(document.activeElement)) hideQuickPick(); }, 150);
+    });
+
+    // --- Tag state ---
 
     function addTag(tag) {
         tag = tag.replace(/^#/, '');
-        if (tags.indexOf(tag) === -1) {
-            tags.push(tag);
-            renderPills();
-            renderQuickPick();
-        }
-        textInput.focus();
+        if (tags.indexOf(tag) === -1) { tags.push(tag); renderAllPills(); renderQuickPick(); }
+        focusLastSeg();
     }
 
     function removeTag(tag) {
         tags = tags.filter(function(t) { return t !== tag; });
-        renderPills();
-        renderQuickPick();
+        renderAllPills(); renderQuickPick(); focusLastSeg();
     }
 
-    // --- Date pill (the ^ marker) ---
+    // --- Date state ---
+
     function _formatDateLabel(iso) {
-        // Best-effort fallback when the picker didn't supply a label (e.g. when
-        // the pill is rebuilt from the data-due-date attribute on edit).
         var d = new Date(iso + 'T00:00:00');
         var weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
         var month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
         return weekday + ', ' + d.getDate() + ' ' + month;
     }
 
-    function renderDatePill() {
-        container.querySelectorAll('.todo-date-pill').forEach(function(el) { el.remove(); });
-        if (!dateISO) return;
-        var label = dateLabel || _formatDateLabel(dateISO);
-        var pill = document.createElement('span');
-        pill.className = 'todo-date-pill';
-        pill.dataset.iso = dateISO;
-        pill.title = dateISO;
-        pill.innerHTML = '↗ ' + label
-            + ' <button class="todo-date-remove" type="button" title="Remove date">×</button>';
-        // Insert before the text input so it sits visually with other pills.
-        container.insertBefore(pill, textInput);
-    }
-
-    function setDate(iso, label) {
-        dateISO = iso || null;
-        dateLabel = label || null;
-        renderDatePill();
-    }
-
+    function setDate(iso, label) { dateISO = iso || null; dateLabel = label || null; renderAllPills(); }
     function clearDate() { setDate(null, null); }
 
     function openDatePillPicker() {
-        openPicker({
-            anchorEl: container,
-            initialISO: dateISO,
-            title: 'When is this due?',
-            onCommit: function(iso) {
-                setDate(iso, null);
-                textInput.focus();
-            },
-            onCancel: function() {
-                textInput.focus();
-            }
-        });
+        openPicker({ anchorEl: container, initialISO: dateISO, title: 'When is this due?',
+            onCommit: function(iso) { setDate(iso, null); focusLastSeg(); },
+            onCancel: function() { focusLastSeg(); } });
     }
 
-    // --- Recurrence pill (the * marker) ---
-    function renderRecPill() {
-        container.querySelectorAll('.todo-rec-pill').forEach(function(el) { el.remove(); });
-        if (!recLabel) return;
-        var pill = document.createElement('span');
-        pill.className = 'todo-rec-pill';
-        pill.dataset.label = recLabel;
-        pill.title = recLabel;
-        pill.innerHTML = '↻ ' + recLabel
-            + ' <button class="todo-rec-remove" type="button" title="Remove repeat">×</button>';
-        container.insertBefore(pill, textInput);
-    }
+    // --- Recurrence state ---
 
-    function setRecurrence(label) {
-        recLabel = label || null;
-        renderRecPill();
-    }
-
+    function setRecurrence(label) { recLabel = label || null; renderAllPills(); }
     function clearRecurrence() { setRecurrence(null); }
 
     function openRecurrencePillPicker() {
-        openRecurrencePicker({
-            anchorEl: container,
-            initialLabel: recLabel,
-            title: 'Repeat',
-            onCommit: function(label) {
-                setRecurrence(label);
-                textInput.focus();
-            },
-            onCancel: function() {
-                textInput.focus();
-            }
-        });
+        openRecurrencePicker({ anchorEl: container, initialLabel: recLabel, title: 'Repeat',
+            onCommit: function(label) { setRecurrence(label); focusLastSeg(); },
+            onCancel: function() { focusLastSeg(); } });
     }
+
+    // --- Note state ---
+
+    function setNote(text) { noteText = text || ''; renderAllPills(); }
+    function clearNote() { setNote(''); }
+
+    function openNotePillPicker() {
+        openNotePicker({ anchorEl: container, initialNote: noteText, title: 'Note',
+            onCommit: function(text) { setNote(text); focusLastSeg(); },
+            onCancel: function() { focusLastSeg(); } });
+    }
+
+    function removePillFromState(el) {
+        if (el.dataset.pill === 'tag') removeTag(el.dataset.tag);
+        else if (el.dataset.pill === 'date') clearDate();
+        else if (el.dataset.pill === 'rec') clearRecurrence();
+        else if (el.dataset.pill === 'note') clearNote();
+    }
+
+    // --- Click handler ---
 
     container.addEventListener('click', function(e) {
         var rmTag = e.target.closest('.todo-tag-remove');
-        if (rmTag) { removeTag(rmTag.dataset.tag); return; }
+        if (rmTag) { e.stopPropagation(); removeTag(rmTag.dataset.tag); return; }
         var rmDate = e.target.closest('.todo-date-remove');
-        if (rmDate) { e.stopPropagation(); clearDate(); return; }
+        if (rmDate) { e.stopPropagation(); clearDate(); focusLastSeg(); return; }
         var datePill = e.target.closest('.todo-date-pill');
         if (datePill) { e.stopPropagation(); openDatePillPicker(); return; }
         var rmRec = e.target.closest('.todo-rec-remove');
-        if (rmRec) { e.stopPropagation(); clearRecurrence(); return; }
+        if (rmRec) { e.stopPropagation(); clearRecurrence(); focusLastSeg(); return; }
         var recPill = e.target.closest('.todo-rec-pill');
         if (recPill) { e.stopPropagation(); openRecurrencePillPicker(); return; }
-        textInput.focus();
+        var rmNote = e.target.closest('.todo-note-remove');
+        if (rmNote) { e.stopPropagation(); clearNote(); focusLastSeg(); return; }
+        var notePill = e.target.closest('.todo-note-pill');
+        if (notePill) { e.stopPropagation(); openNotePillPicker(); return; }
+        if (e.target.closest('.todo-tag-pill')) return;
+        if (!e.target.classList.contains('todo-text-seg')) focusLastSeg();
     });
 
     // --- Autocomplete ---
+
     var acEl = document.createElement('div');
     acEl.className = 'todo-tag-autocomplete';
     acEl.style.display = 'none';
@@ -309,7 +460,6 @@ function initTagInput() {
     var acSelected = -1;
 
     function acItems() { return Array.from(acEl.querySelectorAll('.todo-ac-item')); }
-
     function hideAc() { acEl.style.display = 'none'; acSelected = -1; }
 
     function showAc(matches) {
@@ -321,21 +471,24 @@ function initTagInput() {
             item.className = 'todo-ac-item';
             item.textContent = '#' + tag;
             item.dataset.tag = tag;
-            item.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-                selectAc(tag);
-            });
+            item.addEventListener('mousedown', function(e) { e.preventDefault(); selectAc(tag); });
             acEl.appendChild(item);
         });
         acEl.style.display = 'block';
     }
 
     function selectAc(tag) {
-        var val = textInput.value;
-        var cursor = textInput.selectionStart;
-        var before = val.slice(0, cursor).replace(/#\S*$/, '');
-        var after = val.slice(cursor);
-        textInput.value = (before + after).replace(/  +/g, ' ');
+        var sel = window.getSelection();
+        if (sel && sel.rangeCount) {
+            var range = sel.getRangeAt(0);
+            if (range.startContainer.nodeType === Node.TEXT_NODE) {
+                var tn = range.startContainer, pos = range.startOffset;
+                var newBefore = tn.textContent.slice(0, pos).replace(/#\S*$/, '');
+                tn.textContent = newBefore + tn.textContent.slice(pos);
+                range.setStart(tn, newBefore.length); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+        }
         hideAc();
         addTag(tag);
     }
@@ -345,145 +498,216 @@ function initTagInput() {
         var f = fragment.toLowerCase(), t = tag.toLowerCase();
         if (t.startsWith(f)) return 0;
         if (t.split(':').some(function(s) { return s.startsWith(f); })) return 1;
-        // subsequence match: every char of f must appear in t in order
         var fi = 0;
-        for (var ti = 0; ti < t.length && fi < f.length; ti++) {
-            if (t[ti] === f[fi]) fi++;
-        }
+        for (var ti = 0; ti < t.length && fi < f.length; ti++) { if (t[ti] === f[fi]) fi++; }
         return fi === f.length ? 2 : -1;
     }
 
     function updateAc() {
-        var val = textInput.value;
-        var cursor = textInput.selectionStart;
-        var before = val.slice(0, cursor);
-        var m = before.match(/#(\S*)$/);
+        var textBefore = getTextBeforeCursor();
+        var m = textBefore.match(/#(\S*)$/);
         if (!m) { hideAc(); return; }
         var fragment = m[1];
         var known = Array.from(document.querySelectorAll('.tag-group-header[data-tag]'))
             .map(function(el) { return el.dataset.tag; })
             .filter(function(t) { return t && t !== '__untagged__' && tags.indexOf(t) === -1; });
         var scored = [];
-        known.forEach(function(t) {
-            var s = fuzzyScore(fragment, t);
-            if (s >= 0) scored.push({tag: t, score: s});
-        });
+        known.forEach(function(t) { var s = fuzzyScore(fragment, t); if (s >= 0) scored.push({tag: t, score: s}); });
         scored.sort(function(a, b) { return a.score - b.score || a.tag.localeCompare(b.tag); });
         showAc(scored.map(function(x) { return x.tag; }));
     }
 
-    textInput.addEventListener('keydown', function(e) {
+    // --- Keyboard handling (delegated to textOuter) ---
+
+    textOuter.addEventListener('keydown', function(e) {
+        var activeSeg = getActiveSeg();
+        if (!activeSeg) return;
         var items = acItems();
-        if (acEl.style.display === 'none' || !items.length) return;
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            acSelected = Math.min(acSelected + 1, items.length - 1);
-            items.forEach(function(el, i) { el.classList.toggle('todo-ac-selected', i === acSelected); });
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            acSelected = Math.max(acSelected - 1, -1);
-            items.forEach(function(el, i) { el.classList.toggle('todo-ac-selected', i === acSelected); });
-        } else if ((e.key === 'Enter' || e.key === 'Tab') && acSelected >= 0) {
-            e.preventDefault();
-            selectAc(items[acSelected].dataset.tag);
-        } else if (e.key === 'Tab' && acSelected < 0 && items.length) {
-            e.preventDefault();
-            selectAc(items[0].dataset.tag);
-        } else if (e.key === 'Escape') {
-            hideAc();
-        }
-    });
 
-    textInput.addEventListener('keydown', function(e) {
+        // Autocomplete navigation takes priority
+        if (acEl.style.display !== 'none' && items.length) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                acSelected = Math.min(acSelected + 1, items.length - 1);
+                items.forEach(function(el, i) { el.classList.toggle('todo-ac-selected', i === acSelected); });
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                acSelected = Math.max(acSelected - 1, -1);
+                items.forEach(function(el, i) { el.classList.toggle('todo-ac-selected', i === acSelected); });
+                return;
+            }
+            if ((e.key === 'Enter' || e.key === 'Tab') && acSelected >= 0) {
+                e.preventDefault(); selectAc(items[acSelected].dataset.tag); return;
+            }
+            if (e.key === 'Tab' && acSelected < 0 && items.length) {
+                e.preventDefault(); selectAc(items[0].dataset.tag); return;
+            }
+            if (e.key === 'Escape') { hideAc(); return; }
+        }
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
+            return;
+        }
+
         if (e.key === 'Escape') {
-            if (acEl.style.display === 'none' && editingId) exitEditMode();
-            textInput.blur();
+            if (editingId) exitEditMode();
+            activeSeg.blur();
+            return;
+        }
+
+        // Cross-seg arrow navigation
+        var segs = getAllSegs(), idx = segs.indexOf(activeSeg);
+
+        if (e.key === 'ArrowRight' && e.metaKey) {
+            e.preventDefault(); focusLastSeg(); return;
+        }
+        if (e.key === 'ArrowLeft' && e.metaKey) {
+            e.preventDefault();
+            var first = getFirstSeg();
+            if (first) { first.focus(); placeCursorAtStart(first); }
+            return;
+        }
+        if (e.key === 'a' && e.metaKey) {
+            e.preventDefault();
+            var first = getFirstSeg(), last = getLastSeg();
+            if (!first || !last) return;
+            var selRange = document.createRange();
+            selRange.setStart(first, 0);
+            selRange.setEnd(last, last.childNodes.length);
+            var sel = window.getSelection();
+            if (sel) { sel.removeAllRanges(); sel.addRange(selRange); }
+            return;
+        }
+        if (e.key === 'ArrowRight' && idx < segs.length - 1 && isAtEnd(activeSeg)) {
+            e.preventDefault(); segs[idx + 1].focus(); placeCursorAtStart(segs[idx + 1]); return;
+        }
+        if (e.key === 'ArrowLeft' && idx > 0 && isAtStart(activeSeg)) {
+            e.preventDefault(); segs[idx - 1].focus(); placeCursorAtEnd(segs[idx - 1]); return;
+        }
+
+        // Backspace at start of a non-first seg removes the preceding pill
+        if (e.key === 'Backspace' && idx > 0 && isAtStart(activeSeg)) {
+            var prevPill = activeSeg.previousElementSibling;
+            if (prevPill && prevPill.dataset && prevPill.dataset.pill) {
+                e.preventDefault(); removePillFromState(prevPill); return;
+            }
         }
     });
 
-    textInput.addEventListener('blur', function() { setTimeout(hideAc, 150); });
+    textOuter.addEventListener('focusout', function() { setTimeout(hideAc, 150); });
+
+    // --- Input event (delegated) ---
+
+    textOuter.addEventListener('input', function(e) {
+        if (!e.target.classList.contains('todo-text-seg')) return;
+        var sel = window.getSelection();
+        if (!sel || !sel.rangeCount) { updateAc(); updateEmptyClass(); return; }
+        var range = sel.getRangeAt(0);
+        var tn = range.startContainer, pos = range.startOffset;
+
+        if (tn.nodeType === Node.TEXT_NODE && tn.parentNode === e.target) {
+            var text = tn.textContent;
+            var before = text.slice(0, pos);
+            var lastChar = before.slice(-1);
+
+            if (lastChar === '^' || lastChar === '*' || lastChar === '~') {
+                tn.textContent = text.slice(0, pos - 1) + text.slice(pos);
+                range.setStart(tn, pos - 1); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+                hideAc();
+                if (lastChar === '^') openDatePillPicker();
+                else if (lastChar === '*') openRecurrencePillPicker();
+                else openNotePillPicker();
+                updateEmptyClass();
+                return;
+            }
+
+            var m = before.replace(/\u00a0/g, ' ').match(/#(\S+) $/);
+            if (m) {
+                var tag = m[1], removeLen = m[0].length;
+                var beforeText = text.slice(0, pos - removeLen).replace(/\s+$/, ' ');
+                tn.textContent = beforeText + ' ' + text.slice(pos);
+                var newPos = beforeText.length + 1;
+                range.setStart(tn, newPos); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+                hideAc(); addTag(tag); updateEmptyClass();
+                return;
+            }
+        }
+
+        updateAc();
+        updateEmptyClass();
+    });
+
+    // Strip rich formatting on paste
+    textOuter.addEventListener('paste', function(e) {
+        if (!e.target.classList.contains('todo-text-seg')) return;
+        e.preventDefault();
+        var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        if (!text) return;
+        var sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        var range = sel.getRangeAt(0);
+        range.deleteContents();
+        var inserted = document.createTextNode(text);
+        range.insertNode(inserted);
+        range.setStartAfter(inserted); range.collapse(true);
+        sel.removeAllRanges(); sel.addRange(range);
+        e.target.dispatchEvent(new Event('input', {bubbles: true}));
+    });
 
     // --- Edit mode ---
-    function enterEditMode(id, text, tagList, dueDate, recurrence, editUrl) {
+
+    function enterEditMode(id, text, tagList, dueDate, recurrence, editUrl, note) {
         savedTags = tags.slice();
         savedDateISO = dateISO;
         savedRecLabel = recLabel;
+        savedNoteText = noteText;
         editingId = id;
         tags = tagList.slice();
-        renderPills();
-        renderQuickPick();
-        setDate(dueDate || null, null);
-        setRecurrence(recurrence || null);
-        textInput.value = text;
+        dateISO = dueDate || null;
+        dateLabel = null;
+        recLabel = recurrence || null;
+        noteText = note || '';
+        _placeholder = 'Edit todo\u2026';
+        renderAllPills(text || '');
         form.setAttribute('hx-post', editUrl);
         htmx.process(form);
         container.classList.add('todo-tag-input--editing');
-        textInput.placeholder = 'Edit todo\u2026';
-        textInput.focus();
+        var first = getFirstSeg();
+        if (first) { first.focus(); setTimeout(function() { placeCursorAtEnd(first); }, 0); }
+        renderQuickPick();
     }
 
     function exitEditMode() {
         editingId = null;
-        tags = savedTags !== null ? savedTags : [];
-        savedTags = null;
-        renderPills();
+        tags = savedTags !== null ? savedTags : []; savedTags = null;
+        dateISO = savedDateISO; dateLabel = null; savedDateISO = null;
+        recLabel = savedRecLabel; savedRecLabel = null;
+        noteText = savedNoteText !== null ? savedNoteText : ''; savedNoteText = null;
+        _placeholder = 'New todo\u2026';
+        renderAllPills('');
         renderQuickPick();
-        setDate(savedDateISO, null);
-        savedDateISO = null;
-        setRecurrence(savedRecLabel);
-        savedRecLabel = null;
-        textInput.value = '';
         form.setAttribute('hx-post', addUrl);
         htmx.process(form);
         container.classList.remove('todo-tag-input--editing');
-        textInput.placeholder = 'New todo\u2026';
     }
 
     document.addEventListener('todoEditStart', function(e) {
         var d = e.detail;
-        enterEditMode(d.id, d.text, d.tags, d.dueDate, d.recurrence, d.editUrl);
+        enterEditMode(d.id, d.text, d.tags, d.dueDate, d.recurrence, d.editUrl, d.note || '');
     });
 
-    textInput.addEventListener('input', function() {
-        var val = textInput.value;
-
-        // ^ \u2192 open date picker, strip the marker from the input
-        var caretIdx = val.indexOf('^');
-        if (caretIdx !== -1) {
-            textInput.value = val.slice(0, caretIdx) + val.slice(caretIdx + 1);
-            hideAc();
-            openDatePillPicker();
-            return;
-        }
-
-        // * \u2192 open recurrence picker, strip the marker
-        var starIdx = val.indexOf('*');
-        if (starIdx !== -1) {
-            textInput.value = val.slice(0, starIdx) + val.slice(starIdx + 1);
-            hideAc();
-            openRecurrencePillPicker();
-            return;
-        }
-
-        var re = /#(\S+) /g;
-        var match;
-        var extracted = [];
-        while ((match = re.exec(val)) !== null) {
-            extracted.push(match[1]);
-        }
-        if (extracted.length > 0) {
-            textInput.value = val.replace(/#\S+ /g, '').replace(/  +/g, ' ');
-            extracted.forEach(addTag);
-            hideAc();
-        } else {
-            updateAc();
-        }
-    });
+    // --- Form submission ---
 
     var _pendingText = null;
 
     function buildCompositeText() {
-        var rawText = textInput.value;
+        var rawText = getPlainText();
         var typedTags = (rawText.match(/#\S+/g) || []).map(function(t) { return t.slice(1); });
         var allTags = tags.slice();
         typedTags.forEach(function(t) { if (allTags.indexOf(t) === -1) allTags.push(t); });
@@ -491,53 +715,40 @@ function initTagInput() {
         var parts = [cleanText].concat(allTags.map(function(t) { return '#' + t; }));
         if (dateISO) parts.push('^' + dateISO);
         if (recLabel) parts.push('*' + recLabel);
+        if (noteText) parts.push('~' + noteText);
         return parts.join(' ').trim();
     }
 
-    // Capture phase: compute the composite text while the input still has the user's value,
-    // then clear the input and reset state. htmx:configRequest (below) injects it into the request.
     form.addEventListener('submit', function() {
         hideAc();
         _pendingText = buildCompositeText();
         if (editingId) {
             tags = savedTags !== null ? savedTags : [];
-            savedTags = null;
-            savedDateISO = null;
+            savedTags = null; savedDateISO = null; savedRecLabel = null; savedNoteText = null;
             editingId = null;
             container.classList.remove('todo-tag-input--editing');
-            textInput.placeholder = 'New todo\u2026';
+            _placeholder = 'New todo\u2026';
         }
         sessionStorage.setItem('todo-tags', JSON.stringify(tags));
-        clearDate();
-        clearRecurrence();
-        textInput.value = '';
+        dateISO = null; dateLabel = null; recLabel = null; noteText = '';
+        renderAllPills('');
     }, true);
 
-    // htmx:configRequest fires just before HTMX sends the request, after form serialization.
-    // Override the text parameter here so it always reflects the composite widget value.
     form.addEventListener('htmx:configRequest', function(e) {
-        if (_pendingText !== null) {
-            e.detail.parameters['text'] = _pendingText;
-            _pendingText = null;
-        }
+        if (_pendingText !== null) { e.detail.parameters['text'] = _pendingText; _pendingText = null; }
     });
 
-    // After successful submit (body swap), tags remain in sessionStorage and re-render on next initTagInput call.
-    // On error, restore text + accumulated tags into composite widget.
     document.body.addEventListener('showAddTodoError', function(e) {
         var raw = e.detail.input || '';
         var parsed = parseTagsFromRaw(raw);
         parsed.tags.forEach(function(t) { if (tags.indexOf(t) === -1) tags.push(t); });
-        renderPills();
+        renderAllPills(parsed.text || '');
         renderQuickPick();
-        textInput.value = parsed.text;
-        textInput.focus();
+        focusFirstSeg();
     }, true);
 
-    renderPills();
+    renderAllPills('');
     renderQuickPick();
-    renderDatePill();
-    renderRecPill();
 }
 
 // Show error toast when todo text is empty (only tags entered)
@@ -599,7 +810,7 @@ document.addEventListener('mouseleave', function(e) {
 }, true);
 
 document.addEventListener('keydown', function(e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.contentEditable === 'true') return;
 
     // 'r' key: restore checked items on the done list, or hovered item as fallback
     if (e.key === 'r') {
@@ -628,6 +839,7 @@ document.addEventListener('keydown', function(e) {
         document.dispatchEvent(new CustomEvent('todoEditStart', {detail: {
             id: li.id.replace('todo-', ''),
             text: li.dataset.todoText || '',
+            note: li.dataset.todoNote || '',
             tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
             dueDate: li.dataset.dueDate || null,
             recurrence: li.dataset.recurrence || null,
@@ -702,8 +914,8 @@ document.addEventListener('keydown', function(e) {
 // week, "no date"), a free-text field with live parser preview, and a month
 // calendar grid. The caller passes a mode + onCommit callback.
 //
-//   mode: 'pill'    → onCommit(iso, label) — caller inserts a pill
-//         'set-due' → caller does whatever it wants on commit (we just call
+//   mode: 'pill'    \u2192 onCommit(iso, label) \u2014 caller inserts a pill
+//         'set-due' \u2192 caller does whatever it wants on commit (we just call
 //                     onCommit; helpers below POST to set_due_date)
 //
 // Always returns ISO ('YYYY-MM-DD') or null for "no date".
@@ -758,7 +970,7 @@ function openPicker(opts) {
     // --- Custom text input + live preview ---
     var input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = 'tomorrow / next wed / 2026-05-12 …';
+    input.placeholder = 'tomorrow / next wed / 2026-05-12 \u2026';
     input.value = opts.initialISO || '';
     pop.appendChild(input);
 
@@ -819,7 +1031,7 @@ function openPicker(opts) {
         nav.style.cssText = 'display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;font-weight:600;color:var(--bs-secondary-color);margin:0.25rem 0;';
         var prev = document.createElement('button');
         prev.type = 'button';
-        prev.textContent = '‹';
+        prev.textContent = '\u2039';
         prev.style.cssText = 'background:none;border:none;cursor:pointer;font-size:1rem;color:inherit;padding:0 0.5rem;';
         prev.addEventListener('click', function() {
             pendingMonth.setMonth(pendingMonth.getMonth() - 1);
@@ -827,7 +1039,7 @@ function openPicker(opts) {
         });
         var next = document.createElement('button');
         next.type = 'button';
-        next.textContent = '›';
+        next.textContent = '\u203a';
         next.style.cssText = prev.style.cssText;
         next.addEventListener('click', function() {
             pendingMonth.setMonth(pendingMonth.getMonth() + 1);
@@ -890,7 +1102,7 @@ function openPicker(opts) {
                 .then(function(data) {
                     if (data.ok) {
                         pendingISO = data.date;
-                        preview.textContent = '→ ' + data.label + ' (' + data.date + ')';
+                        preview.textContent = '\u2192 ' + data.label + ' (' + data.date + ')';
                         preview.classList.remove('todo-popover-preview--invalid');
                         // Re-render calendar to month containing the new date
                         var newMonth = new Date(data.date + 'T00:00:00');
@@ -922,6 +1134,42 @@ function openPicker(opts) {
     if (opts.initialISO) updatePreview();
     setTimeout(function() { input.focus(); input.select(); }, 0);
     return pop;
+}
+
+// Simple note-text popover. opts: {anchorEl, initialNote, title, onCommit, onCancel}
+function openNotePicker(opts) {
+    closePopovers();
+    var pop = document.createElement('div');
+    pop.className = 'todo-popover todo-note-popover';
+    pop.style.cssText = 'position:absolute;z-index:1060;background:#fff;border:1px solid #dee2e6;border-radius:.5rem;padding:1rem;box-shadow:0 4px 20px rgba(0,0,0,.15);width:18rem;';
+    var safeInitial = (opts.initialNote || '').replace(/"/g, '&quot;');
+    pop.innerHTML = '<label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:.5rem">'
+        + (opts.title || 'Note') + '</label>'
+        + '<input type="text" class="form-control form-control-sm" placeholder="Note text\u2026" value="' + safeInitial + '"/>'
+        + '<div class="d-flex gap-2 mt-2 justify-content-end">'
+        + '<button type="button" class="btn btn-sm btn-link text-muted">Cancel</button>'
+        + '<button type="button" class="btn btn-sm btn-dark">Set</button>'
+        + '</div>';
+    anchorPopover(pop, opts.anchorEl);
+    var input = pop.querySelector('input');
+    var setBtn = pop.querySelector('.btn-dark');
+    var cancelBtn = pop.querySelector('.btn-link');
+    function commit() {
+        var val = input.value.trim();
+        closePopovers();
+        if (opts.onCommit) opts.onCommit(val);
+    }
+    function cancel() {
+        closePopovers();
+        if (opts.onCancel) opts.onCancel();
+    }
+    setBtn.addEventListener('click', commit);
+    cancelBtn.addEventListener('click', cancel);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        if (e.key === 'Escape') { cancel(); }
+    });
+    setTimeout(function() { input.focus(); input.select(); }, 0);
 }
 
 // Anchor a popover element below `anchorEl`. Removes any existing popovers first.
@@ -971,7 +1219,7 @@ function openPostponePicker(itemEl, ids) {
     if (!list) return;
     openPicker({
         anchorEl: itemEl,
-        title: 'Postpone…',
+        title: 'Postpone\u2026',
         role: 'postpone-palette',
         onCommit: function(iso) {
             htmx.ajax('POST', list.dataset.postponeUrl, {
@@ -1023,7 +1271,7 @@ function openRecurrencePicker(opts) {
 
     var input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = 'every wednesday / after 10 days / every 15th …';
+    input.placeholder = 'every wednesday / after 10 days / every 15th \u2026';
     input.value = opts.initialLabel || '';
     pop.appendChild(input);
 
@@ -1084,7 +1332,7 @@ function openRecurrencePicker(opts) {
                 .then(function(data) {
                     if (data.ok) {
                         pendingLabel = data.label;
-                        preview.textContent = '↻ ' + data.label;
+                        preview.textContent = '\u21bb ' + data.label;
                         preview.classList.remove('todo-popover-preview--invalid');
                     } else {
                         pendingLabel = null;
@@ -1203,16 +1451,29 @@ function ensureHelpOverlay() {
         _kbdRow('d', 'Set / change due date (hovered)'),
         _kbdRow('f', 'Set / change repetition rule (hovered)'),
         _kbdRow('p', 'Postpone hovered / selected by 1 day'),
-        _kbdRow('Shift+P', 'Postpone… (chip palette + calendar)'),
+        _kbdRow('Shift+P', 'Postpone\u2026 (chip palette + calendar)'),
+        _kbdRow('r', 'Open the protocol palette \u2014 start a run'),
         _kbdRow('u', 'Undo last action'),
-        _kbdRow('click ↻', 'Show repetition history for this item'),
+        _kbdRow('click \u21bb', 'Show repetition history for this item'),
+        '</tbody></table>',
+
+        _kbdSection('Protocol run'),
+        '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;"><tbody>',
+        _kbdRow('j / \u2193', 'Next item'),
+        _kbdRow('k / \u2191', 'Previous item'),
+        _kbdRow('c', 'Mark current done \u2014 nothing to do'),
+        _kbdRow('t', 'Send current to the todo list'),
+        _kbdRow('e', 'Edit current item before sending'),
+        _kbdRow('Esc', 'Back to the todo list'),
+        _kbdRow('swipe \u2192', 'Same as <kbd>c</kbd> (done)'),
+        _kbdRow('swipe \u2190', 'Same as <kbd>t</kbd> (send to todo)'),
         '</tbody></table>',
 
         _kbdSection('Adding / editing a todo'),
         '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;"><tbody>',
         _kbdRow('#tag', 'Attach a tag (single word)'),
-        _kbdRow('^', 'Open the date picker — commits as a pill'),
-        _kbdRow('*', 'Open the repetition picker — commits as a pill'),
+        _kbdRow('^', 'Open the date picker \u2014 commits as a pill'),
+        _kbdRow('*', 'Open the repetition picker \u2014 commits as a pill'),
         '</tbody></table>',
 
         _kbdSection('Done list'),
@@ -1239,7 +1500,7 @@ function hideHelp() {
     if (_helpOverlay) _helpOverlay.style.display = 'none';
 }
 
-// Bound once on document — never replaced by HTMX. `?` should fire even when
+// Bound once on document \u2014 never replaced by HTMX. `?` should fire even when
 // the user is mid-typing in the add-todo input: opening help shouldn't depend
 // on what's focused.
 document.addEventListener('keydown', function(e) {
@@ -1250,13 +1511,472 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
+// --- Protocol run page interactions ----------------------------------------
+//
+// Run-item actions (done / send-to-todo / edit) are dispatched via delegation
+// on .protocol-run-action buttons inside #protocol-run. Each .protocol-run-item
+// carries data-done-url / data-send-url / data-edit-url to keep the JS
+// parameter-free.
+
+(function _wireRunActions() {
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.protocol-run-action');
+        if (!btn) return;
+        var item = btn.closest('.protocol-run-item');
+        if (!item) return;
+        var action = btn.dataset.action;
+        if (action === 'edit') return runItemEditInline(item);
+        var url = action === 'done' ? item.dataset.doneUrl : item.dataset.sendUrl;
+        var run = document.getElementById('protocol-run');
+        if (!url || !run) return;
+        e.preventDefault();
+        htmx.ajax('POST', url, {target: run, swap: 'innerHTML'});
+    });
+}());
+
+function runItemEditInline(itemEl) {
+    var textSpan = itemEl.querySelector('.flex-grow-1 > span');
+    if (!textSpan) return;
+    var existing = textSpan.textContent.trim();
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = existing;
+    input.className = 'form-control form-control-sm';
+    input.style.maxWidth = '20rem';
+    textSpan.replaceWith(input);
+    input.focus();
+    input.select();
+    function commit() {
+        var run = document.getElementById('protocol-run');
+        var url = itemEl.dataset.editUrl;
+        if (!url || !run) return;
+        htmx.ajax('POST', url, {target: run, swap: 'innerHTML', values: {text: input.value}});
+    }
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        else if (e.key === 'Escape') { input.replaceWith(textSpan); }
+    });
+    input.addEventListener('blur', commit);
+}
+
+// --- Run-item navigation + hotkeys ---
+var _runCurrentIdx = 0;
+
+function _runItems() {
+    return Array.from(document.querySelectorAll('.protocol-run-item'));
+}
+function _runHighlight() {
+    var items = _runItems();
+    items.forEach(function(el, i) {
+        el.classList.toggle('is-current', i === _runCurrentIdx);
+    });
+    var current = items[_runCurrentIdx];
+    if (current) current.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+}
+function _runMove(delta) {
+    var items = _runItems();
+    if (!items.length) return;
+    _runCurrentIdx = Math.max(0, Math.min(items.length - 1, _runCurrentIdx + delta));
+    _runHighlight();
+}
+function _runFire(action) {
+    var items = _runItems();
+    var current = items[_runCurrentIdx];
+    if (!current) return;
+    var btn = current.querySelector('.protocol-run-action[data-action="' + action + '"]');
+    if (btn) btn.click();
+}
+
+document.addEventListener('keydown', function(e) {
+    if (!document.getElementById('protocol-run')) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.contentEditable === 'true') return;
+    if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); _runMove(1); }
+    else if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); _runMove(-1); }
+    else if (e.key === 'c') { e.preventDefault(); _runFire('done'); }
+    else if (e.key === 't') { e.preventDefault(); _runFire('send'); }
+    else if (e.key === 'e') { e.preventDefault(); _runFire('edit'); }
+    else if (e.key === 'Escape') {
+        e.preventDefault();
+        var run = document.getElementById('protocol-run');
+        if (run && run.dataset.todoRoute) location.href = run.dataset.todoRoute;
+    }
+});
+
+// --- Swipe for run items ---
+var _runSwipeState = new WeakMap();
+document.addEventListener('touchstart', function(e) {
+    var item = e.target.closest('.protocol-run-item');
+    if (!item) return;
+    var inner = item.querySelector('.card-body');
+    if (!inner) return;
+    inner.style.transition = 'none';
+    _runSwipeState.set(item, {startX: e.touches[0].clientX, dx: 0});
+}, {passive: true});
+document.addEventListener('touchmove', function(e) {
+    var item = e.target.closest('.protocol-run-item');
+    if (!item) return;
+    var s = _runSwipeState.get(item);
+    if (!s) return;
+    var inner = item.querySelector('.card-body');
+    if (!inner) return;
+    s.dx = e.touches[0].clientX - s.startX;
+    inner.style.transform = 'translateX(' + Math.max(-150, Math.min(150, s.dx)) + 'px)';
+    item.dataset.swipeDir = s.dx > 0 ? 'right' : (s.dx < 0 ? 'left' : '');
+}, {passive: true});
+document.addEventListener('touchend', function(e) {
+    var item = e.target.closest('.protocol-run-item');
+    if (!item) return;
+    var s = _runSwipeState.get(item);
+    if (!s) return;
+    _runSwipeState.delete(item);
+    var inner = item.querySelector('.card-body');
+    if (!inner) return;
+    inner.style.transition = 'transform 0.2s ease';
+    var dx = s.dx;
+    if (dx >= 80) {
+        inner.style.transform = 'translateX(100vw)';
+        var btn = item.querySelector('.protocol-run-action[data-action="done"]');
+        if (btn) btn.click();
+    } else if (dx <= -80) {
+        inner.style.transform = 'translateX(-100vw)';
+        var sendBtn = item.querySelector('.protocol-run-action[data-action="send"]');
+        if (sendBtn) sendBtn.click();
+    } else {
+        inner.style.transform = 'translateX(0)';
+        delete item.dataset.swipeDir;
+    }
+});
+
+// --- Protocol palette (r key on /todos) ---
+var _palette = null;
+
+function openProtocolPalette() {
+    if (_palette) return;
+    _palette = document.createElement('div');
+    _palette.className = 'protocol-palette';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'protocol-palette-input';
+    input.placeholder = 'Start a protocol \u2014 type to filter';
+    var list = document.createElement('ul');
+    list.className = 'protocol-palette-list';
+    _palette.appendChild(input);
+    _palette.appendChild(list);
+    document.body.appendChild(_palette);
+    input.focus();
+
+    var protocols = [];
+    var selected = 0;
+
+    function render(filter) {
+        list.innerHTML = '';
+        var q = filter.trim().toLowerCase();
+        var matches = q
+            ? protocols.filter(function(p) { return p.title.toLowerCase().includes(q); })
+            : protocols;
+        if (!matches.length) {
+            var empty = document.createElement('li');
+            empty.className = 'protocol-palette-empty';
+            empty.textContent = q ? 'No matches.' : 'No protocols defined yet.';
+            list.appendChild(empty);
+            return;
+        }
+        selected = Math.min(selected, matches.length - 1);
+        matches.forEach(function(p, i) {
+            var li = document.createElement('li');
+            li.className = 'protocol-palette-item' + (i === selected ? ' is-selected' : '');
+            li.textContent = p.title;
+            li.dataset.id = p.id;
+            li.addEventListener('click', function() { startRun(p.id); });
+            list.appendChild(li);
+        });
+    }
+
+    function startRun(id) {
+        closeProtocolPalette();
+        var form = document.createElement('form');
+        form.method = 'post';
+        form.action = '/protocols/' + id + '/start';
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    fetch('/protocols/palette.json')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            protocols = data;
+            render('');
+        });
+
+    input.addEventListener('input', function() { selected = 0; render(input.value); });
+    input.addEventListener('keydown', function(e) {
+        var items = list.querySelectorAll('.protocol-palette-item');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selected = Math.min(items.length - 1, selected + 1);
+            render(input.value);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selected = Math.max(0, selected - 1);
+            render(input.value);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            var current = items[selected];
+            if (current) startRun(current.dataset.id);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeProtocolPalette();
+        }
+    });
+}
+
+function closeProtocolPalette() {
+    if (_palette) { _palette.remove(); _palette = null; }
+}
+
+document.addEventListener('mousedown', function(e) {
+    if (!_palette) return;
+    if (e.target.closest('.protocol-palette')) return;
+    closeProtocolPalette();
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'r') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.contentEditable === 'true') return;
+    // Only on the todo list page (avoid interfering with the done page's r=restore)
+    if (!document.getElementById('todo-list')) return;
+    if (document.getElementById('done-list')) return; // /todos/done page
+    e.preventDefault();
+    openProtocolPalette();
+});
+
+// --- Protocol item editor (tag pills + note + HTMX partial save) -----------
+
+var _protoTagCache = null;
+
+function _fetchProtoTags(cb) {
+    if (_protoTagCache !== null) { cb(_protoTagCache); return; }
+    var fromPage = Array.from(document.querySelectorAll('.tag-group-header[data-tag]'))
+        .map(function(el) { return el.dataset.tag; })
+        .filter(function(t) { return t && t !== '__untagged__'; });
+    if (fromPage.length) { _protoTagCache = fromPage; cb(fromPage); return; }
+    var url = document.body.dataset.tagsUrl;
+    if (!url) { cb([]); return; }
+    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+        _protoTagCache = data; cb(data);
+    }).catch(function() { cb([]); });
+}
+
+function initProtocolItemInputs() {
+    document.querySelectorAll('.proto-item-form').forEach(function(form) {
+        if (form.dataset.protoInit) return;
+        form.dataset.protoInit = '1';
+
+        var hidden = form.querySelector('.proto-item-hidden');
+        var wrap = form.querySelector('.proto-item-input-wrap');
+        var textInput = form.querySelector('.proto-item-text');
+        var quickPick = form.querySelector('.proto-item-quick-pick');
+        var saveBtn = form.querySelector('.proto-item-save');
+        if (!hidden || !textInput) return;
+
+        var canonical = form.dataset.canonical || hidden.value;
+        var tags = (canonical.match(/#(\S+)/g) || []).map(function(m) { return m.slice(1); });
+        var noteMatch = canonical.match(/~(.+)$/);
+        var noteText = noteMatch ? noteMatch[1].trim() : '';
+
+        function buildHidden() {
+            var t = textInput.value.trim();
+            var tagStr = tags.map(function(tg) { return '#' + tg; }).join(' ');
+            var parts = [t, tagStr].filter(Boolean);
+            if (noteText) parts.push('~' + noteText);
+            return parts.join(' ');
+        }
+
+        function syncSaveBtn() {
+            if (!saveBtn) return;
+            var changed = buildHidden() !== canonical;
+            saveBtn.classList.toggle('d-none', !changed);
+        }
+
+        function updateHidden() {
+            hidden.value = buildHidden();
+            syncSaveBtn();
+        }
+
+        function renderNotePill() {
+            wrap.querySelectorAll('.proto-note-pill').forEach(function(p) { p.remove(); });
+            if (!noteText) return;
+            var pill = document.createElement('span');
+            pill.className = 'badge rounded-pill bg-info text-dark me-1 proto-note-pill';
+            pill.style.cursor = 'pointer';
+            pill.style.userSelect = 'none';
+            pill.title = 'Click to edit note';
+            var label = document.createTextNode('~ ' + noteText + ' ');
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'btn-close btn-close-white';
+            removeBtn.style.cssText = 'font-size:.55em; vertical-align:middle';
+            removeBtn.setAttribute('aria-label', 'Remove note');
+            removeBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                noteText = '';
+                renderNotePill();
+                updateHidden();
+            });
+            pill.addEventListener('click', function(e) {
+                if (e.target === removeBtn) return;
+                e.stopPropagation();
+                openNotePicker({
+                    anchorEl: wrap,
+                    initialNote: noteText,
+                    title: 'Note',
+                    onCommit: function(text) {
+                        noteText = text;
+                        renderNotePill();
+                        updateHidden();
+                        textInput.focus();
+                    },
+                    onCancel: function() { textInput.focus(); }
+                });
+            });
+            pill.appendChild(label);
+            pill.appendChild(removeBtn);
+            wrap.insertBefore(pill, textInput);
+            updateHidden();
+        }
+
+        function renderPills() {
+            wrap.querySelectorAll('.proto-tag-pill').forEach(function(p) { p.remove(); });
+            tags.forEach(function(tag) {
+                var pill = document.createElement('span');
+                pill.className = 'badge rounded-pill bg-secondary me-1 proto-tag-pill';
+                pill.style.cursor = 'default';
+                pill.style.userSelect = 'none';
+                var label = document.createTextNode('#' + tag + ' ');
+                var removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'btn-close btn-close-white';
+                removeBtn.style.cssText = 'font-size:.55em; vertical-align:middle';
+                removeBtn.dataset.tag = tag;
+                removeBtn.setAttribute('aria-label', 'Remove ' + tag);
+                removeBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    tags = tags.filter(function(t) { return t !== tag; });
+                    renderPills();
+                    renderQuickPick();
+                });
+                pill.appendChild(label);
+                pill.appendChild(removeBtn);
+                wrap.insertBefore(pill, textInput);
+            });
+            updateHidden();
+        }
+
+        function addTag(tag) {
+            tag = tag.replace(/^#/, '');
+            if (!tag || tags.indexOf(tag) !== -1) return;
+            tags.push(tag);
+            renderPills();
+            renderQuickPick();
+        }
+
+        function renderQuickPick() {
+            if (!quickPick) return;
+            _fetchProtoTags(function(available) {
+                var chips = available.filter(function(t) { return tags.indexOf(t) === -1; });
+                if (!chips.length) { quickPick.style.display = 'none'; return; }
+                quickPick.innerHTML = '';
+                chips.forEach(function(tag) {
+                    var chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = 'todo-quick-pick-chip';
+                    chip.textContent = '#' + tag;
+                    chip.addEventListener('click', function() { addTag(tag); textInput.focus(); });
+                    quickPick.appendChild(chip);
+                });
+                quickPick.style.display = '';
+            });
+        }
+
+        textInput.addEventListener('focus', function() { renderQuickPick(); });
+        textInput.addEventListener('blur', function() {
+            setTimeout(function() { if (quickPick) quickPick.style.display = 'none'; }, 200);
+        });
+        textInput.addEventListener('input', function() {
+            var val = textInput.value;
+            // ~ \u2192 open note picker
+            var tildeIdx = val.indexOf('~');
+            if (tildeIdx !== -1) {
+                textInput.value = val.slice(0, tildeIdx) + val.slice(tildeIdx + 1);
+                openNotePicker({
+                    anchorEl: wrap,
+                    initialNote: noteText,
+                    title: 'Note',
+                    onCommit: function(text) {
+                        noteText = text;
+                        renderNotePill();
+                        updateHidden();
+                        textInput.focus();
+                    },
+                    onCancel: function() { textInput.focus(); }
+                });
+                return;
+            }
+            var m = val.match(/(^|[\s\S]*[\s])#(\S+)\s$/);
+            if (m && m[2]) {
+                addTag(m[2]);
+                textInput.value = (m[1] || '').trimEnd();
+            } else {
+                updateHidden();
+            }
+        });
+
+        renderPills();
+        renderNotePill();
+    });
+}
+
+function deleteProtocolItem(btn) {
+    var li = btn.closest('li');
+    if (!li) return;
+    var url = btn.dataset.deleteUrl;
+    var saved = li.outerHTML;
+    var placeholder = document.createElement('li');
+    placeholder.className = 'card mb-1';
+    placeholder.innerHTML = '<div class="card-body py-1 px-3 d-flex align-items-center gap-2">'
+        + '<span class="text-muted small">Item deleted.</span>'
+        + '<button type="button" class="btn btn-link btn-sm p-0">Undo</button>'
+        + '</div>';
+    placeholder._deleteTimer = setTimeout(function() {
+        fetch(url, {method: 'POST'}).then(function(r) {
+            if (!r.ok) {
+                placeholder.insertAdjacentHTML('beforebegin', saved);
+                placeholder.remove();
+            } else {
+                placeholder.remove();
+            }
+        });
+    }, 5000);
+    placeholder.querySelector('button').addEventListener('click', function() {
+        clearTimeout(placeholder._deleteTimer);
+        placeholder.insertAdjacentHTML('beforebegin', saved);
+        placeholder.remove();
+        initProtocolItemInputs();
+    });
+    li.replaceWith(placeholder);
+}
+
 htmx.onLoad(function(content) {
     ensureHelpOverlay();
     initSortables(content);
     initTodoSwipe(content);
     initTagInput();
+    initProtocolItemInputs();
+    if (document.getElementById('protocol-run')) _runHighlight();
 });
 ensureHelpOverlay();
 initSortables(document);
 initTodoSwipe(document);
 initTagInput();
+initProtocolItemInputs();
+if (document.getElementById('protocol-run')) _runHighlight();

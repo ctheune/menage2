@@ -112,6 +112,24 @@ def test_parse_todo_input_iso_date():
     assert parsed.due_date == datetime.date(2026, 5, 1)
 
 
+def test_parse_todo_input_extracts_note():
+    parsed = parse_todo_input("Check fridge ~look in the back")
+    assert parsed.text == "Check fridge"
+    assert parsed.note == "look in the back"
+
+
+def test_parse_todo_input_note_with_tags():
+    parsed = parse_todo_input("Check fridge #shopping ~behind the yogurt")
+    assert parsed.text == "Check fridge"
+    assert parsed.tags == {"shopping"}
+    assert parsed.note == "behind the yogurt"
+
+
+def test_parse_todo_input_no_note():
+    parsed = parse_todo_input("Buy bread #food")
+    assert parsed.note == ""
+
+
 def test_build_tag_tree_single_level():
     t1 = _todo("A", {"shopping"})
     t2 = _todo("B", {"work"})
@@ -661,6 +679,29 @@ def test_edit_todo_updates_text_and_tags(app_request, dbsession):
     dbsession.refresh(todo)
     assert todo.text == "New text"
     assert todo.tags == {"new-tag"}
+
+
+def test_add_todo_saves_note(app_request, dbsession):
+    app_request.method = "POST"
+    app_request.POST["text"] = "Buy milk ~get organic"
+    add_todo(app_request)
+    todo = dbsession.query(Todo).one()
+    assert todo.text == "Buy milk"
+    assert todo.note == "get organic"
+
+
+def test_edit_todo_saves_note(app_request, dbsession):
+    todo = _todo("Old text")
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["text"] = "New text ~a note"
+    edit_todo(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.text == "New text"
+    assert todo.note == "a note"
 
 
 def test_edit_todo_only_tags_returns_422(app_request, dbsession):

@@ -7,6 +7,13 @@ import zope.sqlalchemy
 # ``Base.metadata`` prior to any initialization routines.
 from .config import ConfigItem  # noqa
 from .todo import Todo, TodoStatus  # noqa
+from .protocol import (  # noqa
+    Protocol,
+    ProtocolItem,
+    ProtocolRun,
+    ProtocolRunItem,
+    ProtocolRunItemStatus,
+)
 from .user import User, Passkey  # noqa
 from .recipe import Recipe, Ingredient, IngredientUsage  # noqa
 from .planner import (

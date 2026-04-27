@@ -84,8 +84,21 @@ class Todo(Base):
     recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
     recurred_from_id = Column(Integer, ForeignKey("todos.id"), nullable=True)
 
+    # 1-to-1 link to a ProtocolRun. Set when this todo was spawned for a
+    # protocol run (the user's calendar trigger). UNIQUE so each run has
+    # exactly one todo.
+    protocol_run_id = Column(
+        Integer, ForeignKey("protocol_runs.id"), unique=True, nullable=True,
+    )
+
     recurrence = relationship("RecurrenceRule", lazy="joined")
     recurred_from = relationship("Todo", remote_side="Todo.id", foreign_keys=[recurred_from_id])
+    protocol_run = relationship(
+        "ProtocolRun",
+        back_populates="todo",
+        foreign_keys=[protocol_run_id],
+        lazy="joined",
+    )
 
     __table_args__ = (
         Index("ix_todos_due_date", "due_date"),

@@ -28,13 +28,16 @@ from menage2.recurrence import (
     spawn_after,
     spawn_due_every_if_needed,
     spawn_every_on_completion,
+    spawn_protocol_after,
+    spawn_protocol_every_on_completion,
     spec_to_rule,
 )
 
 _TAG_RE = re.compile(r"#(\S+)")
 # Match ^...  up to next marker or end-of-string. Lookahead never consumes.
-_DATE_RE = re.compile(r"\^([^#*^]+?)(?=\s*[#*^]|$)")
-_RECURRENCE_MARKER_RE = re.compile(r"\*([^#*^]+?)(?=\s*[#*^]|$)")
+_DATE_RE = re.compile(r"\^([^#*^~]+?)(?=\s*[#*^~]|$)")
+_RECURRENCE_MARKER_RE = re.compile(r"\*([^#*^~]+?)(?=\s*[#*^~]|$)")
+_NOTE_RE = re.compile(r"~([^#*^~]+?)(?=\s*[#*^~]|$)")
 
 
 @dataclass
@@ -43,10 +46,11 @@ class ParsedTodoInput:
     tags: set[str] = field(default_factory=set)
     due_date: datetime.date | None = None
     recurrence: RecurrenceSpec | None = None
+    note: str = ""
 
 
 def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodoInput:
-    """Decompose a raw input string into text + #tags + ^due-date + *recurrence.
+    """Decompose a raw input string into text + #tags + ^due-date + *recurrence + ~note.
 
     Each marker captures everything up to the next marker or end-of-string,
     so multi-word phrases (``^next week``, ``*every wednesday``) work as long
@@ -75,9 +79,15 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
             recurrence = spec
             text = text[:m.start()] + text[m.end():]
 
+    note = ""
+    m = _NOTE_RE.search(text)
+    if m:
+        note = m.group(1).strip()
+        text = text[:m.start()] + text[m.end():]
+
     text = _TAG_RE.sub("", text)
     text = re.sub(r"\s+", " ", text).strip()
-    return ParsedTodoInput(text=text, tags=tags, due_date=due_date, recurrence=recurrence)
+    return ParsedTodoInput(text=text, tags=tags, due_date=due_date, recurrence=recurrence, note=note)
 
 
 def _apply_recurrence_spec(todo: Todo, spec: RecurrenceSpec | None, dbsession) -> None:
@@ -330,6 +340,7 @@ def add_todo(request):
     todo = Todo(
         text=parsed.text,
         tags=parsed.tags,
+        note=parsed.note,
         due_date=parsed.due_date,
         status=TodoStatus.todo,
         created_at=_now_utc(),
@@ -356,6 +367,14 @@ def todos_done(request):
             todo.done_at = now
             spawn_after(todo, today, now, request.dbsession)
             spawn_every_on_completion(todo, today, now, request.dbsession)
+            # Protocol-run todos: close the run and trigger the protocol's own
+            # recurrence (spawn the next run if rule is after/every).
+            if todo.protocol_run is not None:
+                run = todo.protocol_run
+                if run.closed_at is None:
+                    run.closed_at = now
+                spawn_protocol_after(run, today, now, request.dbsession)
+                spawn_protocol_every_on_completion(run, today, now, request.dbsession)
     todos = _active_todos(request.dbsession, today)
     body = render(
         "menage2:templates/_todo_groups.pt",
@@ -675,6 +694,7 @@ def edit_todo(request):
         return request.response
     todo.text = parsed.text
     todo.tags = parsed.tags
+    todo.note = parsed.note
     todo.due_date = parsed.due_date
     _apply_recurrence_spec(todo, parsed.recurrence, request.dbsession)
     return HTTPSeeOther(next_url)
@@ -707,3 +727,13 @@ def todos_activate_batch(request):
     request.response.content_type = "text/html"
     request.response.text = body
     return request.response
+
+
+@view_config(route_name="list_tags_json", renderer="json")
+def list_tags_json(request):
+    """Unique tags from active todos — used by the protocol item quick-pick."""
+    todos = _active_todos(request.dbsession, _today())
+    tags: set[str] = set()
+    for todo in todos:
+        tags.update(todo.tags or set())
+    return sorted(tags)

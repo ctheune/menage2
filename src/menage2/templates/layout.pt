@@ -20,7 +20,8 @@
     <script src="${request.static_url('menage2:static/menage.js')}" defer></script>
   </head>
 
-  <body class="bg-body-secondary" hx-boost="true">
+  <body class="bg-body-secondary" hx-boost="true"
+        data-tags-url="${request.route_url('list_tags_json')}">
 
   <nav class="navbar navbar-expand-md navbar-dark bg-dark">
     <div class="container-fluid">
@@ -37,6 +38,7 @@
           <li class="nav-item"><a class="nav-link" href="${request.route_url('list_ingredients')}">Zutaten</a></li>
           <li class="nav-item"><a class="nav-link" href="${request.route_url('list_weeks')}">Wochenpläne</a></li>
           <li class="nav-item"><a class="nav-link" href="${request.route_url('list_todos')}">TODO</a></li>
+          <li class="nav-item"><a class="nav-link" href="${request.route_url('list_protocols')}">Protocols</a></li>
           <tal:block tal:condition="request.identity is not None and request.identity.is_admin">
             <li class="nav-item"><a class="nav-link" href="${request.route_url('admin_users')}">Admin</a></li>
           </tal:block>
