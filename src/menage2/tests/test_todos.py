@@ -44,7 +44,13 @@ def _today():
 
 def _todo(text="Test", tags=None, status=TodoStatus.todo, **kwargs):
     """Helper to build an unsaved Todo."""
-    return Todo(text=text, tags=tags if tags is not None else set(), status=status, created_at=_now(), **kwargs)
+    return Todo(
+        text=text,
+        tags=tags if tags is not None else set(),
+        status=status,
+        created_at=_now(),
+        **kwargs,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -229,23 +235,28 @@ def test_build_tag_tree_prefix_parent_node_is_empty():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("current,interval,expected", [
-    # Undated → snap to today, then bump
-    (None, "1d", "2026-04-30"),
-    (None, "1w", "2026-05-06"),
-    (None, "1mo", "2026-05-29"),
-    # Future-dated → bump from current
-    (datetime.date(2026, 5, 5), "1d", "2026-05-06"),
-    (datetime.date(2026, 5, 5), "2w", "2026-05-19"),
-    # Overdue → snap to today first
-    (datetime.date(2026, 4, 1), "1d", "2026-04-30"),
-    (datetime.date(2026, 4, 1), "1w", "2026-05-06"),
-    # Today → bump from today
-    (datetime.date(2026, 4, 29), "3d", "2026-05-02"),
-])
+@pytest.mark.parametrize(
+    "current,interval,expected",
+    [
+        # Undated → snap to today, then bump
+        (None, "1d", "2026-04-30"),
+        (None, "1w", "2026-05-06"),
+        (None, "1mo", "2026-05-29"),
+        # Future-dated → bump from current
+        (datetime.date(2026, 5, 5), "1d", "2026-05-06"),
+        (datetime.date(2026, 5, 5), "2w", "2026-05-19"),
+        # Overdue → snap to today first
+        (datetime.date(2026, 4, 1), "1d", "2026-04-30"),
+        (datetime.date(2026, 4, 1), "1w", "2026-05-06"),
+        # Today → bump from today
+        (datetime.date(2026, 4, 29), "3d", "2026-05-02"),
+    ],
+)
 def test_bump_due_date(current, interval, expected):
     today = datetime.date(2026, 4, 29)
-    assert _bump_due_date(current, today, interval) == datetime.date.fromisoformat(expected)
+    assert _bump_due_date(current, today, interval) == datetime.date.fromisoformat(
+        expected
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -462,7 +473,9 @@ def test_todo_undo_returns_list_html_with_confirm_trigger(app_request, dbsession
 
 def test_list_todos_done_ordered_by_done_at(app_request, dbsession):
     now = _now()
-    t1 = _todo("First", status=TodoStatus.done, done_at=now - datetime.timedelta(seconds=60))
+    t1 = _todo(
+        "First", status=TodoStatus.done, done_at=now - datetime.timedelta(seconds=60)
+    )
     t2 = _todo("Second", status=TodoStatus.done, done_at=now)
     dbsession.add_all([t1, t2])
     dbsession.flush()
@@ -511,7 +524,9 @@ def test_list_todos_sorted_due_first_then_undated(app_request, dbsession):
     today = _today()
     a_undated = _todo("A_undated", tags={"x"})
     b_due_today = _todo("B_today", tags={"x"}, due_date=today)
-    c_overdue = _todo("C_overdue", tags={"x"}, due_date=today - datetime.timedelta(days=3))
+    c_overdue = _todo(
+        "C_overdue", tags={"x"}, due_date=today - datetime.timedelta(days=3)
+    )
     dbsession.add_all([a_undated, b_due_today, c_overdue])
     dbsession.flush()
     info = list_todos(app_request)
@@ -601,7 +616,7 @@ def test_set_due_date_invalid_input_returns_422(app_request, dbsession):
 def test_get_todos_page(authenticated_testapp):
     res = authenticated_testapp.get("/todos", status=200)
     assert b'id="todo-form"' in res.body
-    assert b'placeholder="New todo' in res.body
+    assert b'id="todo-text"' in res.body
 
 
 def test_add_todo_workflow(authenticated_testapp, dbsession):
@@ -653,7 +668,11 @@ def test_postpone_endpoint_bumps_due_date(authenticated_testapp, dbsession):
     todo = _todo("Bump me")
     dbsession.add(todo)
     dbsession.flush()
-    authenticated_testapp.post("/todos/postpone-items", {"todo_ids": str(todo.id), "interval": "2w"}, status=200)
+    authenticated_testapp.post(
+        "/todos/postpone-items",
+        {"todo_ids": str(todo.id), "interval": "2w"},
+        status=200,
+    )
     dbsession.refresh(todo)
     assert todo.due_date == _today() + datetime.timedelta(days=14)
 
@@ -662,7 +681,9 @@ def test_set_due_date_endpoint(authenticated_testapp, dbsession):
     todo = _todo("Schedule me")
     dbsession.add(todo)
     dbsession.flush()
-    authenticated_testapp.post(f"/todos/{todo.id}/due-date", {"due_date": "tomorrow"}, status=200)
+    authenticated_testapp.post(
+        f"/todos/{todo.id}/due-date", {"due_date": "tomorrow"}, status=200
+    )
     dbsession.refresh(todo)
     assert todo.due_date == _today() + datetime.timedelta(days=1)
 
@@ -720,7 +741,9 @@ def test_edit_todo_workflow(authenticated_testapp, dbsession):
     todo = _todo("Original")
     dbsession.add(todo)
     dbsession.flush()
-    authenticated_testapp.post(f"/todos/{todo.id}/edit", {"text": "Updated #work"}, status=303)
+    authenticated_testapp.post(
+        f"/todos/{todo.id}/edit", {"text": "Updated #work"}, status=303
+    )
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.text == "Updated"
@@ -857,10 +880,14 @@ def test_todos_done_spawns_every_instance(app_request, dbsession):
     app_request.POST["todo_ids"] = str(todo.id)
     todos_done(app_request)
     dbsession.flush()
-    pending = dbsession.query(Todo).filter(
-        Todo.recurrence_id == rule.id,
-        Todo.status == TodoStatus.todo,
-    ).all()
+    pending = (
+        dbsession.query(Todo)
+        .filter(
+            Todo.recurrence_id == rule.id,
+            Todo.status == TodoStatus.todo,
+        )
+        .all()
+    )
     assert len(pending) == 1
     assert pending[0].due_date == _today() + datetime.timedelta(days=7)
     assert pending[0].recurred_from_id == todo.id
@@ -917,7 +944,9 @@ def test_set_recurrence_invalid_returns_422(app_request, dbsession):
 
 
 def test_parse_recurrence_preview_endpoint(authenticated_testapp):
-    res = authenticated_testapp.get("/todos/parse-recurrence?q=every+monday", status=200)
+    res = authenticated_testapp.get(
+        "/todos/parse-recurrence?q=every+monday", status=200
+    )
     body = json.loads(res.body)
     assert body["ok"] is True
     assert body["label"] == "every Monday"
@@ -961,14 +990,19 @@ def test_list_todos_runs_daily_sweep_creating_future_instance(app_request, dbses
     dbsession.flush()
     today = _today()
     # Anchor in the past so the chain has no today-or-future active item yet.
-    anchor = _todo("Sweep", recurrence_id=rule.id,
-                   due_date=today - datetime.timedelta(days=14))
+    anchor = _todo(
+        "Sweep", recurrence_id=rule.id, due_date=today - datetime.timedelta(days=14)
+    )
     dbsession.add(anchor)
     dbsession.flush()
     list_todos(app_request)
     dbsession.flush()
-    actives = dbsession.query(Todo).filter(
-        Todo.recurrence_id == rule.id,
-        Todo.due_date >= today,
-    ).all()
+    actives = (
+        dbsession.query(Todo)
+        .filter(
+            Todo.recurrence_id == rule.id,
+            Todo.due_date >= today,
+        )
+        .all()
+    )
     assert len(actives) >= 1

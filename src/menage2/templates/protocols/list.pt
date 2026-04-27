@@ -4,10 +4,7 @@
   <div metal:fill-slot="title">Protocols</div>
 
   <span metal:fill-slot="actions">
-    <form method="post" action="${request.route_url('new_protocol')}"
-          class="d-flex gap-2 align-items-center">
-      <input type="text" name="title" placeholder="Title…"
-             class="form-control form-control-sm" style="max-width:14rem"/>
+    <form method="post" action="${request.route_url('new_protocol')}" class="m-0">
       <button type="submit" class="btn btn-sm btn-dark">
         <i class="bi bi-plus-lg"></i> New protocol
       </button>

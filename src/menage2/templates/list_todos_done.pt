@@ -26,6 +26,13 @@
                       class="d-block text-muted" style="font-size:0.7rem">${todo.note}</span>
               </span>
 
+              <a tal:condition="todo.protocol_run_id"
+                 tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id)"
+                 class="todo-protocol-link flex-shrink-0 small"
+                 title="Open protocol run">
+                <i class="bi bi-clipboard-check"></i>
+              </a>
+
               <span tal:repeat="tag python:sorted(todo.tags)"
                     class="badge bg-secondary rounded-pill flex-shrink-0">
                 #${tag}

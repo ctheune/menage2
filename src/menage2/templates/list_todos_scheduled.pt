@@ -29,17 +29,18 @@
       </div>
 
       <ul class="list-unstyled mb-3">
-        <li tal:repeat="todo group['items']"
-            id="todo-${todo.id}"
-            class="todo-item mb-1 shadow-sm"
-            data-todo-text="${todo.text}"
-            data-todo-tags="${python:','.join(sorted(todo.tags))}"
-            data-due-date="${todo.due_date.isoformat()}"
-            tal:attributes="data-recurrence python:_recurrence_label(todo);
-                            data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else ''"
-            data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
-            data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
-            data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}">
+      <li tal:repeat="todo group['items']"
+          id="todo-${todo.id}"
+          class="todo-item mb-1 shadow-sm"
+          data-todo-text="${todo.text}"
+          data-todo-tags="${python:','.join(sorted(todo.tags))}"
+          data-due-date="${todo.due_date.isoformat()}"
+          tal:attributes="data-recurrence python:_recurrence_label(todo);
+                          data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else '';
+                          data-protocol-run-url python:request.route_url('show_protocol_run', id=todo.protocol_run_id) if todo.protocol_run_id else ''"
+          data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
+          data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
+          data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}">
 
           <div class="todo-content d-flex align-items-center gap-2 py-2 px-3 bg-white">
             <input type="checkbox" class="form-check-input todo-checkbox flex-shrink-0"
@@ -52,6 +53,13 @@
               <span tal:condition="todo.note"
                     class="d-block text-muted" style="font-size:0.7rem">${todo.note}</span>
             </span>
+
+            <a tal:condition="todo.protocol_run_id"
+               tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id)"
+               class="todo-protocol-link flex-shrink-0 small"
+               title="Open protocol run">
+              <i class="bi bi-clipboard-check"></i>
+            </a>
 
             <span tal:condition="todo.recurrence_id"
                   class="todo-recurrence flex-shrink-0 small"
