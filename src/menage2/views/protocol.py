@@ -196,7 +196,7 @@ def update_protocol(request):
 def _apply_protocol_recurrence(protocol, spec, dbsession):
     """Mirror of _apply_recurrence_spec for protocols."""
     if spec is None:
-        protocol.recurrence_id = None
+        protocol.recurrence = None
         return
     if protocol.recurrence is not None:
         from menage2.models.todo import RecurrenceKind, RecurrenceUnit
@@ -213,7 +213,7 @@ def _apply_protocol_recurrence(protocol, spec, dbsession):
         rule = spec_to_rule(spec)
         dbsession.add(rule)
         dbsession.flush()
-        protocol.recurrence_id = rule.id
+        protocol.recurrence = rule
 
 
 @view_config(route_name="add_protocol_item", request_method="POST")
