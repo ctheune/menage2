@@ -13,6 +13,7 @@ Supported forms (English, plus German numeric ``DD.MM.[YYYY]``):
 * Weekdays: ``wed``, ``wednesday``, ``next wed``
 * Months: ``march``, ``next march``, ``march 2026``, ``15 march``, ``march 15``
 """
+
 from __future__ import annotations
 
 import datetime
@@ -35,58 +36,110 @@ class RecurrenceSpec:
     Mirrors RecurrenceRule columns. Kept here (not in models/) so the parser
     stays import-free of SQLAlchemy and remains trivially testable.
     """
-    kind: str               # 'after' | 'every'
+
+    kind: str  # 'after' | 'every'
     interval_value: int
-    interval_unit: str      # 'day' | 'week' | 'month' | 'year'
-    weekday: int | None = None    # 0=Mon..6=Sun
+    interval_unit: str  # 'day' | 'week' | 'month' | 'year'
+    weekday: int | None = None  # 0=Mon..6=Sun
     month_day: int | None = None  # 1..31
 
 
 _RECURRENCE_UNITS = {
-    "day": "day", "days": "day", "d": "day",
-    "week": "week", "weeks": "week", "w": "week",
-    "month": "month", "months": "month", "mo": "month",
-    "year": "year", "years": "year", "y": "year", "yr": "year",
+    "day": "day",
+    "days": "day",
+    "d": "day",
+    "week": "week",
+    "weeks": "week",
+    "w": "week",
+    "month": "month",
+    "months": "month",
+    "mo": "month",
+    "year": "year",
+    "years": "year",
+    "y": "year",
+    "yr": "year",
 }
 
 
 _WEEKDAYS = {
-    "monday": 0, "mon": 0,
-    "tuesday": 1, "tue": 1, "tues": 1,
-    "wednesday": 2, "wed": 2,
-    "thursday": 3, "thu": 3, "thur": 3, "thurs": 3,
-    "friday": 4, "fri": 4,
-    "saturday": 5, "sat": 5,
-    "sunday": 6, "sun": 6,
+    "monday": 0,
+    "mon": 0,
+    "tuesday": 1,
+    "tue": 1,
+    "tues": 1,
+    "wednesday": 2,
+    "wed": 2,
+    "thursday": 3,
+    "thu": 3,
+    "thur": 3,
+    "thurs": 3,
+    "friday": 4,
+    "fri": 4,
+    "saturday": 5,
+    "sat": 5,
+    "sunday": 6,
+    "sun": 6,
 }
 
 _MONTHS = {
-    "january": 1, "jan": 1,
-    "february": 2, "feb": 2,
-    "march": 3, "mar": 3,
-    "april": 4, "apr": 4,
+    "january": 1,
+    "jan": 1,
+    "february": 2,
+    "feb": 2,
+    "march": 3,
+    "mar": 3,
+    "april": 4,
+    "apr": 4,
     "may": 5,
-    "june": 6, "jun": 6,
-    "july": 7, "jul": 7,
-    "august": 8, "aug": 8,
-    "september": 9, "sep": 9, "sept": 9,
-    "october": 10, "oct": 10,
-    "november": 11, "nov": 11,
-    "december": 12, "dec": 12,
+    "june": 6,
+    "jun": 6,
+    "july": 7,
+    "jul": 7,
+    "august": 8,
+    "aug": 8,
+    "september": 9,
+    "sep": 9,
+    "sept": 9,
+    "october": 10,
+    "oct": 10,
+    "november": 11,
+    "nov": 11,
+    "december": 12,
+    "dec": 12,
 }
 
 # Canonical unit deltas: (days, months, years)
 _UNITS = {
-    "day": (1, 0, 0), "days": (1, 0, 0), "d": (1, 0, 0),
-    "week": (7, 0, 0), "weeks": (7, 0, 0), "w": (7, 0, 0),
-    "month": (0, 1, 0), "months": (0, 1, 0), "mo": (0, 1, 0), "mon": (0, 1, 0),
-    "year": (0, 0, 1), "years": (0, 0, 1), "y": (0, 0, 1), "yr": (0, 0, 1),
+    "day": (1, 0, 0),
+    "days": (1, 0, 0),
+    "d": (1, 0, 0),
+    "week": (7, 0, 0),
+    "weeks": (7, 0, 0),
+    "w": (7, 0, 0),
+    "month": (0, 1, 0),
+    "months": (0, 1, 0),
+    "mo": (0, 1, 0),
+    "mon": (0, 1, 0),
+    "year": (0, 0, 1),
+    "years": (0, 0, 1),
+    "y": (0, 0, 1),
+    "yr": (0, 0, 1),
 }
 
 _WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _MONTH_LABELS = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
 ]
 
 
@@ -112,10 +165,16 @@ def _normalize(text: str) -> str:
 
 def _add_units(today: datetime.date, n: int, unit: str) -> datetime.date:
     days, months, years = _UNITS[unit]
-    return today + datetime.timedelta(days=n * days) + relativedelta(months=n * months, years=n * years)
+    return (
+        today
+        + datetime.timedelta(days=n * days)
+        + relativedelta(months=n * months, years=n * years)
+    )
 
 
-def _soonest_weekday(today: datetime.date, weekday: int, extra_weeks: int = 0) -> datetime.date:
+def _soonest_weekday(
+    today: datetime.date, weekday: int, extra_weeks: int = 0
+) -> datetime.date:
     """Soonest future date matching ``weekday`` (today never counts)."""
     delta = (weekday - today.weekday()) % 7 or 7
     return today + datetime.timedelta(days=delta + 7 * extra_weeks)
@@ -206,7 +265,9 @@ def _try_month(text: str, today: datetime.date) -> datetime.date | None:
     return None
 
 
-def _build_day_month(day: int, month: int, explicit_year: str | None, today: datetime.date) -> datetime.date | None:
+def _build_day_month(
+    day: int, month: int, explicit_year: str | None, today: datetime.date
+) -> datetime.date | None:
     year = int(explicit_year) if explicit_year else today.year
     try:
         d = datetime.date(year, month, day)
@@ -265,7 +326,12 @@ def _ordinal_to_int(text: str) -> int | None:
 
 
 _ORDINAL_WORDS = {
-    "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "other": 2,
+    "first": 1,
+    "second": 2,
+    "third": 3,
+    "fourth": 4,
+    "fifth": 5,
+    "other": 2,
 }
 
 
@@ -294,7 +360,9 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
         n = _ORDINAL_WORDS.get(ord_str) or _ordinal_to_int(ord_str)
         if n is not None and n >= 1:
             return RecurrenceSpec(
-                kind="every", interval_value=n, interval_unit="week",
+                kind="every",
+                interval_value=n,
+                interval_unit="week",
                 weekday=_WEEKDAYS[m.group(2)],
             )
 
@@ -302,7 +370,9 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
     m = re.fullmatch(r"every\s+(\w+)", s)
     if m and m.group(1) in _WEEKDAYS:
         return RecurrenceSpec(
-            kind="every", interval_value=1, interval_unit="week",
+            kind="every",
+            interval_value=1,
+            interval_unit="week",
             weekday=_WEEKDAYS[m.group(1)],
         )
 
@@ -312,7 +382,9 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
         n = _ordinal_to_int(m.group(1))
         if n is not None:
             return RecurrenceSpec(
-                kind="every", interval_value=1, interval_unit="month",
+                kind="every",
+                interval_value=1,
+                interval_unit="month",
                 month_day=n,
             )
 
@@ -324,7 +396,8 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
         if n < 1:
             return None
         return RecurrenceSpec(
-            kind=kind, interval_value=n,
+            kind=kind,
+            interval_value=n,
             interval_unit=_RECURRENCE_UNITS[m.group(4)],
         )
 
@@ -332,7 +405,8 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
     m = re.fullmatch(r"every\s+(\w+)", s)
     if m and m.group(1) in _RECURRENCE_UNITS:
         return RecurrenceSpec(
-            kind="every", interval_value=1,
+            kind="every",
+            interval_value=1,
             interval_unit=_RECURRENCE_UNITS[m.group(1)],
         )
 
@@ -342,8 +416,15 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
 def label_recurrence(spec: RecurrenceSpec) -> str:
     """Render a short, human-friendly label like 'every Wednesday'."""
     if spec.weekday is not None:
-        names = ["Monday", "Tuesday", "Wednesday", "Thursday",
-                 "Friday", "Saturday", "Sunday"]
+        names = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
         day = names[spec.weekday]
         n = spec.interval_value
         if n == 1:
@@ -375,8 +456,9 @@ def next_occurrence(spec: RecurrenceSpec, anchor_date: datetime.date) -> datetim
     when there is no previous one yet).
     """
     if spec.weekday is not None:
-        return _soonest_weekday(anchor_date, spec.weekday,
-                                extra_weeks=spec.interval_value - 1)
+        return _soonest_weekday(
+            anchor_date, spec.weekday, extra_weeks=spec.interval_value - 1
+        )
 
     if spec.month_day is not None:
         # Next calendar occurrence of the requested day-of-month.

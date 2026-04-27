@@ -1,12 +1,19 @@
-from sqlalchemy import engine_from_config
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm import configure_mappers
 import zope.sqlalchemy
+from sqlalchemy import engine_from_config
+from sqlalchemy.orm import configure_mappers, sessionmaker
 
 # Import or define all models here to ensure they are attached to the
 # ``Base.metadata`` prior to any initialization routines.
 from .config import ConfigItem  # noqa
-from .todo import Todo, TodoStatus  # noqa
+from .planner import (
+    Day,
+    Month,
+    RecipeSeasons,
+    RecipeWeekDays,
+    Schedule,
+    Week,
+    Weekday,
+)
 from .protocol import (  # noqa
     Protocol,
     ProtocolItem,
@@ -14,17 +21,9 @@ from .protocol import (  # noqa
     ProtocolRunItem,
     ProtocolRunItemStatus,
 )
-from .user import User, Passkey  # noqa
-from .recipe import Recipe, Ingredient, IngredientUsage  # noqa
-from .planner import (
-    Week,
-    Day,
-    Weekday,
-    Month,
-    RecipeWeekDays,
-    RecipeSeasons,
-    Schedule,
-)
+from .recipe import Ingredient, IngredientUsage, Recipe  # noqa
+from .todo import Todo, TodoStatus  # noqa
+from .user import Passkey, User  # noqa
 
 # Run ``configure_mappers`` after defining all of the models to ensure
 # all relationships can be setup.

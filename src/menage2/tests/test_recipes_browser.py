@@ -1,10 +1,15 @@
 """Browser-based tests for the recipe ingredient feature."""
+
 import pytest
 
 
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args, live_server):
-    return {**browser_context_args, "base_url": live_server, "viewport": {"width": 1280, "height": 900}}
+    return {
+        **browser_context_args,
+        "base_url": live_server,
+        "viewport": {"width": 1280, "height": 900},
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -22,12 +27,16 @@ def login(page, context, browser_admin_user, live_server):
     cookie_header = resp.headers.get("set-cookie", "")
     cookie_part = cookie_header.split(";")[0]
     name, value = cookie_part.split("=", 1)
-    context.add_cookies([{
-        "name": name.strip(),
-        "value": value.strip(),
-        "domain": "localhost",
-        "path": "/",
-    }])
+    context.add_cookies(
+        [
+            {
+                "name": name.strip(),
+                "value": value.strip(),
+                "domain": "localhost",
+                "path": "/",
+            }
+        ]
+    )
 
 
 def _create_recipe(context, live_server):
@@ -88,7 +97,9 @@ def test_add_new_ingredient_to_recipe(page, context, live_server):
     page.wait_for_selector(".suggest-dropdown", timeout=5000)
 
     # "Neue Zutat" option must appear since no ingredient named Karotte exists yet
-    assert page.locator('.suggest-dropdown input[type="radio"][value="new"]').is_visible()
+    assert page.locator(
+        '.suggest-dropdown input[type="radio"][value="new"]'
+    ).is_visible()
 
     _select_suggestion(page, "new")
 
@@ -104,7 +115,9 @@ def test_add_new_ingredient_to_recipe(page, context, live_server):
     saved_row = page.locator(".ingredient-row:not(.template):not(.d-none)")
     assert saved_row.count() == 1
     ingredient_value = saved_row.locator(".suggest-input").evaluate("el => el.value")
-    assert ingredient_value == "Karotte", f"Expected 'Karotte', got {ingredient_value!r}"
+    assert ingredient_value == "Karotte", (
+        f"Expected 'Karotte', got {ingredient_value!r}"
+    )
 
 
 def test_add_existing_ingredient_via_autocomplete(page, context, live_server):
@@ -131,7 +144,9 @@ def test_add_existing_ingredient_via_autocomplete(page, context, live_server):
     page.wait_for_selector(".suggest-dropdown", timeout=5000)
 
     # An existing ingredient radio (not "new") must appear
-    existing_option = page.locator('.suggest-dropdown input[type="radio"]:not([value="new"])')
+    existing_option = page.locator(
+        '.suggest-dropdown input[type="radio"]:not([value="new"])'
+    )
     assert existing_option.count() >= 1
     existing_id = existing_option.first.get_attribute("value")
 
@@ -144,5 +159,9 @@ def test_add_existing_ingredient_via_autocomplete(page, context, live_server):
 
     saved_row_b = page.locator(".ingredient-row:not(.template):not(.d-none)")
     assert saved_row_b.count() == 1
-    ingredient_value_b = saved_row_b.locator(".suggest-input").evaluate("el => el.value")
-    assert ingredient_value_b == "Karotte", f"Expected 'Karotte', got {ingredient_value_b!r}"
+    ingredient_value_b = saved_row_b.locator(".suggest-input").evaluate(
+        "el => el.value"
+    )
+    assert ingredient_value_b == "Karotte", (
+        f"Expected 'Karotte', got {ingredient_value_b!r}"
+    )

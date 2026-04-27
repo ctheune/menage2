@@ -30,8 +30,12 @@ def includeme(config):
     config.add_route("account_change_password", "/account/password")
     config.add_route("account_passkeys", "/account/passkeys")
     config.add_route("account_passkey_delete", "/account/passkeys/{id}/delete")
-    config.add_route("account_passkey_register_begin", "/account/passkeys/register/begin")
-    config.add_route("account_passkey_register_complete", "/account/passkeys/register/complete")
+    config.add_route(
+        "account_passkey_register_begin", "/account/passkeys/register/begin"
+    )
+    config.add_route(
+        "account_passkey_register_complete", "/account/passkeys/register/complete"
+    )
 
     # Admin
     config.add_route("admin_users", "/admin/users")
@@ -96,7 +100,9 @@ def includeme(config):
     config.add_route("unarchive_protocol", "/protocols/{id}/unarchive")
     config.add_route("add_protocol_item", "/protocols/{id}/items")
     config.add_route("update_protocol_item", "/protocols/{id}/items/{item_id}")
-    config.add_route("update_protocol_item_partial", "/protocols/{id}/items/{item_id}/partial")
+    config.add_route(
+        "update_protocol_item_partial", "/protocols/{id}/items/{item_id}/partial"
+    )
     config.add_route("delete_protocol_item", "/protocols/{id}/items/{item_id}/delete")
     config.add_route("start_protocol_run", "/protocols/{id}/start")
     config.add_route("show_protocol_run", "/protocols/run/{id}")

@@ -74,6 +74,7 @@ def live_server(app):
         port = s.getsockname()[1]
 
     import logging
+
     logging.getLogger("waitress").setLevel(logging.ERROR)
     server = create_server(app, host="localhost", port=port)
 
@@ -162,6 +163,7 @@ def dummy_config(dummy_request):
 # Auth fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def admin_user(dbsession):
     user = User(
@@ -197,20 +199,25 @@ def regular_user(dbsession):
 @pytest.fixture
 def authenticated_testapp(testapp, admin_user):
     """testapp with an active admin session cookie."""
-    testapp.post("/login", {"username": "admin", "password": "correct-password"}, status=303)
+    testapp.post(
+        "/login", {"username": "admin", "password": "correct-password"}, status=303
+    )
     return testapp
 
 
 @pytest.fixture
 def user_testapp(testapp, regular_user):
     """testapp with a regular (non-admin) user session cookie."""
-    testapp.post("/login", {"username": "user", "password": "user-password"}, status=303)
+    testapp.post(
+        "/login", {"username": "user", "password": "user-password"}, status=303
+    )
     return testapp
 
 
 # ---------------------------------------------------------------------------
 # Browser test fixtures (Playwright via live_server)
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def clean_db(dbengine):

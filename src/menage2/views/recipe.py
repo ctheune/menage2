@@ -1,11 +1,12 @@
 import itertools
 import uuid
-from sqlalchemy.sql import collate
+
+import markdown
 import peppercorn
 import sqlalchemy.orm
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.view import view_config
-import markdown
+from sqlalchemy.sql import collate
 
 from menage2.models import (
     Ingredient,
@@ -46,9 +47,7 @@ def suggest_ingredient(request):
     }
 
 
-@view_config(
-    route_name="list_recipes", renderer="menage2:templates/list_recipes.pt"
-)
+@view_config(route_name="list_recipes", renderer="menage2:templates/list_recipes.pt")
 def list_recipes(request):
     recipes = (
         request.dbsession.query(Recipe)
@@ -150,8 +149,7 @@ def edit_recipe(request):
 
     seasons = fields["seasons"]
     recipe.seasons = [
-        RecipeSeasons(recipe=recipe, month=Month(int(month)))
-        for month in seasons
+        RecipeSeasons(recipe=recipe, month=Month(int(month))) for month in seasons
     ]
 
     ingredients = []

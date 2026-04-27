@@ -1,10 +1,10 @@
 import argparse
-import sys
 import datetime
+import sys
 
 from pyramid.paster import bootstrap, setup_logging
+from sqlalchemy import create_engine, delete, text
 from sqlalchemy.exc import OperationalError
-from sqlalchemy import text, create_engine, delete
 
 from .. import models
 

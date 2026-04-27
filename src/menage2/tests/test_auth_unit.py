@@ -1,12 +1,13 @@
 """Unit tests for auth logic (no DB interaction)."""
-from unittest.mock import MagicMock, patch
+
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
 import pytest
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
-from menage2.security import SessionSecurityPolicy, PERM_AUTHENTICATED, PERM_ADMIN
+from menage2.security import PERM_ADMIN, PERM_AUTHENTICATED, SessionSecurityPolicy
 
 _ph = PasswordHasher()
 
@@ -18,6 +19,7 @@ def _now():
 # ---------------------------------------------------------------------------
 # Password hashing
 # ---------------------------------------------------------------------------
+
 
 def test_password_hash_and_verify():
     pw = "hunter2"
@@ -39,6 +41,7 @@ def test_wrong_password_raises():
 # ---------------------------------------------------------------------------
 # SecurityPolicy
 # ---------------------------------------------------------------------------
+
 
 def _make_identity_request(session_user_id=None, db_user=None):
     """Request mock for testing identity() directly."""
@@ -132,6 +135,7 @@ def test_denies_unauthenticated():
 # ---------------------------------------------------------------------------
 # First-run tween
 # ---------------------------------------------------------------------------
+
 
 def test_first_run_tween_redirects_when_no_users():
     from menage2.tweens import first_run_tween_factory

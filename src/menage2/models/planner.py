@@ -1,17 +1,13 @@
-from sqlalchemy import Column, Integer, Text, ForeignKey, Date, Boolean
-from sqlalchemy.orm import relationship, backref
 import datetime
-
-from .meta import Base
-
-from menage2.models import Recipe, IngredientUsage
-
-from sqlalchemy.orm.session import Session
-from sqlalchemy.orm import contains_eager
-
 import enum
 
-from sqlalchemy import Enum
+from sqlalchemy import Boolean, Column, Date, Enum, ForeignKey, Integer, Text
+from sqlalchemy.orm import backref, contains_eager, relationship
+from sqlalchemy.orm.session import Session
+
+from .meta import Base
+from .recipe import IngredientUsage, Recipe
+
 
 class Weekday(enum.Enum):
     MONDAY = 1
@@ -57,6 +53,7 @@ class Week(Base):
     def last(self):
         return self.days[-1]
 
+
 class Schedule(Base):
     __tablename__ = "schedules"
 
@@ -64,9 +61,7 @@ class Schedule(Base):
     recipe = relationship(
         "Recipe",
         uselist=False,
-        backref=backref(
-            "schedule", uselist=False, cascade="all, delete-orphan"
-        ),
+        backref=backref("schedule", uselist=False, cascade="all, delete-orphan"),
     )
 
     frequency = Column(Integer, server_default="90")
@@ -89,7 +84,10 @@ class RecipeSeasons(Base):
         uselist=False,
         backref=backref("seasons", cascade="all, delete-orphan"),
     )
-    month = Column(Enum(Month, values_callable=lambda x: [e.name.lower() for e in x]), primary_key=True)
+    month = Column(
+        Enum(Month, values_callable=lambda x: [e.name.lower() for e in x]),
+        primary_key=True,
+    )
 
 
 class RecipeWeekDays(Base):
@@ -102,7 +100,10 @@ class RecipeWeekDays(Base):
         backref=backref("weekdays", cascade="all, delete-orphan"),
     )
 
-    weekday = Column(Enum(Weekday, values_callable=lambda x: [e.name.lower() for e in x]), primary_key=True)
+    weekday = Column(
+        Enum(Weekday, values_callable=lambda x: [e.name.lower() for e in x]),
+        primary_key=True,
+    )
 
 
 class Day(Base):
@@ -121,7 +122,9 @@ class Day(Base):
 
     note = Column(Text)
 
-    exclude_from_shopping = Column(Boolean, nullable=False, server_default="false", default=False)
+    exclude_from_shopping = Column(
+        Boolean, nullable=False, server_default="false", default=False
+    )
 
     @property
     def id(self):

@@ -11,6 +11,7 @@ Two flavours of recurrence rule are spawned by different triggers:
   process-wide :class:`threading.Lock` so concurrent web requests sweep at
   most once per day.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -29,7 +30,6 @@ from menage2.models.todo import (
     Todo,
     TodoStatus,
 )
-
 
 _LAST_SWEEP_KEY = "last_recurrence_sweep_date"
 _sweep_lock = threading.Lock()
@@ -65,7 +65,9 @@ def spec_to_rule(spec: RecurrenceSpec) -> RecurrenceRule:
 # ---------------------------------------------------------------------------
 
 
-def _clone_for_recurrence(parent: Todo, due_date: datetime.date, now_utc: datetime.datetime) -> Todo:
+def _clone_for_recurrence(
+    parent: Todo, due_date: datetime.date, now_utc: datetime.datetime
+) -> Todo:
     return Todo(
         text=parent.text,
         tags=set(parent.tags),
@@ -78,8 +80,12 @@ def _clone_for_recurrence(parent: Todo, due_date: datetime.date, now_utc: dateti
     )
 
 
-def spawn_after(completed_todo: Todo, completion_date: datetime.date,
-                now_utc: datetime.datetime, dbsession) -> Todo | None:
+def spawn_after(
+    completed_todo: Todo,
+    completion_date: datetime.date,
+    now_utc: datetime.datetime,
+    dbsession,
+) -> Todo | None:
     """Spawn the next instance for an ``after`` rule. Returns the new Todo or
     None if the completed item carries no rule (or the rule isn't ``after``)."""
     rule = completed_todo.recurrence
@@ -92,8 +98,9 @@ def spawn_after(completed_todo: Todo, completion_date: datetime.date,
     return new_todo
 
 
-def spawn_every_on_completion(completed_todo: Todo, today: datetime.date,
-                              now_utc: datetime.datetime, dbsession) -> int:
+def spawn_every_on_completion(
+    completed_todo: Todo, today: datetime.date, now_utc: datetime.datetime, dbsession
+) -> int:
     """Spawn the next ``every`` occurrence as soon as one is completed.
 
     Without this, completing the only active item in a chain would leave the
@@ -120,19 +127,23 @@ def _latest_due_for_rule(dbsession, rule_id: int) -> datetime.date | None:
 
 def _has_today_or_future_active(dbsession, rule_id: int, today: datetime.date) -> bool:
     """Whether the rule already has an active instance due today or later."""
-    return dbsession.execute(
-        select(Todo.id)
-        .where(
-            Todo.recurrence_id == rule_id,
-            Todo.status == TodoStatus.todo,
-            Todo.due_date >= today,
-        )
-        .limit(1)
-    ).scalar() is not None
+    return (
+        dbsession.execute(
+            select(Todo.id)
+            .where(
+                Todo.recurrence_id == rule_id,
+                Todo.status == TodoStatus.todo,
+                Todo.due_date >= today,
+            )
+            .limit(1)
+        ).scalar()
+        is not None
+    )
 
 
-def _spawn_every_chain(dbsession, anchor_todo: Todo, today: datetime.date,
-                       now_utc: datetime.datetime) -> int:
+def _spawn_every_chain(
+    dbsession, anchor_todo: Todo, today: datetime.date, now_utc: datetime.datetime
+) -> int:
     """Materialise occurrences for one ``every`` rule.
 
     Guarantees: after a successful sweep the chain has at least one active
@@ -183,8 +194,9 @@ def _write_marker(dbsession, value: str) -> None:
         item.value = value
 
 
-def spawn_due_every_if_needed(dbsession, today: datetime.date,
-                              now_utc: datetime.datetime) -> int:
+def spawn_due_every_if_needed(
+    dbsession, today: datetime.date, now_utc: datetime.datetime
+) -> int:
     """Sweep ``every`` rules — todos AND protocols — at most once per day.
 
     Holds the process-wide :data:`_sweep_lock` to serialise concurrent
@@ -203,8 +215,9 @@ def spawn_due_every_if_needed(dbsession, today: datetime.date,
         return spawned
 
 
-def force_recurrence_sweep(dbsession, today: datetime.date,
-                           now_utc: datetime.datetime) -> int:
+def force_recurrence_sweep(
+    dbsession, today: datetime.date, now_utc: datetime.datetime
+) -> int:
     """Run the sweep regardless of the daily marker (admin action).
 
     Still serialised by :data:`_sweep_lock`. The marker is bumped to today
@@ -218,13 +231,16 @@ def force_recurrence_sweep(dbsession, today: datetime.date,
         return spawned
 
 
-def _sweep_every_rules(dbsession, today: datetime.date,
-                       now_utc: datetime.datetime) -> int:
+def _sweep_every_rules(
+    dbsession, today: datetime.date, now_utc: datetime.datetime
+) -> int:
     """Find one anchor Todo per ``every`` rule and call _spawn_every_chain."""
     every_rules: Iterable[RecurrenceRule] = (
         dbsession.execute(
             select(RecurrenceRule).where(RecurrenceRule.kind == RecurrenceKind.every)
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     )
     total = 0
     for rule in every_rules:
@@ -245,8 +261,9 @@ def _sweep_every_rules(dbsession, today: datetime.date,
 # ---------------------------------------------------------------------------
 
 
-def spawn_protocol_run(protocol: Protocol, due_date: datetime.date,
-                       now_utc: datetime.datetime, dbsession) -> ProtocolRun:
+def spawn_protocol_run(
+    protocol: Protocol, due_date: datetime.date, now_utc: datetime.datetime, dbsession
+) -> ProtocolRun:
     """Create one ProtocolRun + its calendar Todo. Items are NOT snapshotted
     yet — that happens lazily when the user opens the run page.
     """
@@ -266,19 +283,23 @@ def spawn_protocol_run(protocol: Protocol, due_date: datetime.date,
     return run
 
 
-def _has_today_or_future_active_run(dbsession, protocol_id: int,
-                                     today: datetime.date) -> bool:
+def _has_today_or_future_active_run(
+    dbsession, protocol_id: int, today: datetime.date
+) -> bool:
     """Whether the protocol has an active run-todo due today or later."""
-    return dbsession.execute(
-        select(Todo.id)
-        .join(ProtocolRun, ProtocolRun.id == Todo.protocol_run_id)
-        .where(
-            ProtocolRun.protocol_id == protocol_id,
-            Todo.status == TodoStatus.todo,
-            Todo.due_date >= today,
-        )
-        .limit(1)
-    ).scalar() is not None
+    return (
+        dbsession.execute(
+            select(Todo.id)
+            .join(ProtocolRun, ProtocolRun.id == Todo.protocol_run_id)
+            .where(
+                ProtocolRun.protocol_id == protocol_id,
+                Todo.status == TodoStatus.todo,
+                Todo.due_date >= today,
+            )
+            .limit(1)
+        ).scalar()
+        is not None
+    )
 
 
 def _latest_run_due_for_protocol(dbsession, protocol_id: int) -> datetime.date | None:
@@ -292,8 +313,12 @@ def _latest_run_due_for_protocol(dbsession, protocol_id: int) -> datetime.date |
     ).scalar()
 
 
-def spawn_protocol_after(closed_run: ProtocolRun, completion_date: datetime.date,
-                         now_utc: datetime.datetime, dbsession) -> ProtocolRun | None:
+def spawn_protocol_after(
+    closed_run: ProtocolRun,
+    completion_date: datetime.date,
+    now_utc: datetime.datetime,
+    dbsession,
+) -> ProtocolRun | None:
     """Spawn the next run for an ``after`` rule when the previous one closes."""
     protocol = closed_run.protocol
     rule = protocol.recurrence if protocol else None
@@ -303,8 +328,9 @@ def spawn_protocol_after(closed_run: ProtocolRun, completion_date: datetime.date
     return spawn_protocol_run(protocol, next_date, now_utc, dbsession)
 
 
-def spawn_protocol_every_on_completion(closed_run: ProtocolRun, today: datetime.date,
-                                       now_utc: datetime.datetime, dbsession) -> int:
+def spawn_protocol_every_on_completion(
+    closed_run: ProtocolRun, today: datetime.date, now_utc: datetime.datetime, dbsession
+) -> int:
     """Mirror of spawn_every_on_completion for protocols."""
     protocol = closed_run.protocol
     rule = protocol.recurrence if protocol else None
@@ -327,8 +353,9 @@ def spawn_protocol_every_on_completion(closed_run: ProtocolRun, today: datetime.
     return spawned
 
 
-def ensure_protocol_has_run(protocol: Protocol, today: datetime.date,
-                            now_utc: datetime.datetime, dbsession) -> None:
+def ensure_protocol_has_run(
+    protocol: Protocol, today: datetime.date, now_utc: datetime.datetime, dbsession
+) -> None:
     """Immediately create a run for a newly-recurrent protocol if none active.
 
     Bypasses the daily-sweep marker so the first run appears right away when
@@ -351,8 +378,9 @@ def ensure_protocol_has_run(protocol: Protocol, today: datetime.date,
     spawn_protocol_run(protocol, nxt, now_utc, dbsession)
 
 
-def _sweep_every_protocols(dbsession, today: datetime.date,
-                           now_utc: datetime.datetime) -> int:
+def _sweep_every_protocols(
+    dbsession, today: datetime.date, now_utc: datetime.datetime
+) -> int:
     """Daily sweep equivalent for every-rule protocols."""
     every_protocols = (
         dbsession.execute(
@@ -362,7 +390,9 @@ def _sweep_every_protocols(dbsession, today: datetime.date,
                 RecurrenceRule.kind == RecurrenceKind.every,
                 Protocol.archived_at.is_(None),
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     )
     total = 0
     for protocol in every_protocols:

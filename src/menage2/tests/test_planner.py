@@ -2,8 +2,19 @@ import datetime
 
 import pytest
 
+from menage2.models import (
+    Day,
+    Ingredient,
+    IngredientUsage,
+    Month,
+    Recipe,
+    RecipeSeasons,
+    RecipeWeekDays,
+    Schedule,
+    Week,
+    Weekday,
+)
 from menage2.models.todo import Todo, TodoStatus
-from menage2.models import Week, Day, Recipe, Ingredient, IngredientUsage, RecipeWeekDays, RecipeSeasons, Weekday, Month, Schedule
 from menage2.views.planner import add_week, send_to_shopping_list, toggle_day_shopping
 
 
@@ -22,7 +33,9 @@ def _make_recipe_for_all_days(dbsession):
 
 
 def _make_week_with_recipe(dbsession):
-    ingredient = Ingredient(description="Tomaten", tags="einkaufen:supermarkt:obst-u-gemuese")
+    ingredient = Ingredient(
+        description="Tomaten", tags="einkaufen:supermarkt:obst-u-gemuese"
+    )
     ingredient2 = Ingredient(description="Salz", tags="")
     dbsession.add_all([ingredient, ingredient2])
     dbsession.flush()
@@ -32,8 +45,12 @@ def _make_week_with_recipe(dbsession):
     dbsession.add(recipe)
     dbsession.flush()
 
-    usage1 = IngredientUsage(recipe=recipe, ingredient=ingredient, amount="500", unit="g")
-    usage2 = IngredientUsage(recipe=recipe, ingredient=ingredient2, amount=None, unit=None)
+    usage1 = IngredientUsage(
+        recipe=recipe, ingredient=ingredient, amount="500", unit="g"
+    )
+    usage2 = IngredientUsage(
+        recipe=recipe, ingredient=ingredient2, amount=None, unit=None
+    )
     dbsession.add_all([usage1, usage2])
 
     week = Week()
@@ -82,8 +99,12 @@ def test_send_to_shopping_list_aggregates_amounts_across_days(app_request, dbses
     dbsession.add_all([recipe1, recipe2])
     dbsession.flush()
 
-    dbsession.add(IngredientUsage(recipe=recipe1, ingredient=ingredient, amount="200", unit="g"))
-    dbsession.add(IngredientUsage(recipe=recipe2, ingredient=ingredient, amount="300", unit="g"))
+    dbsession.add(
+        IngredientUsage(recipe=recipe1, ingredient=ingredient, amount="200", unit="g")
+    )
+    dbsession.add(
+        IngredientUsage(recipe=recipe2, ingredient=ingredient, amount="300", unit="g")
+    )
 
     week = Week()
     dbsession.add(week)
@@ -105,7 +126,9 @@ def test_send_to_shopping_list_aggregates_amounts_across_days(app_request, dbses
     assert "Brot (300 g)" in todo.note
 
 
-def test_send_to_shopping_list_untagged_ingredient_gets_sonstiges(app_request, dbsession):
+def test_send_to_shopping_list_untagged_ingredient_gets_sonstiges(
+    app_request, dbsession
+):
     ingredient = Ingredient(description="Wasser", tags="")
     dbsession.add(ingredient)
 
@@ -114,7 +137,9 @@ def test_send_to_shopping_list_untagged_ingredient_gets_sonstiges(app_request, d
     dbsession.add(recipe)
     dbsession.flush()
 
-    dbsession.add(IngredientUsage(recipe=recipe, ingredient=ingredient, amount="1", unit="l"))
+    dbsession.add(
+        IngredientUsage(recipe=recipe, ingredient=ingredient, amount="1", unit="l")
+    )
 
     week = Week()
     dbsession.add(week)

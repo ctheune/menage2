@@ -5,19 +5,19 @@ Revises: f12afd1240f1
 Create Date: 2026-04-19 17:42:51.977464
 
 """
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = 'acd134b0e75d'
-down_revision = 'f12afd1240f1'
+revision = "acd134b0e75d"
+down_revision = "f12afd1240f1"
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
-    op.add_column('todos', sa.Column('note', sa.Text(), nullable=True))
+    op.add_column("todos", sa.Column("note", sa.Text(), nullable=True))
     op.execute(
         "UPDATE ingredients SET tags = replace(tags, 'shopping:', 'einkaufen:') "
         "WHERE tags LIKE '%shopping:%'"
@@ -25,7 +25,7 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column('todos', 'note')
+    op.drop_column("todos", "note")
     op.execute(
         "UPDATE ingredients SET tags = replace(tags, 'einkaufen:', 'shopping:') "
         "WHERE tags LIKE '%einkaufen:%'"

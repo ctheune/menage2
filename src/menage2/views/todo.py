@@ -69,7 +69,7 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
         parsed = parse_date(m.group(1).strip(), today)
         if parsed:
             due_date = parsed.date
-            text = text[:m.start()] + text[m.end():]
+            text = text[: m.start()] + text[m.end() :]
 
     recurrence: RecurrenceSpec | None = None
     m = _RECURRENCE_MARKER_RE.search(text)
@@ -77,17 +77,19 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
         spec = parse_recurrence(m.group(1).strip())
         if spec:
             recurrence = spec
-            text = text[:m.start()] + text[m.end():]
+            text = text[: m.start()] + text[m.end() :]
 
     note = ""
     m = _NOTE_RE.search(text)
     if m:
         note = m.group(1).strip()
-        text = text[:m.start()] + text[m.end():]
+        text = text[: m.start()] + text[m.end() :]
 
     text = _TAG_RE.sub("", text)
     text = re.sub(r"\s+", " ", text).strip()
-    return ParsedTodoInput(text=text, tags=tags, due_date=due_date, recurrence=recurrence, note=note)
+    return ParsedTodoInput(
+        text=text, tags=tags, due_date=due_date, recurrence=recurrence, note=note
+    )
 
 
 def _apply_recurrence_spec(todo: Todo, spec: RecurrenceSpec | None, dbsession) -> None:
@@ -130,7 +132,9 @@ def _insert(node: dict, segments: list, full_tag: str, todo: Todo) -> None:
 
 
 def _subtree_count(node: dict) -> int:
-    return len(node["items"]) + sum(_subtree_count(c) for c in node["children"].values())
+    return len(node["items"]) + sum(
+        _subtree_count(c) for c in node["children"].values()
+    )
 
 
 def _flatten(node: dict, result: list, depth: int) -> None:
@@ -160,7 +164,9 @@ def build_tag_tree(todos: list) -> list[dict]:
             continue
         tags = sorted(todo.tags)
         # Only insert under the most specific tags; skip prefix tags that have children
-        filtered_tags = [t for t in tags if not any(other.startswith(t + ":") for other in tags)]
+        filtered_tags = [
+            t for t in tags if not any(other.startswith(t + ":") for other in tags)
+        ]
         for tag in filtered_tags:
             _insert(tree, tag.split(":"), tag, todo)
     result: list = []
@@ -207,16 +213,20 @@ def _render_todo_form(request, next_url: str) -> str:
     )
 
 
-def _undo_trigger(todo_ids: list[int], prev_status: str, texts: list[str], action: str) -> str:
+def _undo_trigger(
+    todo_ids: list[int], prev_status: str, texts: list[str], action: str
+) -> str:
     label = texts[0] if len(texts) == 1 else f"{len(texts)} items"
-    return json.dumps({
-        "showUndoToast": {
-            "ids": ",".join(str(i) for i in todo_ids),
-            "prevStatus": prev_status,
-            "label": label,
-            "action": action,
+    return json.dumps(
+        {
+            "showUndoToast": {
+                "ids": ",".join(str(i) for i in todo_ids),
+                "prevStatus": prev_status,
+                "label": label,
+                "action": action,
+            }
         }
-    })
+    )
 
 
 def _on_hold_count(request) -> int:
@@ -254,9 +264,9 @@ def _on_hold_section_oob(request) -> str:
         )
     else:
         btn = (
-            f'<span class="badge bg-secondary rounded-pill py-2 px-3">'
-            f'<i class="bi bi-pause-fill"></i> On hold '
-            f'<span class="badge bg-dark ms-1">0</span></span>'
+            '<span class="badge bg-secondary rounded-pill py-2 px-3">'
+            '<i class="bi bi-pause-fill"></i> On hold '
+            '<span class="badge bg-dark ms-1">0</span></span>'
         )
     return f'<div id="on-hold-section" hx-swap-oob="true">{btn}</div>'
 
@@ -273,9 +283,9 @@ def _scheduled_section_oob(request) -> str:
         )
     else:
         btn = (
-            f'<span class="badge bg-light text-muted rounded-pill py-2 px-3 border">'
-            f'<i class="bi bi-calendar-event"></i> Scheduled '
-            f'<span class="badge bg-secondary ms-1">0</span></span>'
+            '<span class="badge bg-light text-muted rounded-pill py-2 px-3 border">'
+            '<i class="bi bi-calendar-event"></i> Scheduled '
+            '<span class="badge bg-secondary ms-1">0</span></span>'
         )
     return f'<div id="scheduled-section" hx-swap-oob="true">{btn}</div>'
 
@@ -383,7 +393,9 @@ def todos_done(request):
     )
     request.response.content_type = "text/html"
     request.response.text = body
-    request.response.headers["HX-Trigger"] = _undo_trigger(todo_ids, "todo", texts, "completed")
+    request.response.headers["HX-Trigger"] = _undo_trigger(
+        todo_ids, "todo", texts, "completed"
+    )
     return request.response
 
 
@@ -407,16 +419,16 @@ def todos_hold(request):
     )
     request.response.content_type = "text/html"
     request.response.text = body + _on_hold_section_oob(request)
-    request.response.headers["HX-Trigger"] = _undo_trigger(todo_ids, "todo", texts, "put on hold")
+    request.response.headers["HX-Trigger"] = _undo_trigger(
+        todo_ids, "todo", texts, "put on hold"
+    )
     return request.response
 
 
 @view_config(route_name="todos_activate_all_on_hold", request_method="POST")
 def todos_activate_all_on_hold(request):
     held = (
-        request.dbsession.execute(
-            select(Todo).where(Todo.status == TodoStatus.on_hold)
-        )
+        request.dbsession.execute(select(Todo).where(Todo.status == TodoStatus.on_hold))
         .scalars()
         .all()
     )
@@ -437,7 +449,9 @@ _POSTPONE_INTERVALS = {
 }
 
 
-def _bump_due_date(current: datetime.date | None, today: datetime.date, interval: str) -> datetime.date:
+def _bump_due_date(
+    current: datetime.date | None, today: datetime.date, interval: str
+) -> datetime.date:
     """Apply a postpone interval, snapping overdue items to today first."""
     base = current if (current is not None and current > today) else today
     unit, n = _POSTPONE_INTERVALS[interval]
@@ -505,7 +519,9 @@ def parse_date_preview(request):
     return {"ok": True, "date": parsed.date.isoformat(), "label": parsed.label}
 
 
-@view_config(route_name="parse_recurrence_preview", request_method="GET", renderer="json")
+@view_config(
+    route_name="parse_recurrence_preview", request_method="GET", renderer="json"
+)
 def parse_recurrence_preview(request):
     raw = request.params.get("q", "").strip()
     if not raw:
@@ -553,9 +569,11 @@ def set_recurrence(request):
     return request.response
 
 
-@view_config(route_name="recurrence_history",
-             request_method="GET",
-             renderer="menage2:templates/_recurrence_history.pt")
+@view_config(
+    route_name="recurrence_history",
+    request_method="GET",
+    renderer="menage2:templates/_recurrence_history.pt",
+)
 def recurrence_history(request):
     todo_id = int(request.matchdict["id"])
     todo = request.dbsession.get(Todo, todo_id)
@@ -566,7 +584,9 @@ def recurrence_history(request):
     return {
         "chain": chain,
         "current_id": todo.id,
-        "rule_label": label_recurrence(rule_to_spec(todo.recurrence)) if todo.recurrence else None,
+        "rule_label": label_recurrence(rule_to_spec(todo.recurrence))
+        if todo.recurrence
+        else None,
     }
 
 
@@ -630,11 +650,15 @@ def todo_undo(request):
     label = texts[0] if len(texts) == 1 else f"{len(texts)} items"
     request.response.content_type = "text/html"
     request.response.text = body + _on_hold_section_oob(request)
-    request.response.headers["HX-Trigger"] = json.dumps({"showUndoConfirm": {"label": label}})
+    request.response.headers["HX-Trigger"] = json.dumps(
+        {"showUndoConfirm": {"label": label}}
+    )
     return request.response
 
 
-@view_config(route_name="list_todos_done", renderer="menage2:templates/list_todos_done.pt")
+@view_config(
+    route_name="list_todos_done", renderer="menage2:templates/list_todos_done.pt"
+)
 def list_todos_done(request):
     todos = (
         request.dbsession.execute(
@@ -648,7 +672,10 @@ def list_todos_done(request):
     return {"todos": todos}
 
 
-@view_config(route_name="list_todos_scheduled", renderer="menage2:templates/list_todos_scheduled.pt")
+@view_config(
+    route_name="list_todos_scheduled",
+    renderer="menage2:templates/list_todos_scheduled.pt",
+)
 def list_todos_scheduled(request):
     today = _today()
     spawn_due_every_if_needed(request.dbsession, today, _now_utc())
@@ -672,7 +699,9 @@ def list_todos_scheduled(request):
     return {
         "groups": groups,
         "today": today,
-        "form_html": _render_todo_form(request, request.route_url("list_todos_scheduled")),
+        "form_html": _render_todo_form(
+            request, request.route_url("list_todos_scheduled")
+        ),
     }
 
 

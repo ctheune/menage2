@@ -1,10 +1,10 @@
-from sqlalchemy import Column, Integer, Text, ForeignKey, Boolean
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, Text
+from sqlalchemy.orm import backref, relationship
 
-from .meta import Base
+from menage2.utils import Seen
 
 from .. import models
-from menage2.utils import Seen
+from .meta import Base
 
 
 class Recipe(Base):
@@ -51,12 +51,8 @@ class IngredientUsage(Base):
         uselist=False,
         backref=backref("ingredients", cascade="all, delete-orphan"),
     )
-    ingredient_id = Column(
-        Integer, ForeignKey("ingredients.id"), nullable=False
-    )
-    ingredient = relationship(
-        "Ingredient", uselist=False, backref=backref("used")
-    )
+    ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=False)
+    ingredient = relationship("Ingredient", uselist=False, backref=backref("used"))
 
     amount: str = Column(Text)
     unit: str = Column(Text)

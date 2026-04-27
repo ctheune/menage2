@@ -1,10 +1,15 @@
 """Browser-based tests for the Protocols feature."""
+
 import pytest
 
 
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args, live_server):
-    return {**browser_context_args, "base_url": live_server, "viewport": {"width": 1024, "height": 768}}
+    return {
+        **browser_context_args,
+        "base_url": live_server,
+        "viewport": {"width": 1024, "height": 768},
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -21,10 +26,16 @@ def login(page, context, browser_admin_user, live_server):
     assert resp.status == 303
     cookie_part = resp.headers.get("set-cookie", "").split(";")[0]
     name, value = cookie_part.split("=", 1)
-    context.add_cookies([{
-        "name": name.strip(), "value": value.strip(),
-        "domain": "localhost", "path": "/",
-    }])
+    context.add_cookies(
+        [
+            {
+                "name": name.strip(),
+                "value": value.strip(),
+                "domain": "localhost",
+                "path": "/",
+            }
+        ]
+    )
 
 
 def _make_protocol_via_ui(page, title, items):

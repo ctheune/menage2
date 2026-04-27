@@ -1,16 +1,20 @@
 """View-level + integration tests for the Protocols feature."""
-import datetime
 
-import pytest
+import datetime
 
 from menage2.models.protocol import (
     Protocol,
     ProtocolItem,
     ProtocolRun,
-    ProtocolRunItem,
     ProtocolRunItemStatus,
 )
-from menage2.models.todo import RecurrenceKind, RecurrenceRule, RecurrenceUnit, Todo, TodoStatus
+from menage2.models.todo import (
+    RecurrenceKind,
+    RecurrenceRule,
+    RecurrenceUnit,
+    Todo,
+    TodoStatus,
+)
 
 
 def _now():
@@ -37,15 +41,20 @@ def _make_protocol(dbsession, title="Weekly inventory", items=()):
 
 
 def test_list_protocols_page(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, title="Pantry sweep")
+    _make_protocol(dbsession, title="Pantry sweep")
     res = authenticated_testapp.get("/protocols", status=200)
     assert b"Pantry sweep" in res.body
 
 
 def test_new_protocol_creates_and_redirects_to_editor(authenticated_testapp, dbsession):
-    res = authenticated_testapp.post("/protocols/new", {"title": "Cosmetics check"}, status=303)
+    res = authenticated_testapp.post(
+        "/protocols/new", {"title": "Cosmetics check"}, status=303
+    )
     assert "/edit" in res.location
-    assert dbsession.query(Protocol).filter(Protocol.title == "Cosmetics check").count() == 1
+    assert (
+        dbsession.query(Protocol).filter(Protocol.title == "Cosmetics check").count()
+        == 1
+    )
 
 
 def test_edit_protocol_updates_title_and_recurrence(authenticated_testapp, dbsession):
@@ -71,7 +80,7 @@ def test_edit_protocol_clears_recurrence_when_empty(authenticated_testapp, dbses
     dbsession.add(rule)
     dbsession.flush()
     p = _make_protocol(dbsession)
-    p.recurrence_id = rule.id
+    p.recurrence = rule
     dbsession.flush()
     authenticated_testapp.post(
         f"/protocols/{p.id}/edit",
@@ -316,13 +325,17 @@ def test_completing_protocol_run_todo_closes_run(authenticated_testapp, dbsessio
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
     todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
-    authenticated_testapp.post("/todos/done-items", {"todo_ids": str(todo.id)}, status=200)
+    authenticated_testapp.post(
+        "/todos/done-items", {"todo_ids": str(todo.id)}, status=200
+    )
     dbsession.flush()
     dbsession.refresh(run)
     assert run.closed_at is not None
 
 
-def test_edit_protocol_title_syncs_to_active_run_todos(authenticated_testapp, dbsession):
+def test_edit_protocol_title_syncs_to_active_run_todos(
+    authenticated_testapp, dbsession
+):
     p = _make_protocol(dbsession, title="Old title", items=["x"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
@@ -356,7 +369,9 @@ def test_run_all_done_spawns_next_for_after_rule(authenticated_testapp, dbsessio
     assert len(runs) == 2
 
 
-def test_completing_protocol_todo_with_after_rule_spawns_next(authenticated_testapp, dbsession):
+def test_completing_protocol_todo_with_after_rule_spawns_next(
+    authenticated_testapp, dbsession
+):
     rule = RecurrenceRule(
         kind=RecurrenceKind.after,
         interval_value=1,
@@ -368,13 +383,23 @@ def test_completing_protocol_todo_with_after_rule_spawns_next(authenticated_test
     p.recurrence_id = rule.id
     dbsession.flush()
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
-    first_run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    first_todo = dbsession.query(Todo).filter(Todo.protocol_run_id == first_run.id).one()
-    authenticated_testapp.post("/todos/done-items", {"todo_ids": str(first_todo.id)}, status=200)
+    first_run = (
+        dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
+    )
+    first_todo = (
+        dbsession.query(Todo).filter(Todo.protocol_run_id == first_run.id).one()
+    )
+    authenticated_testapp.post(
+        "/todos/done-items", {"todo_ids": str(first_todo.id)}, status=200
+    )
     runs = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).all()
     assert len(runs) == 2
-    new_todo = dbsession.query(Todo).filter(
-        Todo.protocol_run_id.in_([r.id for r in runs]),
-        Todo.status == TodoStatus.todo,
-    ).one()
+    new_todo = (
+        dbsession.query(Todo)
+        .filter(
+            Todo.protocol_run_id.in_([r.id for r in runs]),
+            Todo.status == TodoStatus.todo,
+        )
+        .one()
+    )
     assert new_todo.due_date == _today() + datetime.timedelta(days=7)

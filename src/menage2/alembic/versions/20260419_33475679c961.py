@@ -5,13 +5,14 @@ Revises: 89f2eea2d3e1
 Create Date: 2026-04-19 19:21:33.443016
 
 """
+
 from alembic import op
 
-
-revision = '33475679c961'
-down_revision = '89f2eea2d3e1'
+revision = "33475679c961"
+down_revision = "89f2eea2d3e1"
 branch_labels = None
 depends_on = None
+
 
 def upgrade():
     # Insert :supermarkt: infix into all einkaufen: tags except einkaufen:asia-markt.

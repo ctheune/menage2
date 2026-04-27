@@ -1,12 +1,13 @@
 """Integration tests for authentication flows (no browser required)."""
+
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from argon2 import PasswordHasher
 
-from menage2.models.user import User
-from menage2.models.config import ConfigItem
 from menage2 import SETUP_TOKEN_KEY
+from menage2.models.config import ConfigItem
+from menage2.models.user import User
 
 _ph = PasswordHasher()
 
@@ -28,6 +29,7 @@ def _seed_setup_token(dbsession, token="test-setup-token"):
 # ---------------------------------------------------------------------------
 # Setup (first-run)
 # ---------------------------------------------------------------------------
+
 
 def test_setup_page_shows_token_entry_when_no_token_param(testapp, dbsession):
     _seed_setup_token(dbsession)
@@ -54,14 +56,18 @@ def test_setup_redirects_when_users_exist(testapp, admin_user):
 
 def test_setup_post_creates_admin(testapp, dbsession):
     token = _seed_setup_token(dbsession)
-    res = testapp.post("/setup", {
-        "token": token,
-        "username": "founder",
-        "real_name": "Founder",
-        "email": "founder@example.com",
-        "password": "strongpassword",
-        "confirm_password": "strongpassword",
-    }, status=303)
+    res = testapp.post(
+        "/setup",
+        {
+            "token": token,
+            "username": "founder",
+            "real_name": "Founder",
+            "email": "founder@example.com",
+            "password": "strongpassword",
+            "confirm_password": "strongpassword",
+        },
+        status=303,
+    )
     assert res.location
     # Token should be destroyed
     assert dbsession.get(ConfigItem, SETUP_TOKEN_KEY) is None
@@ -69,27 +75,35 @@ def test_setup_post_creates_admin(testapp, dbsession):
 
 def test_setup_post_rejects_invalid_token(testapp, dbsession):
     _seed_setup_token(dbsession)
-    res = testapp.post("/setup", {
-        "token": "wrongtoken",
-        "username": "founder",
-        "real_name": "Founder",
-        "email": "founder@example.com",
-        "password": "strongpassword",
-        "confirm_password": "strongpassword",
-    }, status=200)
+    res = testapp.post(
+        "/setup",
+        {
+            "token": "wrongtoken",
+            "username": "founder",
+            "real_name": "Founder",
+            "email": "founder@example.com",
+            "password": "strongpassword",
+            "confirm_password": "strongpassword",
+        },
+        status=200,
+    )
     assert b"Invalid" in res.body
 
 
 def test_setup_post_validates_required_fields(testapp, dbsession):
     token = _seed_setup_token(dbsession)
-    res = testapp.post("/setup", {
-        "token": token,
-        "username": "",
-        "real_name": "",
-        "email": "",
-        "password": "",
-        "confirm_password": "",
-    }, status=200)
+    res = testapp.post(
+        "/setup",
+        {
+            "token": token,
+            "username": "",
+            "real_name": "",
+            "email": "",
+            "password": "",
+            "confirm_password": "",
+        },
+        status=200,
+    )
     assert b"required" in res.body.lower()
 
 
@@ -97,32 +111,45 @@ def test_setup_post_validates_required_fields(testapp, dbsession):
 # Login
 # ---------------------------------------------------------------------------
 
+
 def test_login_page_renders(testapp, admin_user):
     res = testapp.get("/login", status=200)
     assert b"login" in res.body.lower() or b"sign in" in res.body.lower()
 
 
 def test_login_success_redirects(testapp, admin_user):
-    res = testapp.post("/login", {
-        "username": "admin",
-        "password": "correct-password",
-    }, status=303)
+    res = testapp.post(
+        "/login",
+        {
+            "username": "admin",
+            "password": "correct-password",
+        },
+        status=303,
+    )
     assert res.location.endswith("/todos") or "todos" in res.location
 
 
 def test_login_wrong_password_shows_error(testapp, admin_user):
-    res = testapp.post("/login", {
-        "username": "admin",
-        "password": "wrong-password",
-    }, status=200)
+    res = testapp.post(
+        "/login",
+        {
+            "username": "admin",
+            "password": "wrong-password",
+        },
+        status=200,
+    )
     assert b"Invalid" in res.body
 
 
 def test_login_unknown_user_shows_error(testapp, admin_user):
-    res = testapp.post("/login", {
-        "username": "nobody",
-        "password": "anything",
-    }, status=200)
+    res = testapp.post(
+        "/login",
+        {
+            "username": "nobody",
+            "password": "anything",
+        },
+        status=200,
+    )
     assert b"Invalid" in res.body
 
 
@@ -139,16 +166,21 @@ def test_login_inactive_user_rejected(testapp, dbsession):
     dbsession.add(user)
     dbsession.flush()
 
-    res = testapp.post("/login", {
-        "username": "inactive",
-        "password": "pw",
-    }, status=200)
+    res = testapp.post(
+        "/login",
+        {
+            "username": "inactive",
+            "password": "pw",
+        },
+        status=200,
+    )
     assert b"Invalid" in res.body
 
 
 # ---------------------------------------------------------------------------
 # Logout
 # ---------------------------------------------------------------------------
+
 
 def test_logout_clears_session(authenticated_testapp):
     authenticated_testapp.post("/logout", status=303)
@@ -160,6 +192,7 @@ def test_logout_clears_session(authenticated_testapp):
 # ---------------------------------------------------------------------------
 # Protected route redirection
 # ---------------------------------------------------------------------------
+
 
 def test_protected_route_redirects_unauthenticated(testapp, admin_user):
     res = testapp.get("/todos", status="3*")
@@ -174,6 +207,7 @@ def test_admin_route_denies_regular_user(user_testapp):
 # Forgot password
 # ---------------------------------------------------------------------------
 
+
 def test_forgot_password_page_renders(testapp, admin_user):
     res = testapp.get("/forgot-password", status=200)
     assert b"email" in res.body.lower()
@@ -181,7 +215,9 @@ def test_forgot_password_page_renders(testapp, admin_user):
 
 def test_forgot_password_always_succeeds(testapp, admin_user):
     """Should show success even for non-existent email (prevent enumeration)."""
-    res = testapp.post("/forgot-password", {"email": "nonexistent@example.com"}, status=200)
+    res = testapp.post(
+        "/forgot-password", {"email": "nonexistent@example.com"}, status=200
+    )
     assert b"sent" in res.body.lower() or b"check" in res.body.lower()
 
 
@@ -195,6 +231,7 @@ def test_forgot_password_sets_token(testapp, admin_user):
 # ---------------------------------------------------------------------------
 # Reset password
 # ---------------------------------------------------------------------------
+
 
 def test_reset_password_invalid_token(testapp, admin_user):
     res = testapp.get("/reset-password/invalidtoken", status=200)
@@ -227,10 +264,14 @@ def test_reset_password_post_changes_password(testapp, admin_user, dbsession):
     admin_user.password_reset_token_expires_at = _now() + timedelta(hours=1)
     dbsession.flush()
 
-    res = testapp.post(f"/reset-password/{token}", {
-        "password": "new-strong-password",
-        "confirm_password": "new-strong-password",
-    }, status=303)
+    res = testapp.post(
+        f"/reset-password/{token}",
+        {
+            "password": "new-strong-password",
+            "confirm_password": "new-strong-password",
+        },
+        status=303,
+    )
     assert "login" in res.location
     # admin_user is in the shared session; check in-memory values
     assert admin_user.password_reset_token is None

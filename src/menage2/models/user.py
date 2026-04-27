@@ -25,7 +25,9 @@ class User(Base):
     password_reset_token = Column(Text, nullable=True, unique=True)
     password_reset_token_expires_at = Column(DateTime(timezone=True), nullable=True)
 
-    passkeys = relationship("Passkey", back_populates="user", cascade="all, delete-orphan")
+    passkeys = relationship(
+        "Passkey", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Passkey(Base):

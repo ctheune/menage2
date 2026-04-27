@@ -1,10 +1,10 @@
-from pyramid.interfaces import IBeforeRender
-from pyramid.events import subscriber
+from datetime import datetime, timedelta, timezone
 
 from babel.core import Locale
-from babel.support import Format
 from babel.dates import get_timezone
-from datetime import datetime, timedelta, timezone
+from babel.support import Format
+from pyramid.events import subscriber
+from pyramid.interfaces import IBeforeRender
 
 
 def format_timedelta(td: timedelta):
@@ -26,7 +26,9 @@ def format_timedelta(td: timedelta):
 
 
 def humanize_ago(dt: datetime) -> str:
-    seconds = int((datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds())
+    seconds = int(
+        (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()
+    )
     if seconds < 60:
         return "just now"
     if seconds < 3600:
@@ -69,6 +71,7 @@ def globals_factory(event):
             return ""
         from menage2.dateparse import label_recurrence
         from menage2.recurrence import rule_to_spec
+
         return label_recurrence(rule_to_spec(todo.recurrence))
 
     event["format_timedelta"] = format_timedelta

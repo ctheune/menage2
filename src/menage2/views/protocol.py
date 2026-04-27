@@ -3,6 +3,7 @@
 Snapshotting (templating items into run-items) happens lazily on the first
 GET of /protocols/run/{id}, idempotent under the recurrence module's lock.
 """
+
 import datetime
 import threading
 
@@ -58,15 +59,28 @@ def _get_or_404(request, model, id_param="id"):
 # ---------------------------------------------------------------------------
 
 
-@view_config(route_name="list_protocols",
-             renderer="menage2:templates/protocols/list.pt")
+@view_config(
+    route_name="list_protocols", renderer="menage2:templates/protocols/list.pt"
+)
 def list_protocols(request):
-    active = request.dbsession.execute(
-        select(Protocol).where(Protocol.archived_at.is_(None)).order_by(Protocol.title)
-    ).scalars().all()
-    archived = request.dbsession.execute(
-        select(Protocol).where(Protocol.archived_at.is_not(None)).order_by(Protocol.title)
-    ).scalars().all()
+    active = (
+        request.dbsession.execute(
+            select(Protocol)
+            .where(Protocol.archived_at.is_(None))
+            .order_by(Protocol.title)
+        )
+        .scalars()
+        .all()
+    )
+    archived = (
+        request.dbsession.execute(
+            select(Protocol)
+            .where(Protocol.archived_at.is_not(None))
+            .order_by(Protocol.title)
+        )
+        .scalars()
+        .all()
+    )
     return {
         "active": active,
         "archived": archived,
@@ -77,9 +91,15 @@ def list_protocols(request):
 @view_config(route_name="list_protocols_palette", renderer="json")
 def list_protocols_palette(request):
     """JSON used by the r-key palette on the todo list."""
-    rows = request.dbsession.execute(
-        select(Protocol).where(Protocol.archived_at.is_(None)).order_by(Protocol.title)
-    ).scalars().all()
+    rows = (
+        request.dbsession.execute(
+            select(Protocol)
+            .where(Protocol.archived_at.is_(None))
+            .order_by(Protocol.title)
+        )
+        .scalars()
+        .all()
+    )
     return [{"id": p.id, "title": p.title} for p in rows]
 
 
@@ -124,8 +144,11 @@ def _render_protocol_item(request, protocol, item):
     )
 
 
-@view_config(route_name="edit_protocol", request_method="GET",
-             renderer="menage2:templates/protocols/edit.pt")
+@view_config(
+    route_name="edit_protocol",
+    request_method="GET",
+    renderer="menage2:templates/protocols/edit.pt",
+)
 def edit_protocol(request):
     p = _get_or_404(request, Protocol)
     return {
@@ -142,12 +165,16 @@ def update_protocol(request):
     if title and title != p.title:
         p.title = title
         # Sync title to any active linked todos
-        active_runs = request.dbsession.execute(
-            select(ProtocolRun).where(
-                ProtocolRun.protocol_id == p.id,
-                ProtocolRun.closed_at.is_(None),
+        active_runs = (
+            request.dbsession.execute(
+                select(ProtocolRun).where(
+                    ProtocolRun.protocol_id == p.id,
+                    ProtocolRun.closed_at.is_(None),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for run in active_runs:
             if run.todo and run.todo.status.value == "todo":
                 run.todo.text = title
@@ -173,6 +200,7 @@ def _apply_protocol_recurrence(protocol, spec, dbsession):
         return
     if protocol.recurrence is not None:
         from menage2.models.todo import RecurrenceKind, RecurrenceUnit
+
         r = protocol.recurrence
         r.kind = RecurrenceKind(spec.kind)
         r.interval_value = spec.interval_value
@@ -181,6 +209,7 @@ def _apply_protocol_recurrence(protocol, spec, dbsession):
         r.month_day = spec.month_day
     else:
         from menage2.recurrence import spec_to_rule
+
         rule = spec_to_rule(spec)
         dbsession.add(rule)
         dbsession.flush()
@@ -202,7 +231,8 @@ def add_protocol_item(request):
             .where(ProtocolItem.protocol_id == p.id)
             .order_by(ProtocolItem.position.desc())
             .limit(1)
-        ).scalar() or 0
+        ).scalar()
+        or 0
     ) + 1
     item = ProtocolItem(
         protocol_id=p.id,
@@ -286,20 +316,25 @@ def _snapshot_run_items(run, dbsession):
             return
         protocol = run.protocol
         for src in sorted(protocol.items, key=lambda i: i.position):
-            dbsession.add(ProtocolRunItem(
-                run_id=run.id,
-                position=src.position,
-                text=src.text,
-                tags=set(src.tags),
-                note=src.note,
-                status=ProtocolRunItemStatus.pending,
-            ))
+            dbsession.add(
+                ProtocolRunItem(
+                    run_id=run.id,
+                    position=src.position,
+                    text=src.text,
+                    tags=set(src.tags),
+                    note=src.note,
+                    status=ProtocolRunItemStatus.pending,
+                )
+            )
         run.opened_at = _now_utc()
         dbsession.flush()
 
 
-@view_config(route_name="show_protocol_run", request_method="GET",
-             renderer="menage2:templates/protocols/run.pt")
+@view_config(
+    route_name="show_protocol_run",
+    request_method="GET",
+    renderer="menage2:templates/protocols/run.pt",
+)
 def show_protocol_run(request):
     run = _get_or_404(request, ProtocolRun)
     if run.opened_at is None:
@@ -333,8 +368,13 @@ def _maybe_close_run(run, dbsession, now):
 def _render_run_partial(request, run, items):
     return render(
         "menage2:templates/protocols/_run_items.pt",
-        {"run": run, "items": items,
-         "all_resolved": all(i.status != ProtocolRunItemStatus.pending for i in items)},
+        {
+            "run": run,
+            "items": items,
+            "all_resolved": all(
+                i.status != ProtocolRunItemStatus.pending for i in items
+            ),
+        },
         request=request,
     )
 

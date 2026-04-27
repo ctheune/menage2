@@ -5,15 +5,16 @@ Revises: 33475679c961
 Create Date: 2026-04-19 20:18:49.429110
 
 """
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = '85c42b840e15'
-down_revision = '33475679c961'
+revision = "85c42b840e15"
+down_revision = "33475679c961"
 branch_labels = None
 depends_on = None
+
 
 def upgrade():
     # Remove empty-subtag tokens like 'einkaufen:supermarkt:' (trailing colon)

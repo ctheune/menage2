@@ -1,22 +1,25 @@
-import hmac
 import datetime
+import hmac
 
-from pyramid.security import NO_PERMISSION_REQUIRED
 from pyramid.httpexceptions import HTTPNotFound
 from pyramid.response import Response
+from pyramid.security import NO_PERMISSION_REQUIRED
 from pyramid.view import view_config
+
+from menage2 import publictransport
 
 from .. import models
 from ..models.config import ConfigItem
 from ..views.auth import DASHBOARD_TOKEN_KEY
-from menage2 import publictransport
 
 
 def _check_dashboard_token(request):
     """Return None if token is valid, or a Response (403/404) if not."""
     config_item = request.dbsession.get(ConfigItem, DASHBOARD_TOKEN_KEY)
     if config_item is None or not config_item.value:
-        raise HTTPNotFound("Dashboard URL not configured. Set it up in the admin panel.")
+        raise HTTPNotFound(
+            "Dashboard URL not configured. Set it up in the admin panel."
+        )
     expected = config_item.value.encode()
     provided = request.matchdict.get("token", "").encode()
     if not hmac.compare_digest(expected, provided):
@@ -24,8 +27,11 @@ def _check_dashboard_token(request):
     return None
 
 
-@view_config(route_name="dashboard", renderer="menage2:templates/dashboard.pt",
-             permission=NO_PERMISSION_REQUIRED)
+@view_config(
+    route_name="dashboard",
+    renderer="menage2:templates/dashboard.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def dashboard(request):
     err = _check_dashboard_token(request)
     if err is not None:
@@ -33,7 +39,9 @@ def dashboard(request):
     token = request.matchdict["token"]
     return {
         "dashboard_recipes_url": request.route_url("dashboard_recipes", token=token),
-        "dashboard_pt_departures_url": request.route_url("dashboard_pt_departures", token=token),
+        "dashboard_pt_departures_url": request.route_url(
+            "dashboard_pt_departures", token=token
+        ),
         "dashboard_pt_hbf_url": request.route_url("dashboard_pt_hbf", token=token),
     }
 

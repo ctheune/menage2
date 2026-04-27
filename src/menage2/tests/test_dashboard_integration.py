@@ -1,4 +1,5 @@
 """Integration tests for the secret-token dashboard."""
+
 import secrets
 
 from menage2.models.config import ConfigItem

@@ -9,7 +9,7 @@ suggestions what to cook when.
 Run development environment:
 
   $ devenv up
-  
+
 Run tests:
 
   $ devenv test

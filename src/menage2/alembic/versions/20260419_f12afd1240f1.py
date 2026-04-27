@@ -5,14 +5,14 @@ Revises: b7f3043fad27
 Create Date: 2026-04-19 11:39:17.018727
 
 """
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects.postgresql import ARRAY
 
-
 # revision identifiers, used by Alembic.
-revision = 'f12afd1240f1'
-down_revision = 'b7f3043fad27'
+revision = "f12afd1240f1"
+down_revision = "b7f3043fad27"
 branch_labels = None
 depends_on = None
 

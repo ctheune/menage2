@@ -658,7 +658,7 @@ def test_batch_done_endpoint(authenticated_testapp, dbsession):
         dbsession.add(t)
     dbsession.flush()
     ids = ",".join(str(t.id) for t in todos)
-    res = authenticated_testapp.post("/todos/done-items", {"todo_ids": ids}, status=200)
+    authenticated_testapp.post("/todos/done-items", {"todo_ids": ids}, status=200)
     for t in todos:
         dbsession.refresh(t)
         assert t.status == TodoStatus.done

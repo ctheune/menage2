@@ -3,8 +3,8 @@ import json
 from datetime import datetime, timezone
 
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
-from pyramid.httpexceptions import HTTPSeeOther, HTTPNotFound
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+from pyramid.httpexceptions import HTTPNotFound, HTTPSeeOther
 from pyramid.view import view_config
 
 from ..models.user import Passkey
@@ -17,22 +17,31 @@ def _now():
     return datetime.now(timezone.utc)
 
 
-@view_config(route_name="account", renderer="menage2:templates/auth/account.pt",
-             permission=PERM_AUTHENTICATED)
+@view_config(
+    route_name="account",
+    renderer="menage2:templates/auth/account.pt",
+    permission=PERM_AUTHENTICATED,
+)
 def account_view(request):
     return {"user": request.identity}
 
 
-@view_config(route_name="account_change_password", request_method="GET",
-             renderer="menage2:templates/auth/change_password.pt",
-             permission=PERM_AUTHENTICATED)
+@view_config(
+    route_name="account_change_password",
+    request_method="GET",
+    renderer="menage2:templates/auth/change_password.pt",
+    permission=PERM_AUTHENTICATED,
+)
 def change_password_get(request):
     return {"errors": {}, "success": False}
 
 
-@view_config(route_name="account_change_password", request_method="POST",
-             renderer="menage2:templates/auth/change_password.pt",
-             permission=PERM_AUTHENTICATED)
+@view_config(
+    route_name="account_change_password",
+    request_method="POST",
+    renderer="menage2:templates/auth/change_password.pt",
+    permission=PERM_AUTHENTICATED,
+)
 def change_password_post(request):
     user = request.identity
     current = request.POST.get("current_password", "")
@@ -42,7 +51,9 @@ def change_password_post(request):
     errors = {}
 
     if user.password_hash is None:
-        errors["current_password"] = "Your account uses passkey authentication; set a password from the reset flow."
+        errors["current_password"] = (
+            "Your account uses passkey authentication; set a password from the reset flow."
+        )
     else:
         try:
             _ph.verify(user.password_hash, current)
@@ -61,15 +72,21 @@ def change_password_post(request):
     return {"errors": {}, "success": True}
 
 
-@view_config(route_name="account_passkeys", request_method="GET",
-             renderer="menage2:templates/auth/passkeys.pt",
-             permission=PERM_AUTHENTICATED)
+@view_config(
+    route_name="account_passkeys",
+    request_method="GET",
+    renderer="menage2:templates/auth/passkeys.pt",
+    permission=PERM_AUTHENTICATED,
+)
 def list_passkeys(request):
     return {"user": request.identity, "passkeys": request.identity.passkeys}
 
 
-@view_config(route_name="account_passkey_delete", request_method="POST",
-             permission=PERM_AUTHENTICATED)
+@view_config(
+    route_name="account_passkey_delete",
+    request_method="POST",
+    permission=PERM_AUTHENTICATED,
+)
 def delete_passkey(request):
     passkey_id = int(request.matchdict["id"])
     passkey = request.dbsession.get(Passkey, passkey_id)
@@ -79,8 +96,12 @@ def delete_passkey(request):
     return HTTPSeeOther(location=request.route_url("account_passkeys"))
 
 
-@view_config(route_name="account_passkey_register_begin", request_method="POST",
-             renderer="json", permission=PERM_AUTHENTICATED)
+@view_config(
+    route_name="account_passkey_register_begin",
+    request_method="POST",
+    renderer="json",
+    permission=PERM_AUTHENTICATED,
+)
 def register_passkey_begin(request):
     import webauthn
     from webauthn.helpers.structs import (
@@ -105,13 +126,19 @@ def register_passkey_begin(request):
             user_verification=UserVerificationRequirement.PREFERRED,
         ),
     )
-    request.session["webauthn_reg_challenge"] = base64.b64encode(options.challenge).decode()
+    request.session["webauthn_reg_challenge"] = base64.b64encode(
+        options.challenge
+    ).decode()
 
     return json.loads(webauthn.options_to_json(options))
 
 
-@view_config(route_name="account_passkey_register_complete", request_method="POST",
-             renderer="json", permission=PERM_AUTHENTICATED)
+@view_config(
+    route_name="account_passkey_register_complete",
+    request_method="POST",
+    renderer="json",
+    permission=PERM_AUTHENTICATED,
+)
 def register_passkey_complete(request):
     import webauthn
 

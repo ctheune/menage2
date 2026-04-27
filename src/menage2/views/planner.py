@@ -1,8 +1,8 @@
-from pyramid.view import view_config
-from pyramid.httpexceptions import HTTPSeeOther
-from sqlalchemy.orm import joinedload
 import datetime
 
+from pyramid.httpexceptions import HTTPSeeOther
+from pyramid.view import view_config
+from sqlalchemy.orm import joinedload
 
 from .. import models
 
@@ -176,7 +176,9 @@ def send_to_shopping_list(request):
     now = datetime.datetime.now(datetime.timezone.utc)
 
     def _einkaufen_tags(ingredient):
-        tags = {t.rstrip(":") for t in ingredient.tags_set if t.startswith("einkaufen:")}
+        tags = {
+            t.rstrip(":") for t in ingredient.tags_set if t.startswith("einkaufen:")
+        }
         tags.discard("einkaufen")  # bare prefix is not a useful tag
         # Keep only the most specific tags (drop prefixes of other tags in the set)
         tags = {t for t in tags if not any(other.startswith(t + ":") for other in tags)}
@@ -193,18 +195,37 @@ def send_to_shopping_list(request):
             if len(by_recipe) == 1:
                 parts = list(by_recipe.keys())
             else:
-                parts = [f"{title} ({_fmt_amt(amt, unit)})" for title, amt in by_recipe.items()]
+                parts = [
+                    f"{title} ({_fmt_amt(amt, unit)})"
+                    for title, amt in by_recipe.items()
+                ]
             note = "für: " + ", ".join(parts)
             request.dbsession.add(
-                Todo(text=text, tags=tags, status=TodoStatus.todo, created_at=now, note=note)
+                Todo(
+                    text=text,
+                    tags=tags,
+                    status=TodoStatus.todo,
+                    created_at=now,
+                    note=note,
+                )
             )
 
     for usage, recipe_title in non_numeric:
         tags = _einkaufen_tags(usage.ingredient)
-        amt_str = _fmt_amt(usage.numeric_amount() or 0, usage.unit or "") if usage.numeric_amount() else ""
+        amt_str = (
+            _fmt_amt(usage.numeric_amount() or 0, usage.unit or "")
+            if usage.numeric_amount()
+            else ""
+        )
         note = "für: " + recipe_title + (f" ({amt_str})" if amt_str else "")
         request.dbsession.add(
-            Todo(text=usage.to_shopping_list(), tags=tags, status=TodoStatus.todo, created_at=now, note=note)
+            Todo(
+                text=usage.to_shopping_list(),
+                tags=tags,
+                status=TodoStatus.todo,
+                created_at=now,
+                note=note,
+            )
         )
 
     todos_url = request.route_url("list_todos")

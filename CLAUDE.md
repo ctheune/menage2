@@ -1,6 +1,6 @@
 Menage is a software suite for managing household day to day tasks:
 
-- Planning meals (including ingredients and tags on them) 
+- Planning meals (including ingredients and tags on them)
 - Creating shopping lists (using tags to allow grouping things that are placed in similar locations in the supermarket)
 - a dashboard run in a kitchen ipad
 
@@ -36,3 +36,8 @@ To avoid encoding issues, always encode unicode characters outside ascii as hex 
 * prefer fixtures instead of random setup methods
 * keep things cleanly structured: provide good unit test coverage (no db interaction), integration test (no ui interaction), and ui level tests
 * if you need to create extensive mocking, re-evaluate your implementation approach to allow reasonable testing, this is a trade off and not a hard and fast rule, though.
+
+# Linting
+
+* run `pre-commit run -a` for linting and static analysis
+* be aware of sqlalchemy specifics and if necessary add exceptions to avoid breaking queries

@@ -7,36 +7,50 @@ def test_list_users(authenticated_testapp, admin_user):
 
 
 def test_create_user(authenticated_testapp):
-    res = authenticated_testapp.post("/admin/users/new", {
-        "username": "newuser",
-        "real_name": "New User",
-        "email": "new@example.com",
-        "password": "somepassword",
-    }, status=303)
+    res = authenticated_testapp.post(
+        "/admin/users/new",
+        {
+            "username": "newuser",
+            "real_name": "New User",
+            "email": "new@example.com",
+            "password": "somepassword",
+        },
+        status=303,
+    )
     assert "admin/users" in res.location
 
 
 def test_create_user_duplicate_username(authenticated_testapp, admin_user):
-    res = authenticated_testapp.post("/admin/users/new", {
-        "username": "admin",
-        "real_name": "Dup",
-        "email": "dup@example.com",
-        "password": "pw",
-    }, status=200)
+    res = authenticated_testapp.post(
+        "/admin/users/new",
+        {
+            "username": "admin",
+            "real_name": "Dup",
+            "email": "dup@example.com",
+            "password": "pw",
+        },
+        status=200,
+    )
     assert b"already" in res.body.lower()
 
 
 def test_edit_user(authenticated_testapp, regular_user):
-    res = authenticated_testapp.post(f"/admin/users/{regular_user.id}/edit", {
-        "real_name": "Updated Name",
-        "email": "updated@example.com",
-        "is_active": "1",
-    }, status=303)
+    res = authenticated_testapp.post(
+        f"/admin/users/{regular_user.id}/edit",
+        {
+            "real_name": "Updated Name",
+            "email": "updated@example.com",
+            "is_active": "1",
+        },
+        status=303,
+    )
     assert "admin/users" in res.location
 
 
 def test_deactivate_user(authenticated_testapp, regular_user):
-    res = authenticated_testapp.post(f"/admin/users/{regular_user.id}/deactivate", status=303)
+    res = authenticated_testapp.post(
+        f"/admin/users/{regular_user.id}/deactivate", status=303
+    )
     assert "admin/users" in res.location
 
 
@@ -45,7 +59,9 @@ def test_cannot_deactivate_self(authenticated_testapp, admin_user):
 
 
 def test_delete_user(authenticated_testapp, regular_user):
-    res = authenticated_testapp.post(f"/admin/users/{regular_user.id}/delete", status=303)
+    res = authenticated_testapp.post(
+        f"/admin/users/{regular_user.id}/delete", status=303
+    )
     assert "admin/users" in res.location
 
 
@@ -88,13 +104,15 @@ def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession):
     )
     dbsession.add(rule)
     dbsession.flush()
-    dbsession.add(Todo(
-        text="Bills",
-        tags=set(),
-        recurrence_id=rule.id,
-        due_date=today - datetime.timedelta(days=14),
-        created_at=datetime.datetime.now(datetime.timezone.utc),
-    ))
+    dbsession.add(
+        Todo(
+            text="Bills",
+            tags=set(),
+            recurrence_id=rule.id,
+            due_date=today - datetime.timedelta(days=14),
+            created_at=datetime.datetime.now(datetime.timezone.utc),
+        )
+    )
     dbsession.add(ConfigItem(key=_LAST_SWEEP_KEY, value=today.isoformat()))
     dbsession.flush()
 

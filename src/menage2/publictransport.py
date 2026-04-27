@@ -1,10 +1,10 @@
+import datetime
+
+import arrow
+import arrow.locales
 import requests
 from cachecontrol import CacheControl
 from cachecontrol.caches.file_cache import FileCache
-import arrow
-import arrow.locales
-
-import datetime
 
 session = requests.session()
 session = CacheControl(session, cache=FileCache(".web_cache"))

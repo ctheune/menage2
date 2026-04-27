@@ -1,6 +1,6 @@
 from menage2 import models
-from menage2.views.recipe import list_recipes
 from menage2.views.notfound import notfound_view
+from menage2.views.recipe import list_recipes
 
 
 def test_list_recipes_success(app_request, dbsession):

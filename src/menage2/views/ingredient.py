@@ -1,10 +1,11 @@
 import itertools
 import uuid
-from sqlalchemy.sql import func
+
 import peppercorn
 import sqlalchemy.orm
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.view import view_config
+from sqlalchemy.sql import func
 
 from menage2.models import (
     Ingredient,
@@ -53,9 +54,7 @@ class TagToggle:
 def list_ingredient_recipes(request):
     ingredient_id = int(request.matchdict["id"])
     ingredient = (
-        request.dbsession.query(Ingredient)
-        .filter(Ingredient.id == ingredient_id)
-        .one()
+        request.dbsession.query(Ingredient).filter(Ingredient.id == ingredient_id).one()
     )
     return {"recipes": ingredient.recipes}
 
@@ -67,9 +66,7 @@ def list_ingredient_recipes(request):
 def toggle_ingredient_tag(request):
     ingredient_id = int(request.matchdict["id"])
     ingredient = (
-        request.dbsession.query(Ingredient)
-        .filter(Ingredient.id == ingredient_id)
-        .one()
+        request.dbsession.query(Ingredient).filter(Ingredient.id == ingredient_id).one()
     )
     tag = request.matchdict["tag"]
     if tag in ingredient.tags_set:

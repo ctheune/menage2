@@ -1,5 +1,5 @@
 from pyramid.interfaces import ISecurityPolicy
-from pyramid.security import Allowed, Denied, NO_PERMISSION_REQUIRED
+from pyramid.security import NO_PERMISSION_REQUIRED, Allowed, Denied
 from zope.interface import implementer
 
 PERM_AUTHENTICATED = "authenticated"
@@ -13,6 +13,7 @@ class SessionSecurityPolicy:
         if not user_id:
             return None
         from .models.user import User
+
         user = request.dbsession.get(User, user_id)
         return user if (user and user.is_active) else None
 

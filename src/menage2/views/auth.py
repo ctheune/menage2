@@ -1,20 +1,20 @@
 import base64
 import hmac
+import json
 import secrets
 import smtplib
-import json
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+from pyramid.httpexceptions import HTTPForbidden, HTTPSeeOther
 from pyramid.security import NO_PERMISSION_REQUIRED
-from pyramid.httpexceptions import HTTPSeeOther, HTTPForbidden
-from pyramid.view import view_config, forbidden_view_config
+from pyramid.view import forbidden_view_config, view_config
 
-from ..models.user import User, Passkey
-from ..models.config import ConfigItem
 from .. import SETUP_TOKEN_KEY
+from ..models.config import ConfigItem
+from ..models.user import Passkey, User
 
 _ph = PasswordHasher()
 
@@ -36,6 +36,7 @@ def _get_next_url(request):
 # Forbidden view
 # ---------------------------------------------------------------------------
 
+
 @forbidden_view_config()
 def forbidden_view(request):
     if request.identity is not None:
@@ -54,6 +55,7 @@ def forbidden_view(request):
 # Setup (first-run admin creation)
 # ---------------------------------------------------------------------------
 
+
 def _get_setup_token(request):
     item = request.dbsession.get(ConfigItem, SETUP_TOKEN_KEY)
     return item.value if item else None
@@ -65,11 +67,15 @@ def _valid_setup_token(stored, provided):
     return hmac.compare_digest(stored, provided)
 
 
-@view_config(route_name="setup", request_method="GET",
-             renderer="menage2:templates/auth/setup.pt",
-             permission=NO_PERMISSION_REQUIRED)
+@view_config(
+    route_name="setup",
+    request_method="GET",
+    renderer="menage2:templates/auth/setup.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def setup_get(request):
     from sqlalchemy import func
+
     count = request.dbsession.query(func.count(User.id)).scalar()
     if count > 0:
         return HTTPSeeOther(location=request.route_url("list_todos"))
@@ -81,16 +87,25 @@ def setup_get(request):
         return {"stage": "token", "token_error": None, "errors": {}, "token": ""}
 
     if not _valid_setup_token(stored, token_param):
-        return {"stage": "token", "token_error": "Invalid token.", "errors": {}, "token": ""}
+        return {
+            "stage": "token",
+            "token_error": "Invalid token.",
+            "errors": {},
+            "token": "",
+        }
 
     return {"stage": "form", "token": token_param, "errors": {}, "token_error": None}
 
 
-@view_config(route_name="setup", request_method="POST",
-             renderer="menage2:templates/auth/setup.pt",
-             permission=NO_PERMISSION_REQUIRED)
+@view_config(
+    route_name="setup",
+    request_method="POST",
+    renderer="menage2:templates/auth/setup.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def setup_post(request):
     from sqlalchemy import func
+
     count = request.dbsession.query(func.count(User.id)).scalar()
     if count > 0:
         return HTTPSeeOther(location=request.route_url("list_todos"))
@@ -99,7 +114,12 @@ def setup_post(request):
     stored = _get_setup_token(request)
 
     if not _valid_setup_token(stored, token_post):
-        return {"stage": "token", "token_error": "Invalid or missing token.", "errors": {}, "token": ""}
+        return {
+            "stage": "token",
+            "token_error": "Invalid or missing token.",
+            "errors": {},
+            "token": "",
+        }
 
     errors = {}
     username = request.POST.get("username", "").strip()
@@ -120,7 +140,12 @@ def setup_post(request):
         errors["confirm_password"] = "Passwords do not match."
 
     if errors:
-        return {"stage": "form", "token": token_post, "errors": errors, "token_error": None}
+        return {
+            "stage": "form",
+            "token": token_post,
+            "errors": errors,
+            "token_error": None,
+        }
 
     user = User(
         username=username,
@@ -155,28 +180,31 @@ def setup_post(request):
 # Login / Logout
 # ---------------------------------------------------------------------------
 
-@view_config(route_name="login", request_method="GET",
-             renderer="menage2:templates/auth/login.pt",
-             permission=NO_PERMISSION_REQUIRED)
+
+@view_config(
+    route_name="login",
+    request_method="GET",
+    renderer="menage2:templates/auth/login.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def login_get(request):
     if request.identity is not None:
         return HTTPSeeOther(location=request.route_url("list_todos"))
     return {"error": None, "came_from": request.params.get("came_from", "")}
 
 
-@view_config(route_name="login", request_method="POST",
-             renderer="menage2:templates/auth/login.pt",
-             permission=NO_PERMISSION_REQUIRED)
+@view_config(
+    route_name="login",
+    request_method="POST",
+    renderer="menage2:templates/auth/login.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def login_post(request):
     username = request.POST.get("username", "").strip()
     password = request.POST.get("password", "")
     came_from = request.POST.get("came_from", "")
 
-    user = (
-        request.dbsession.query(User)
-        .filter(User.username == username)
-        .first()
-    )
+    user = request.dbsession.query(User).filter(User.username == username).first()
 
     error = None
     if user is None or not user.is_active or user.password_hash is None:
@@ -195,12 +223,17 @@ def login_post(request):
 
     user.last_login_at = _now()
     request.session["user_id"] = user.id
-    next_url = came_from if (came_from and came_from.startswith("/")) else request.route_url("list_todos")
+    next_url = (
+        came_from
+        if (came_from and came_from.startswith("/"))
+        else request.route_url("list_todos")
+    )
     return HTTPSeeOther(location=next_url)
 
 
-@view_config(route_name="logout", request_method="POST",
-             permission=NO_PERMISSION_REQUIRED)
+@view_config(
+    route_name="logout", request_method="POST", permission=NO_PERMISSION_REQUIRED
+)
 def logout(request):
     request.session.invalidate()
     return HTTPSeeOther(location=request.route_url("login"))
@@ -210,16 +243,23 @@ def logout(request):
 # Password recovery
 # ---------------------------------------------------------------------------
 
-@view_config(route_name="forgot_password", request_method="GET",
-             renderer="menage2:templates/auth/forgot_password.pt",
-             permission=NO_PERMISSION_REQUIRED)
+
+@view_config(
+    route_name="forgot_password",
+    request_method="GET",
+    renderer="menage2:templates/auth/forgot_password.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def forgot_password_get(request):
     return {"submitted": False}
 
 
-@view_config(route_name="forgot_password", request_method="POST",
-             renderer="menage2:templates/auth/forgot_password.pt",
-             permission=NO_PERMISSION_REQUIRED)
+@view_config(
+    route_name="forgot_password",
+    request_method="POST",
+    renderer="menage2:templates/auth/forgot_password.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def forgot_password_post(request):
     email = request.POST.get("email", "").strip()
     user = request.dbsession.query(User).filter(User.email == email).first()
@@ -231,9 +271,12 @@ def forgot_password_post(request):
     return {"submitted": True}
 
 
-@view_config(route_name="reset_password", request_method="GET",
-             renderer="menage2:templates/auth/reset_password.pt",
-             permission=NO_PERMISSION_REQUIRED)
+@view_config(
+    route_name="reset_password",
+    request_method="GET",
+    renderer="menage2:templates/auth/reset_password.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def reset_password_get(request):
     token = request.matchdict["token"]
     user = _get_user_by_reset_token(request, token)
@@ -242,9 +285,12 @@ def reset_password_get(request):
     return {"valid": True, "error": None, "token": token}
 
 
-@view_config(route_name="reset_password", request_method="POST",
-             renderer="menage2:templates/auth/reset_password.pt",
-             permission=NO_PERMISSION_REQUIRED)
+@view_config(
+    route_name="reset_password",
+    request_method="POST",
+    renderer="menage2:templates/auth/reset_password.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def reset_password_post(request):
     token = request.matchdict["token"]
     user = _get_user_by_reset_token(request, token)
@@ -267,9 +313,7 @@ def reset_password_post(request):
 
 def _get_user_by_reset_token(request, token):
     user = (
-        request.dbsession.query(User)
-        .filter(User.password_reset_token == token)
-        .first()
+        request.dbsession.query(User).filter(User.password_reset_token == token).first()
     )
     if user is None:
         return None
@@ -313,8 +357,13 @@ def _send_password_reset_email(request, user, token):
 # WebAuthn / Passkey login
 # ---------------------------------------------------------------------------
 
-@view_config(route_name="login_passkey_begin", request_method="POST",
-             renderer="json", permission=NO_PERMISSION_REQUIRED)
+
+@view_config(
+    route_name="login_passkey_begin",
+    request_method="POST",
+    renderer="json",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def login_passkey_begin(request):
     import webauthn
     from webauthn.helpers.structs import UserVerificationRequirement
@@ -332,16 +381,25 @@ def login_passkey_begin(request):
         allow_credentials=allow_credentials,
         user_verification=UserVerificationRequirement.PREFERRED,
     )
-    request.session["webauthn_auth_challenge"] = base64.b64encode(options.challenge).decode()
+    request.session["webauthn_auth_challenge"] = base64.b64encode(
+        options.challenge
+    ).decode()
 
     return json.loads(webauthn.options_to_json(options))
 
 
-@view_config(route_name="login_passkey_complete", request_method="POST",
-             renderer="json", permission=NO_PERMISSION_REQUIRED)
+@view_config(
+    route_name="login_passkey_complete",
+    request_method="POST",
+    renderer="json",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def login_passkey_complete(request):
     import webauthn
-    from webauthn.helpers.exceptions import InvalidCBORData, InvalidAuthenticatorDataStructure
+    from webauthn.helpers.exceptions import (
+        InvalidAuthenticatorDataStructure,
+        InvalidCBORData,
+    )
 
     challenge_b64 = request.session.get("webauthn_auth_challenge")
     if not challenge_b64:

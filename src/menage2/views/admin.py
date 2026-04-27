@@ -23,14 +23,20 @@ def _now():
 # User listing
 # ---------------------------------------------------------------------------
 
-@view_config(route_name="admin_users", renderer="menage2:templates/admin/users.pt",
-             permission=PERM_ADMIN)
+
+@view_config(
+    route_name="admin_users",
+    renderer="menage2:templates/admin/users.pt",
+    permission=PERM_ADMIN,
+)
 def list_users(request):
     users = request.dbsession.query(User).order_by(User.username).all()
     sweep_spawned = request.params.get("sweep_spawned")
     return {
         "users": users,
-        "sweep_spawned": int(sweep_spawned) if sweep_spawned and sweep_spawned.isdigit() else None,
+        "sweep_spawned": int(sweep_spawned)
+        if sweep_spawned and sweep_spawned.isdigit()
+        else None,
     }
 
 
@@ -38,16 +44,23 @@ def list_users(request):
 # Create user
 # ---------------------------------------------------------------------------
 
-@view_config(route_name="admin_user_new", request_method="GET",
-             renderer="menage2:templates/admin/user_form.pt",
-             permission=PERM_ADMIN)
+
+@view_config(
+    route_name="admin_user_new",
+    request_method="GET",
+    renderer="menage2:templates/admin/user_form.pt",
+    permission=PERM_ADMIN,
+)
 def new_user_get(request):
     return {"user": None, "errors": {}, "action": request.route_url("admin_user_new")}
 
 
-@view_config(route_name="admin_user_new", request_method="POST",
-             renderer="menage2:templates/admin/user_form.pt",
-             permission=PERM_ADMIN)
+@view_config(
+    route_name="admin_user_new",
+    request_method="POST",
+    renderer="menage2:templates/admin/user_form.pt",
+    permission=PERM_ADMIN,
+)
 def new_user_post(request):
     errors = {}
     username = request.POST.get("username", "").strip()
@@ -59,7 +72,9 @@ def new_user_post(request):
     if not username:
         errors["username"] = "Username is required."
     else:
-        existing = request.dbsession.query(User).filter(User.username == username).first()
+        existing = (
+            request.dbsession.query(User).filter(User.username == username).first()
+        )
         if existing:
             errors["username"] = "Username already taken."
 
@@ -69,12 +84,18 @@ def new_user_post(request):
     if not email:
         errors["email"] = "Email is required."
     else:
-        existing_email = request.dbsession.query(User).filter(User.email == email).first()
+        existing_email = (
+            request.dbsession.query(User).filter(User.email == email).first()
+        )
         if existing_email:
             errors["email"] = "Email already in use."
 
     if errors:
-        return {"user": None, "errors": errors, "action": request.route_url("admin_user_new")}
+        return {
+            "user": None,
+            "errors": errors,
+            "action": request.route_url("admin_user_new"),
+        }
 
     user = User(
         username=username,
@@ -93,20 +114,31 @@ def new_user_post(request):
 # Edit user
 # ---------------------------------------------------------------------------
 
-@view_config(route_name="admin_user_edit", request_method="GET",
-             renderer="menage2:templates/admin/user_form.pt",
-             permission=PERM_ADMIN)
+
+@view_config(
+    route_name="admin_user_edit",
+    request_method="GET",
+    renderer="menage2:templates/admin/user_form.pt",
+    permission=PERM_ADMIN,
+)
 def edit_user_get(request):
     user_id = int(request.matchdict["id"])
     user = request.dbsession.get(User, user_id)
     if user is None:
         raise HTTPNotFound()
-    return {"user": user, "errors": {}, "action": request.route_url("admin_user_edit", id=user_id)}
+    return {
+        "user": user,
+        "errors": {},
+        "action": request.route_url("admin_user_edit", id=user_id),
+    }
 
 
-@view_config(route_name="admin_user_edit", request_method="POST",
-             renderer="menage2:templates/admin/user_form.pt",
-             permission=PERM_ADMIN)
+@view_config(
+    route_name="admin_user_edit",
+    request_method="POST",
+    renderer="menage2:templates/admin/user_form.pt",
+    permission=PERM_ADMIN,
+)
 def edit_user_post(request):
     user_id = int(request.matchdict["id"])
     user = request.dbsession.get(User, user_id)
@@ -135,14 +167,26 @@ def edit_user_post(request):
             errors["email"] = "Email already in use by another user."
 
     if errors:
-        return {"user": user, "errors": errors, "action": request.route_url("admin_user_edit", id=user_id)}
+        return {
+            "user": user,
+            "errors": errors,
+            "action": request.route_url("admin_user_edit", id=user_id),
+        }
 
     # Guard: prevent removing admin from last admin
     if user.is_admin and not is_admin:
-        admin_count = request.dbsession.query(User).filter(User.is_admin == True, User.is_active == True).count()
+        admin_count = (
+            request.dbsession.query(User).filter(User.is_admin, User.is_active).count()
+        )
         if admin_count <= 1:
-            errors["is_admin"] = "Cannot remove admin from the last active administrator."
-            return {"user": user, "errors": errors, "action": request.route_url("admin_user_edit", id=user_id)}
+            errors["is_admin"] = (
+                "Cannot remove admin from the last active administrator."
+            )
+            return {
+                "user": user,
+                "errors": errors,
+                "action": request.route_url("admin_user_edit", id=user_id),
+            }
 
     user.real_name = real_name
     user.email = email
@@ -159,8 +203,10 @@ def edit_user_post(request):
 # Deactivate / delete
 # ---------------------------------------------------------------------------
 
-@view_config(route_name="admin_user_deactivate", request_method="POST",
-             permission=PERM_ADMIN)
+
+@view_config(
+    route_name="admin_user_deactivate", request_method="POST", permission=PERM_ADMIN
+)
 def deactivate_user(request):
     user_id = int(request.matchdict["id"])
     if user_id == request.identity.id:
@@ -172,8 +218,9 @@ def deactivate_user(request):
     return HTTPSeeOther(location=request.route_url("admin_users"))
 
 
-@view_config(route_name="admin_user_delete", request_method="POST",
-             permission=PERM_ADMIN)
+@view_config(
+    route_name="admin_user_delete", request_method="POST", permission=PERM_ADMIN
+)
 def delete_user(request):
     user_id = int(request.matchdict["id"])
     if user_id == request.identity.id:
@@ -184,9 +231,7 @@ def delete_user(request):
 
     if user.is_admin:
         admin_count = (
-            request.dbsession.query(User)
-            .filter(User.is_admin == True, User.is_active == True)
-            .count()
+            request.dbsession.query(User).filter(User.is_admin, User.is_active).count()
         )
         if admin_count <= 1:
             raise HTTPBadRequest("Cannot delete the last active administrator.")
@@ -199,9 +244,12 @@ def delete_user(request):
 # Dashboard token management
 # ---------------------------------------------------------------------------
 
-@view_config(route_name="admin_dashboard_token",
-             renderer="menage2:templates/admin/dashboard_token.pt",
-             permission=PERM_ADMIN)
+
+@view_config(
+    route_name="admin_dashboard_token",
+    renderer="menage2:templates/admin/dashboard_token.pt",
+    permission=PERM_ADMIN,
+)
 def dashboard_token_view(request):
     config_item = request.dbsession.get(ConfigItem, DASHBOARD_TOKEN_KEY)
 
@@ -216,8 +264,7 @@ def dashboard_token_view(request):
 
     token_value = config_item.value if config_item else None
     dashboard_url = (
-        request.route_url("dashboard", token=token_value)
-        if token_value else None
+        request.route_url("dashboard", token=token_value) if token_value else None
     )
 
     return {"token": token_value, "dashboard_url": dashboard_url}
@@ -227,9 +274,10 @@ def dashboard_token_view(request):
 # Manual recurrence sweep
 # ---------------------------------------------------------------------------
 
-@view_config(route_name="admin_recurrence_sweep",
-             request_method="POST",
-             permission=PERM_ADMIN)
+
+@view_config(
+    route_name="admin_recurrence_sweep", request_method="POST", permission=PERM_ADMIN
+)
 def recurrence_sweep(request):
     """Force the daily recurrence sweep regardless of the marker.
 
@@ -238,6 +286,9 @@ def recurrence_sweep(request):
     """
     today = _datetime.date.today()
     spawned = force_recurrence_sweep(request.dbsession, today, _now())
-    return HTTPSeeOther(location=request.route_url(
-        "admin_users", _query={"sweep_spawned": str(spawned)},
-    ))
+    return HTTPSeeOther(
+        location=request.route_url(
+            "admin_users",
+            _query={"sweep_spawned": str(spawned)},
+        )
+    )

@@ -9,12 +9,12 @@ model uses values_callable to store lowercase (monday, tuesday, …).
 This migration renames them to lowercase so queries match.
 
 """
+
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
-revision = '190dd630e542'
-down_revision = '85c42b840e15'
+revision = "190dd630e542"
+down_revision = "85c42b840e15"
 branch_labels = None
 depends_on = None
 
