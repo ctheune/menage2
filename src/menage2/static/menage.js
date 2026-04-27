@@ -308,8 +308,8 @@ function initTagInput() {
     // Pills are inline between editable spans; passing overrideText replaces first-seg content.
     function renderAllPills(overrideText) {
         var hadFocus = textOuter.contains(document.activeElement);
-        var first = getFirstSeg();
-        var rawSaved = overrideText !== undefined ? overrideText : (first ? first.textContent : '');
+        var rawSaved = overrideText !== undefined ? overrideText :
+            getAllSegs().map(function(s) { return s.textContent; }).join('');
 
         // Build pill list first so we know whether to add a trailing space
         var pillList = [];

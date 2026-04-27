@@ -231,6 +231,58 @@ def test_caret_opens_picker_and_adds_pill(page):
     assert "todo-due--today" in chip.first.get_attribute("class")
 
 
+def test_date_pill_preserves_existing_text(page):
+    """Adding a date pill must not delete the text already typed in the input."""
+    page.goto("/todos")
+    _first_seg(page).click()
+    page.keyboard.type("Walk the dog")
+    _first_seg(page).press("^")
+    page.wait_for_selector(".todo-popover[data-role='date-picker']", timeout=2000)
+    page.click("text=Today")
+    page.wait_for_selector(".todo-date-pill", timeout=2000)
+    assert (
+        "Walk the dog" in page.locator("#todo-text .todo-text-seg").first.inner_text()
+    )
+    page.keyboard.press("Enter")
+    page.wait_for_load_state("networkidle")
+    assert page.locator('.todo-item[data-todo-text="Walk the dog"]').count() == 1
+
+
+def test_rec_pill_preserves_existing_text(page):
+    """Adding a recurrence pill must not delete the text already typed in the input."""
+    page.goto("/todos")
+    _first_seg(page).click()
+    page.keyboard.type("Daily standup")
+    _first_seg(page).press("*")
+    page.wait_for_selector(".todo-popover[data-role='recurrence-picker']", timeout=2000)
+    page.click("text=every day")
+    page.wait_for_selector(".todo-rec-pill", timeout=2000)
+    assert (
+        "Daily standup" in page.locator("#todo-text .todo-text-seg").first.inner_text()
+    )
+    page.keyboard.press("Enter")
+    page.wait_for_load_state("networkidle")
+    assert page.locator('.todo-item[data-todo-text="Daily standup"]').count() == 1
+
+
+def test_note_pill_adds_and_preserves_text(page):
+    """Typing ~ opens the note picker; existing text must survive the commit."""
+    page.goto("/todos")
+    _first_seg(page).click()
+    page.keyboard.type("Feed the cat")
+    _first_seg(page).press("~")
+    page.wait_for_selector(".todo-note-popover", timeout=2000)
+    page.fill(".todo-note-popover input", "dry food only")
+    page.keyboard.press("Enter")
+    page.wait_for_selector(".todo-note-pill", timeout=2000)
+    assert (
+        "Feed the cat" in page.locator("#todo-text .todo-text-seg").first.inner_text()
+    )
+    page.keyboard.press("Enter")
+    page.wait_for_load_state("networkidle")
+    assert page.locator('.todo-item[data-todo-text="Feed the cat"]').count() == 1
+
+
 def test_d_key_opens_date_picker(page):
     page.goto("/todos")
     _add_todo(page, "Date picker subject")
