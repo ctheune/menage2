@@ -250,3 +250,69 @@ def test_excluded_day_skipped_in_shopping_list(app_request, dbsession):
     dbsession.flush()
 
     assert dbsession.query(Todo).count() == 0
+
+
+# ---------------------------------------------------------------------------
+# Recipe picker: sorted, title-only datalist
+# ---------------------------------------------------------------------------
+
+
+def test_recipe_picker_sorted_and_no_ids(authenticated_testapp, dbsession):
+    r1 = Recipe(title="Zucchinisuppe", schedule=Schedule())
+    r2 = Recipe(title="Apfelkuchen", schedule=Schedule())
+    r3 = Recipe(title="Nudelauflauf", schedule=Schedule())
+    dbsession.add_all([r1, r2, r3])
+    week = Week()
+    dbsession.add(week)
+    dbsession.flush()
+    dbsession.add(Day(day=datetime.date(2026, 5, 1), week=week))
+    dbsession.flush()
+
+    res = authenticated_testapp.get(f"/week/{week.id}/edit", status=200)
+    body = res.text
+
+    pos_apfel = body.index("Apfelkuchen")
+    pos_nudel = body.index("Nudelauflauf")
+    pos_zucchini = body.index("Zucchinisuppe")
+    assert pos_apfel < pos_nudel < pos_zucchini
+
+    # Option labels are titles only — no "ID – Title" pattern in the visible text.
+    assert "–" not in body
+
+
+def test_edit_week_sets_dinner_by_id(authenticated_testapp, dbsession):
+    recipe = Recipe(title="Tomatensalat", schedule=Schedule())
+    dbsession.add(recipe)
+    week = Week()
+    dbsession.add(week)
+    dbsession.flush()
+    day = Day(day=datetime.date(2026, 5, 2), week=week)
+    dbsession.add(day)
+    dbsession.flush()
+
+    authenticated_testapp.post(
+        f"/week/{week.id}/edit",
+        {"dinner": str(recipe.id), "dinner_freestyle": "", "note": ""},
+        status=303,
+    )
+    # Session is shared; day is the same Python object — no expire_all needed.
+    assert day.dinner_id == recipe.id
+
+
+def test_edit_week_empty_dinner_clears(authenticated_testapp, dbsession):
+    recipe = Recipe(title="Gulasch", schedule=Schedule())
+    dbsession.add(recipe)
+    week = Week()
+    dbsession.add(week)
+    dbsession.flush()
+    day = Day(day=datetime.date(2026, 5, 3), week=week, dinner=recipe)
+    dbsession.add(day)
+    dbsession.flush()
+
+    authenticated_testapp.post(
+        f"/week/{week.id}/edit",
+        {"dinner": "", "dinner_freestyle": "", "note": ""},
+        status=303,
+    )
+    # Session is shared; day is the same Python object — no expire_all needed.
+    assert day.dinner_id is None

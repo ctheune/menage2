@@ -27,8 +27,10 @@ def edit_week_get(request):
         .filter(models.Week.id == request.matchdict["id"])
         .one()
     )
-    recipes = request.dbsession.query(models.Recipe).filter(
-        models.Recipe.active.is_(True)
+    recipes = (
+        request.dbsession.query(models.Recipe)
+        .filter(models.Recipe.active.is_(True))
+        .order_by(models.Recipe.title)
     )
     return {"week": week, "recipes": recipes}
 
@@ -53,7 +55,7 @@ def edit_week(request):
         week.days[i].note = note
 
     for i, dinner in enumerate(request.params.getall("dinner")):
-        if dinner == "none":
+        if not dinner:
             week.days[i].dinner_id = None
         else:
             week.days[i].dinner_id = int(dinner)

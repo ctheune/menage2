@@ -33,10 +33,10 @@
               <h6>Rezept aus dem Rezeptbuch</h6>
               <div class="d-flex align-items-center mb-3">
                 <select name="dinner" class="form-select" style="width:16rem">
-                  <option value="none" tal:attributes="selected True if day.dinner is None else None">Kein Rezept</option>
+                  <option value="" tal:attributes="selected True if day.dinner is None else None">Kein Rezept</option>
                   <option tal:repeat="recipe recipes"
                     tal:attributes="value recipe.id; selected True if (day.dinner and recipe.id == day.dinner.id) else None">
-                    ${recipe.id} – ${recipe.title}
+                    ${recipe.title}
                   </option>
                 </select>
                 <span hx-disinherit="*">
@@ -53,7 +53,7 @@
               <ul class="list-unstyled fw-light small" hx-disinherit="*">
                 <li tal:repeat="suggestion day.suggestions()">
                   <a class="link-secondary" hx-post="${request.route_url('set_dinner', day=day.day.isoformat(), recipe=suggestion.id)}" hx-target="body">
-                    ${suggestion.id} – ${suggestion.title}
+                    ${suggestion.title}
                   </a>
                   <a href="${request.route_url('edit_recipe', id=suggestion.id)}"> ✏️ </a>
                 </li>
