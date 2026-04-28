@@ -158,12 +158,12 @@ function initTagInput() {
 
     form.addEventListener('submit', function() {
         _pendingText = ci.buildCompositeText();
-        if (ci.getEditingId()) ci.exitEditMode();
-        ci.clearVolatileState();
+        if (!ci.getEditingId()) ci.clearVolatileState();
     }, true);
 
     form.addEventListener('htmx:configRequest', function(e) {
         if (_pendingText !== null) { e.detail.parameters['text'] = _pendingText; _pendingText = null; }
+        if (ci.getEditingId()) { ci.exitEditMode(); ci.clearVolatileState(); }
     });
 
     document.body.addEventListener('showAddTodoError', function(e) {

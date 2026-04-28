@@ -544,6 +544,69 @@ def test_scheduled_view_can_edit_item(page):
     )
 
 
+def test_active_view_edit_does_not_create_duplicate(page):
+    """Editing a todo from the active view must update it, not create a new one."""
+    page.goto("/todos")
+    _add_todo(page, "no dup active")
+    page.wait_for_selector('.todo-item[data-todo-text="no dup active"]')
+    count_before = page.locator(".todo-item").count()
+
+    page.locator('.todo-item[data-todo-text="no dup active"] .todo-edit-btn').click()
+    page.wait_for_selector("#todo-tag-input.todo-tag-input--editing", timeout=2000)
+    # Select all and type the new text so input events fire and hidden field syncs.
+    _first_seg(page).click()
+    page.keyboard.press("Meta+a")
+    page.keyboard.type("no dup active edited")
+    page.keyboard.press("Enter")
+    page.wait_for_load_state("networkidle")
+
+    # Reload fresh to see the persisted state from the server.
+    page.goto("/todos")
+    assert page.locator(".todo-item").count() == count_before, (
+        "Edit must not create a duplicate"
+    )
+    assert page.locator('.todo-item[data-todo-text="no dup active"]').count() == 0, (
+        "Original text must be gone"
+    )
+    assert (
+        page.locator('.todo-item[data-todo-text="no dup active edited"]').count() == 1
+    ), "Edited text must appear exactly once"
+
+
+def test_scheduled_view_edit_does_not_create_duplicate(page):
+    """Editing a scheduled todo must update it in place, not add a new todo."""
+    page.goto("/todos")
+    _first_seg(page).fill("no dup scheduled ")
+    page.locator("#todo-text .todo-text-seg").last.press("^")
+    page.wait_for_selector(".todo-popover[data-role='date-picker']")
+    page.click("text=+1 week")
+    page.wait_for_selector(".todo-date-pill")
+    page.keyboard.press("Enter")
+    page.wait_for_load_state("networkidle")
+
+    page.goto("/todos/scheduled")
+    page.wait_for_selector('.todo-item[data-todo-text="no dup scheduled"]')
+    count_before = page.locator(".todo-item").count()
+
+    page.locator('.todo-item[data-todo-text="no dup scheduled"] .todo-edit-btn').click()
+    page.wait_for_selector("#todo-tag-input.todo-tag-input--editing", timeout=2000)
+    _first_seg(page).fill("no dup scheduled edited")
+    page.keyboard.press("Enter")
+    page.wait_for_load_state("networkidle")
+
+    page.goto("/todos/scheduled")
+    assert page.locator(".todo-item").count() == count_before, (
+        "Edit must not create a duplicate"
+    )
+    assert page.locator('.todo-item[data-todo-text="no dup scheduled"]').count() == 0, (
+        "Original text must be gone"
+    )
+    assert (
+        page.locator('.todo-item[data-todo-text="no dup scheduled edited"]').count()
+        == 1
+    ), "Edited text must appear exactly once"
+
+
 # ---------------------------------------------------------------------------
 # contentEditable compound input
 # ---------------------------------------------------------------------------
