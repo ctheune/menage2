@@ -163,8 +163,8 @@ document.addEventListener('click', function(e) {
     if (!thumb) return;
     e.stopPropagation();
     if (!thumb.dataset.fullUrl) return;
-    var preview = thumb.closest('.todo-attachment-preview');
-    var all = preview ? Array.from(preview.querySelectorAll('.todo-attachment-thumb')) : [thumb];
+    var todoItem = thumb.closest('.todo-item');
+    var all = todoItem ? Array.from(todoItem.querySelectorAll('.todo-attachment-thumb')) : [thumb];
     _modalImages = all.map(function(t) { return {full: t.dataset.fullUrl, alt: t.alt || ''}; });
     _modalIndex = all.indexOf(thumb);
     if (_modalIndex < 0) _modalIndex = 0;

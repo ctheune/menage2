@@ -79,7 +79,7 @@ def test_upload_jpeg_creates_db_row_and_two_disk_files(
     assert len(files) == 2
     assert any(f.name.endswith("_thumb.jpg") for f in files)
 
-    assert b"todo-attachment-icon" in res.body or b"bi-camera" in res.body
+    assert b"todo-attachment-thumb" in res.body
 
 
 def test_upload_multiple_files_creates_multiple_rows(

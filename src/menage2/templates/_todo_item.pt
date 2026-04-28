@@ -17,19 +17,31 @@
     <span class="flex-shrink-0">
       <input type="checkbox" class="form-check-input todo-checkbox" data-id="${todo.id}" style="margin-top: 0.11em" />
     </span>
-    <span class="flex-grow-1 text-truncate small">
-      <span>${todo.text}</span>
-      <span class="d-block" tal:condition="todo.due_date or todo.note">
-        <tal:block condition="todo.due_date">
-          <span tal:define="overdue python:todo.due_date < today;
-                            today_due python:todo.due_date == today"
-                tal:attributes="class python: 'todo-due small ' + ('todo-due--overdue' if overdue else ('todo-due--today' if today_due else 'todo-due--future'));
-                                title python: format.date(todo.due_date, format='full')">
-            <tal:block tal:condition="overdue">&#9650; </tal:block>${format.date(todo.due_date, format='medium')}
-          </span>
+    <span class="flex-grow-1 d-flex align-items-center gap-2 small" style="min-width:0">
+      <span class="text-truncate" style="min-width:0">
+        <span>${todo.text}</span>
+        <span class="d-block" tal:condition="todo.due_date or todo.note">
+          <tal:block condition="todo.due_date">
+            <span tal:define="overdue python:todo.due_date < today;
+                              today_due python:todo.due_date == today"
+                  tal:attributes="class python: 'todo-due small ' + ('todo-due--overdue' if overdue else ('todo-due--today' if today_due else 'todo-due--future'));
+                                  title python: format.date(todo.due_date, format='full')">
+              <tal:block tal:condition="overdue">&#9650; </tal:block>${format.date(todo.due_date, format='medium')}
+            </span>
+          </tal:block>
+          <span tal:condition="todo.note"
+                class="text-muted" style="font-size:0.7rem">${todo.note}</span>
+        </span>
+      </span>
+      <span tal:condition="todo.attachments"
+            class="todo-attachment-thumbs flex-shrink-0">
+        <tal:block tal:repeat="att todo.attachments">
+          <img class="todo-attachment-thumb"
+               loading="lazy"
+               tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
+                               data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);
+                               alt att.original_filename" />
         </tal:block>
-        <span tal:condition="todo.note"
-              class="text-muted" style="font-size:0.7rem">${todo.note}</span>
       </span>
     </span>
 
@@ -44,23 +56,6 @@
           class="todo-recurrence flex-shrink-0 small"
           tal:attributes="title python:_recurrence_label(todo)">
       <span class="todo-recurrence-label">${_recurrence_label(todo)}</span> &#8635;
-    </span>
-
-    <span tal:condition="todo.attachments"
-          class="todo-attachment-icon flex-shrink-0 small"
-          tal:attributes="data-todo-id todo.id;
-                          title python:str(len(todo.attachments)) + ' attachment(s)'">
-      <i class="bi bi-camera"></i>
-      <span class="badge bg-secondary rounded-pill" style="font-size:0.6rem">${python:len(todo.attachments)}</span>
-      <div class="todo-attachment-preview">
-        <tal:block tal:repeat="att todo.attachments">
-          <img class="todo-attachment-thumb"
-               loading="lazy"
-               tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
-                               data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);
-                               alt att.original_filename" />
-        </tal:block>
-      </div>
     </span>
 
     <span tal:condition="todo.assignees"
