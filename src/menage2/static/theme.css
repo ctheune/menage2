@@ -1,3 +1,17 @@
+/* Safari tinting — browser samples html/body background for chrome tint */
+html,
+body {
+    background-color: #090c22;
+}
+
+/* Content area: restore the page gray with a small dark border on the sides */
+.helios-content-wrap {
+    background-color: var(--bs-secondary-bg);
+    margin: 0 0rem;
+    border-radius: 0 0 0.5rem 0.5rem;
+    min-height: calc(100vh - 56px);
+}
+
 /* Undo toast positioning */
 .undo-toast {
     position: fixed;
@@ -682,7 +696,7 @@
 .todo-assignee-remove {
     background: none;
     border: none;
-    color: rgba(255,255,255,0.8);
+    color: rgba(255, 255, 255, 0.8);
     padding: 0;
     font-size: 0.9em;
     line-height: 1;
@@ -712,9 +726,479 @@
     font-size: 0.68rem;
 }
 
-/* ── Space-themed navbar ─────────────────────────────────────────────────── */
+/* ── Unified space header — stars + nebula + Martian horizon ─────────────── */
+/* Planet sits on the element background (below animated star pseudo-layers). */
+/* 60% vertical keeps the planet centre at the nav/subnav boundary so the    */
+/* disc spans both rows; the subnav shade darkens it slightly in row 2.       */
+.helios-header {
+    background-color: #04081a;
+    background-image:
+        radial-gradient(
+            circle 210px at calc(100% + 50px) 60%,
+            rgb(140, 45, 10) 0%,
+            rgb(185, 72, 20) 35%,
+            rgb(215, 108, 40) 65%,
+            rgba(255, 197, 0, 0.9) 85%,
+            transparent 100%
+        ),
+        radial-gradient(
+            circle 270px at calc(100% + 50px) 60%,
+            transparent 74%,
+            rgba(255, 197, 0, 0.72) 82%,
+            rgba(255, 155, 30, 0.38) 90%,
+            transparent 100%
+        ),
+        radial-gradient(
+            ellipse 62% 100% at 108% 60%,
+            rgba(255, 197, 0, 0.18) 0%,
+            rgba(255, 140, 30, 0.07) 55%,
+            transparent 100%
+        );
+    position: relative;
+}
+
+.helios-header::before,
+.helios-header::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Layer 1 — nebula glow + bright/medium/dim white stars                      */
+/* Nebula glows centred in the upper (navbar) third: y ≈ 28% of combined hdr */
+.helios-header::before {
+    background-image:
+        radial-gradient(
+            ellipse 50% 300% at 78% 28%,
+            rgba(110, 55, 210, 0.13) 0%,
+            transparent 100%
+        ),
+        radial-gradient(
+            ellipse 35% 250% at 18% 28%,
+            rgba(35, 75, 200, 0.09) 0%,
+            transparent 100%
+        ),
+        /* bright (1 px) */
+        radial-gradient(circle at 8% 30%, #fff 0%, #fff 1px, transparent 1px),
+        radial-gradient(
+            circle at 23% 65%,
+            rgba(255, 255, 255, 0.9) 0%,
+            rgba(255, 255, 255, 0.9) 1px,
+            transparent 1px
+        ),
+        radial-gradient(circle at 41% 20%, #fff 0%, #fff 1px, transparent 1px),
+        radial-gradient(
+            circle at 57% 78%,
+            rgba(255, 255, 255, 0.85) 0%,
+            rgba(255, 255, 255, 0.85) 1px,
+            transparent 1px
+        ),
+        radial-gradient(circle at 69% 40%, #fff 0%, #fff 1px, transparent 1px),
+        radial-gradient(
+            circle at 82% 15%,
+            rgba(255, 255, 255, 0.9) 0%,
+            rgba(255, 255, 255, 0.9) 1px,
+            transparent 1px
+        ),
+        radial-gradient(
+            circle at 91% 60%,
+            rgba(255, 255, 255, 0.95) 0%,
+            rgba(255, 255, 255, 0.95) 1px,
+            transparent 1px
+        ),
+        radial-gradient(
+            circle at 35% 85%,
+            rgba(255, 255, 255, 0.85) 0%,
+            rgba(255, 255, 255, 0.85) 1px,
+            transparent 1px
+        ),
+        radial-gradient(circle at 76% 35%, #fff 0%, #fff 1px, transparent 1px),
+        radial-gradient(
+            circle at 14% 75%,
+            rgba(255, 255, 255, 0.9) 0%,
+            rgba(255, 255, 255, 0.9) 1px,
+            transparent 1px
+        ),
+        /* medium (.6 px) */
+        radial-gradient(
+                circle at 3% 50%,
+                rgba(255, 255, 255, 0.72) 0%,
+                rgba(255, 255, 255, 0.72) 0.6px,
+                transparent 0.6px
+            ),
+        radial-gradient(
+            circle at 16% 20%,
+            rgba(255, 255, 255, 0.68) 0%,
+            rgba(255, 255, 255, 0.68) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 27% 45%,
+            rgba(255, 255, 255, 0.78) 0%,
+            rgba(255, 255, 255, 0.78) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 38% 90%,
+            rgba(255, 255, 255, 0.62) 0%,
+            rgba(255, 255, 255, 0.62) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 45% 10%,
+            rgba(255, 255, 255, 0.72) 0%,
+            rgba(255, 255, 255, 0.72) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 52% 60%,
+            rgba(255, 255, 255, 0.68) 0%,
+            rgba(255, 255, 255, 0.68) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 61% 30%,
+            rgba(255, 255, 255, 0.78) 0%,
+            rgba(255, 255, 255, 0.78) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 72% 80%,
+            rgba(255, 255, 255, 0.62) 0%,
+            rgba(255, 255, 255, 0.62) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 83% 55%,
+            rgba(255, 255, 255, 0.72) 0%,
+            rgba(255, 255, 255, 0.72) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 94% 25%,
+            rgba(255, 255, 255, 0.68) 0%,
+            rgba(255, 255, 255, 0.68) 0.6px,
+            transparent 0.6px
+        ),
+        /* dim (.4 px) */
+        radial-gradient(
+                circle at 1% 40%,
+                rgba(255, 255, 255, 0.42) 0%,
+                rgba(255, 255, 255, 0.42) 0.4px,
+                transparent 0.4px
+            ),
+        radial-gradient(
+            circle at 7% 10%,
+            rgba(255, 255, 255, 0.38) 0%,
+            rgba(255, 255, 255, 0.38) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 13% 55%,
+            rgba(255, 255, 255, 0.48) 0%,
+            rgba(255, 255, 255, 0.48) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 21% 80%,
+            rgba(255, 255, 255, 0.33) 0%,
+            rgba(255, 255, 255, 0.33) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 31% 30%,
+            rgba(255, 255, 255, 0.43) 0%,
+            rgba(255, 255, 255, 0.43) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 36% 60%,
+            rgba(255, 255, 255, 0.38) 0%,
+            rgba(255, 255, 255, 0.38) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 43% 75%,
+            rgba(255, 255, 255, 0.48) 0%,
+            rgba(255, 255, 255, 0.48) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 50% 15%,
+            rgba(255, 255, 255, 0.38) 0%,
+            rgba(255, 255, 255, 0.38) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 58% 45%,
+            rgba(255, 255, 255, 0.43) 0%,
+            rgba(255, 255, 255, 0.43) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 66% 20%,
+            rgba(255, 255, 255, 0.33) 0%,
+            rgba(255, 255, 255, 0.33) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 73% 65%,
+            rgba(255, 255, 255, 0.48) 0%,
+            rgba(255, 255, 255, 0.48) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 80% 30%,
+            rgba(255, 255, 255, 0.38) 0%,
+            rgba(255, 255, 255, 0.38) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 89% 85%,
+            rgba(255, 255, 255, 0.43) 0%,
+            rgba(255, 255, 255, 0.43) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 97% 50%,
+            rgba(255, 255, 255, 0.33) 0%,
+            rgba(255, 255, 255, 0.33) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 4% 25%,
+            rgba(255, 255, 255, 0.38) 0%,
+            rgba(255, 255, 255, 0.38) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 17% 70%,
+            rgba(255, 255, 255, 0.43) 0%,
+            rgba(255, 255, 255, 0.43) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 25% 50%,
+            rgba(255, 255, 255, 0.33) 0%,
+            rgba(255, 255, 255, 0.33) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 33% 10%,
+            rgba(255, 255, 255, 0.48) 0%,
+            rgba(255, 255, 255, 0.48) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 40% 40%,
+            rgba(255, 255, 255, 0.38) 0%,
+            rgba(255, 255, 255, 0.38) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 53% 85%,
+            rgba(255, 255, 255, 0.43) 0%,
+            rgba(255, 255, 255, 0.43) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 62% 55%,
+            rgba(255, 255, 255, 0.33) 0%,
+            rgba(255, 255, 255, 0.33) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 70% 10%,
+            rgba(255, 255, 255, 0.38) 0%,
+            rgba(255, 255, 255, 0.38) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 77% 75%,
+            rgba(255, 255, 255, 0.48) 0%,
+            rgba(255, 255, 255, 0.48) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 85% 45%,
+            rgba(255, 255, 255, 0.38) 0%,
+            rgba(255, 255, 255, 0.38) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 92% 15%,
+            rgba(255, 255, 255, 0.33) 0%,
+            rgba(255, 255, 255, 0.33) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 9% 95%,
+            rgba(255, 255, 255, 0.43) 0%,
+            rgba(255, 255, 255, 0.43) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 26% 5%,
+            rgba(255, 255, 255, 0.38) 0%,
+            rgba(255, 255, 255, 0.38) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 44% 95%,
+            rgba(255, 255, 255, 0.33) 0%,
+            rgba(255, 255, 255, 0.33) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 68% 5%,
+            rgba(255, 255, 255, 0.43) 0%,
+            rgba(255, 255, 255, 0.43) 0.4px,
+            transparent 0.4px
+        ),
+        radial-gradient(
+            circle at 86% 95%,
+            rgba(255, 255, 255, 0.38) 0%,
+            rgba(255, 255, 255, 0.38) 0.4px,
+            transparent 0.4px
+        );
+    animation: helios-twinkle-a 4s ease-in-out infinite alternate;
+}
+
+/* Layer 2 — secondary medium stars + warm/cool tinted stars */
+.helios-header::after {
+    background-image:
+        radial-gradient(
+            circle at 11% 40%,
+            rgba(255, 255, 255, 0.78) 0%,
+            rgba(255, 255, 255, 0.78) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 29% 15%,
+            rgba(255, 255, 255, 0.68) 0%,
+            rgba(255, 255, 255, 0.68) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 48% 70%,
+            rgba(255, 255, 255, 0.73) 0%,
+            rgba(255, 255, 255, 0.73) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 64% 50%,
+            rgba(255, 255, 255, 0.63) 0%,
+            rgba(255, 255, 255, 0.63) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 78% 90%,
+            rgba(255, 255, 255, 0.78) 0%,
+            rgba(255, 255, 255, 0.78) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 87% 40%,
+            rgba(255, 255, 255, 0.68) 0%,
+            rgba(255, 255, 255, 0.68) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 6% 65%,
+            rgba(255, 255, 255, 0.73) 0%,
+            rgba(255, 255, 255, 0.73) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 19% 35%,
+            rgba(255, 255, 255, 0.63) 0%,
+            rgba(255, 255, 255, 0.63) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 55% 25%,
+            rgba(255, 255, 255, 0.78) 0%,
+            rgba(255, 255, 255, 0.78) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 96% 70%,
+            rgba(255, 255, 255, 0.68) 0%,
+            rgba(255, 255, 255, 0.68) 0.6px,
+            transparent 0.6px
+        ),
+        /* tinted — cool blue */
+        radial-gradient(
+                circle at 34% 55%,
+                rgba(200, 220, 255, 0.78) 0%,
+                rgba(200, 220, 255, 0.78) 0.6px,
+                transparent 0.6px
+            ),
+        radial-gradient(
+            circle at 74% 20%,
+            rgba(210, 225, 255, 0.75) 0%,
+            rgba(210, 225, 255, 0.75) 0.6px,
+            transparent 0.6px
+        ),
+        radial-gradient(
+            circle at 22% 92%,
+            rgba(220, 235, 255, 0.7) 0%,
+            rgba(220, 235, 255, 0.7) 0.6px,
+            transparent 0.6px
+        ),
+        /* tinted — warm amber/orange */
+        radial-gradient(
+                circle at 60% 85%,
+                rgba(255, 225, 200, 0.7) 0%,
+                rgba(255, 225, 200, 0.7) 0.6px,
+                transparent 0.6px
+            ),
+        radial-gradient(
+            circle at 50% 95%,
+            rgba(255, 230, 210, 0.65) 0%,
+            rgba(255, 230, 210, 0.65) 0.6px,
+            transparent 0.6px
+        ),
+        /* tinted — rose */
+        radial-gradient(
+                circle at 90% 55%,
+                rgba(255, 210, 230, 0.65) 0%,
+                rgba(255, 210, 230, 0.65) 0.6px,
+                transparent 0.6px
+            );
+    animation: helios-twinkle-b 6s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes helios-twinkle-a {
+    from {
+        opacity: 0.82;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes helios-twinkle-b {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0.75;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .helios-header::before,
+    .helios-header::after {
+        animation: none;
+    }
+}
+
+/* Navbar sits transparently inside the header — stars show through */
 .navbar.navbar-dark {
-    background-color: #04081a !important;
+    background-color: transparent !important;
     position: relative;
 }
 
@@ -723,142 +1207,23 @@
     z-index: 1;
 }
 
-.navbar.navbar-dark::before,
-.navbar.navbar-dark::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-}
-
-/* Layer 1 — nebula glow + bright/medium/dim white stars */
-.navbar.navbar-dark::before {
-    background-image:
-        radial-gradient(ellipse 50% 300% at 78% 50%, rgba(110,55,210,.13) 0%, transparent 100%),
-        radial-gradient(ellipse 35% 250% at 18% 50%, rgba(35,75,200,.09)  0%, transparent 100%),
-        /* bright (1 px) */
-        radial-gradient(circle at  8% 30%, #fff 0%, #fff 1px, transparent 1px),
-        radial-gradient(circle at 23% 65%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.90) 1px, transparent 1px),
-        radial-gradient(circle at 41% 20%, #fff 0%, #fff 1px, transparent 1px),
-        radial-gradient(circle at 57% 78%, rgba(255,255,255,.85) 0%, rgba(255,255,255,.85) 1px, transparent 1px),
-        radial-gradient(circle at 69% 40%, #fff 0%, #fff 1px, transparent 1px),
-        radial-gradient(circle at 82% 15%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.90) 1px, transparent 1px),
-        radial-gradient(circle at 91% 60%, rgba(255,255,255,.95) 0%, rgba(255,255,255,.95) 1px, transparent 1px),
-        radial-gradient(circle at 35% 85%, rgba(255,255,255,.85) 0%, rgba(255,255,255,.85) 1px, transparent 1px),
-        radial-gradient(circle at 76% 35%, #fff 0%, #fff 1px, transparent 1px),
-        radial-gradient(circle at 14% 75%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.90) 1px, transparent 1px),
-        /* medium (.6 px) */
-        radial-gradient(circle at  3% 50%, rgba(255,255,255,.72) 0%, rgba(255,255,255,.72) .6px, transparent .6px),
-        radial-gradient(circle at 16% 20%, rgba(255,255,255,.68) 0%, rgba(255,255,255,.68) .6px, transparent .6px),
-        radial-gradient(circle at 27% 45%, rgba(255,255,255,.78) 0%, rgba(255,255,255,.78) .6px, transparent .6px),
-        radial-gradient(circle at 38% 90%, rgba(255,255,255,.62) 0%, rgba(255,255,255,.62) .6px, transparent .6px),
-        radial-gradient(circle at 45% 10%, rgba(255,255,255,.72) 0%, rgba(255,255,255,.72) .6px, transparent .6px),
-        radial-gradient(circle at 52% 60%, rgba(255,255,255,.68) 0%, rgba(255,255,255,.68) .6px, transparent .6px),
-        radial-gradient(circle at 61% 30%, rgba(255,255,255,.78) 0%, rgba(255,255,255,.78) .6px, transparent .6px),
-        radial-gradient(circle at 72% 80%, rgba(255,255,255,.62) 0%, rgba(255,255,255,.62) .6px, transparent .6px),
-        radial-gradient(circle at 83% 55%, rgba(255,255,255,.72) 0%, rgba(255,255,255,.72) .6px, transparent .6px),
-        radial-gradient(circle at 94% 25%, rgba(255,255,255,.68) 0%, rgba(255,255,255,.68) .6px, transparent .6px),
-        /* dim (.4 px) */
-        radial-gradient(circle at  1% 40%, rgba(255,255,255,.42) 0%, rgba(255,255,255,.42) .4px, transparent .4px),
-        radial-gradient(circle at  7% 10%, rgba(255,255,255,.38) 0%, rgba(255,255,255,.38) .4px, transparent .4px),
-        radial-gradient(circle at 13% 55%, rgba(255,255,255,.48) 0%, rgba(255,255,255,.48) .4px, transparent .4px),
-        radial-gradient(circle at 21% 80%, rgba(255,255,255,.33) 0%, rgba(255,255,255,.33) .4px, transparent .4px),
-        radial-gradient(circle at 31% 30%, rgba(255,255,255,.43) 0%, rgba(255,255,255,.43) .4px, transparent .4px),
-        radial-gradient(circle at 36% 60%, rgba(255,255,255,.38) 0%, rgba(255,255,255,.38) .4px, transparent .4px),
-        radial-gradient(circle at 43% 75%, rgba(255,255,255,.48) 0%, rgba(255,255,255,.48) .4px, transparent .4px),
-        radial-gradient(circle at 50% 15%, rgba(255,255,255,.38) 0%, rgba(255,255,255,.38) .4px, transparent .4px),
-        radial-gradient(circle at 58% 45%, rgba(255,255,255,.43) 0%, rgba(255,255,255,.43) .4px, transparent .4px),
-        radial-gradient(circle at 66% 20%, rgba(255,255,255,.33) 0%, rgba(255,255,255,.33) .4px, transparent .4px),
-        radial-gradient(circle at 73% 65%, rgba(255,255,255,.48) 0%, rgba(255,255,255,.48) .4px, transparent .4px),
-        radial-gradient(circle at 80% 30%, rgba(255,255,255,.38) 0%, rgba(255,255,255,.38) .4px, transparent .4px),
-        radial-gradient(circle at 89% 85%, rgba(255,255,255,.43) 0%, rgba(255,255,255,.43) .4px, transparent .4px),
-        radial-gradient(circle at 97% 50%, rgba(255,255,255,.33) 0%, rgba(255,255,255,.33) .4px, transparent .4px),
-        radial-gradient(circle at  4% 25%, rgba(255,255,255,.38) 0%, rgba(255,255,255,.38) .4px, transparent .4px),
-        radial-gradient(circle at 17% 70%, rgba(255,255,255,.43) 0%, rgba(255,255,255,.43) .4px, transparent .4px),
-        radial-gradient(circle at 25% 50%, rgba(255,255,255,.33) 0%, rgba(255,255,255,.33) .4px, transparent .4px),
-        radial-gradient(circle at 33% 10%, rgba(255,255,255,.48) 0%, rgba(255,255,255,.48) .4px, transparent .4px),
-        radial-gradient(circle at 40% 40%, rgba(255,255,255,.38) 0%, rgba(255,255,255,.38) .4px, transparent .4px),
-        radial-gradient(circle at 53% 85%, rgba(255,255,255,.43) 0%, rgba(255,255,255,.43) .4px, transparent .4px),
-        radial-gradient(circle at 62% 55%, rgba(255,255,255,.33) 0%, rgba(255,255,255,.33) .4px, transparent .4px),
-        radial-gradient(circle at 70% 10%, rgba(255,255,255,.38) 0%, rgba(255,255,255,.38) .4px, transparent .4px),
-        radial-gradient(circle at 77% 75%, rgba(255,255,255,.48) 0%, rgba(255,255,255,.48) .4px, transparent .4px),
-        radial-gradient(circle at 85% 45%, rgba(255,255,255,.38) 0%, rgba(255,255,255,.38) .4px, transparent .4px),
-        radial-gradient(circle at 92% 15%, rgba(255,255,255,.33) 0%, rgba(255,255,255,.33) .4px, transparent .4px),
-        radial-gradient(circle at  9% 95%, rgba(255,255,255,.43) 0%, rgba(255,255,255,.43) .4px, transparent .4px),
-        radial-gradient(circle at 26%  5%, rgba(255,255,255,.38) 0%, rgba(255,255,255,.38) .4px, transparent .4px),
-        radial-gradient(circle at 44% 95%, rgba(255,255,255,.33) 0%, rgba(255,255,255,.33) .4px, transparent .4px),
-        radial-gradient(circle at 68%  5%, rgba(255,255,255,.43) 0%, rgba(255,255,255,.43) .4px, transparent .4px),
-        radial-gradient(circle at 86% 95%, rgba(255,255,255,.38) 0%, rgba(255,255,255,.38) .4px, transparent .4px);
-    animation: helios-twinkle-a 4s ease-in-out infinite alternate;
-}
-
-/* Layer 2 — secondary medium stars + warm/cool tinted stars */
-.navbar.navbar-dark::after {
-    background-image:
-        radial-gradient(circle at 11% 40%, rgba(255,255,255,.78) 0%, rgba(255,255,255,.78) .6px, transparent .6px),
-        radial-gradient(circle at 29% 15%, rgba(255,255,255,.68) 0%, rgba(255,255,255,.68) .6px, transparent .6px),
-        radial-gradient(circle at 48% 70%, rgba(255,255,255,.73) 0%, rgba(255,255,255,.73) .6px, transparent .6px),
-        radial-gradient(circle at 64% 50%, rgba(255,255,255,.63) 0%, rgba(255,255,255,.63) .6px, transparent .6px),
-        radial-gradient(circle at 78% 90%, rgba(255,255,255,.78) 0%, rgba(255,255,255,.78) .6px, transparent .6px),
-        radial-gradient(circle at 87% 40%, rgba(255,255,255,.68) 0%, rgba(255,255,255,.68) .6px, transparent .6px),
-        radial-gradient(circle at  6% 65%, rgba(255,255,255,.73) 0%, rgba(255,255,255,.73) .6px, transparent .6px),
-        radial-gradient(circle at 19% 35%, rgba(255,255,255,.63) 0%, rgba(255,255,255,.63) .6px, transparent .6px),
-        radial-gradient(circle at 55% 25%, rgba(255,255,255,.78) 0%, rgba(255,255,255,.78) .6px, transparent .6px),
-        radial-gradient(circle at 96% 70%, rgba(255,255,255,.68) 0%, rgba(255,255,255,.68) .6px, transparent .6px),
-        /* tinted — cool blue */
-        radial-gradient(circle at 34% 55%, rgba(200,220,255,.78) 0%, rgba(200,220,255,.78) .6px, transparent .6px),
-        radial-gradient(circle at 74% 20%, rgba(210,225,255,.75) 0%, rgba(210,225,255,.75) .6px, transparent .6px),
-        radial-gradient(circle at 22% 92%, rgba(220,235,255,.70) 0%, rgba(220,235,255,.70) .6px, transparent .6px),
-        /* tinted — warm amber/orange */
-        radial-gradient(circle at 60% 85%, rgba(255,225,200,.70) 0%, rgba(255,225,200,.70) .6px, transparent .6px),
-        radial-gradient(circle at 50% 95%, rgba(255,230,210,.65) 0%, rgba(255,230,210,.65) .6px, transparent .6px),
-        /* tinted — rose */
-        radial-gradient(circle at 90% 55%, rgba(255,210,230,.65) 0%, rgba(255,210,230,.65) .6px, transparent .6px);
-    animation: helios-twinkle-b 6s ease-in-out infinite alternate-reverse;
-}
-
-@keyframes helios-twinkle-a {
-    from { opacity: .82; }
-    to   { opacity: 1;   }
-}
-
-@keyframes helios-twinkle-b {
-    from { opacity: 1;   }
-    to   { opacity: .75; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .navbar.navbar-dark::before,
-    .navbar.navbar-dark::after {
-        animation: none;
-    }
-}
-
 /* ── Martian horizon secondary bar ──────────────────────────────────────── */
+/* Planet lives on .helios-header background and shows through here.        */
+/* Shade overlay dims row 2 slightly for visual distinction.                */
 .helios-subnav {
     position: relative;
-    /* Mars surface: large circle centered 50 px past the right edge         */
-    /* Atmosphere limb: glowing ring just beyond the planet's visible edge   */
-    /* Diffuse haze: wide amber scatter fading into deep space               */
-    background-color: #04081a;
-    background-image:
-        radial-gradient(circle 210px at calc(100% + 50px) 50%,
-            rgb(140, 45, 10)        0%,
-            rgb(185, 72, 20)       35%,
-            rgb(215, 108, 40)      65%,
-            rgba(255, 197, 0, 0.9) 85%,
-            transparent            100%),
-        radial-gradient(circle 270px at calc(100% + 50px) 50%,
-            transparent             74%,
-            rgba(255, 197, 0, 0.72) 82%,
-            rgba(255, 155, 30, 0.38) 90%,
-            transparent            100%),
-        radial-gradient(ellipse 62% 100% at 108% 50%,
-            rgba(255, 197, 0, 0.18)  0%,
-            rgba(255, 140, 30, 0.07) 55%,
-            transparent             100%);
-    border-bottom: 1px solid rgba(255, 197, 0, 0.30);
+    z-index: 1;
+    background-color: transparent;
+    background-image: linear-gradient(
+        hat rgba(255, 255, 255, 0.1),
+        rgba(0, 0, 0, 0)
+    );
+    border-bottom: 1px solid rgba(255, 197, 0, 0.3);
+}
+
+.helios-subnav .px-3 {
+    position: relative;
+    z-index: 1;
 }
 
 /* Nav tabs — legible against dark space / Mars glow */
@@ -867,10 +1232,12 @@
 }
 
 .helios-subnav .nav-tabs .nav-link {
-    color: rgba(255, 255, 255, 0.70);
+    color: rgba(255, 255, 255, 0.7);
     border: 1px solid transparent;
     border-bottom-width: 2px;
-    transition: color 0.15s ease, border-color 0.15s ease;
+    transition:
+        color 0.15s ease,
+        border-color 0.15s ease;
 }
 
 .helios-subnav .nav-tabs .nav-link:hover {

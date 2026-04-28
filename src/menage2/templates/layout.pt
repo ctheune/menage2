@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>🛸 Helios</title>
-
     <link href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQEAYAAABPYyMiAAAABmJLR0T///////8JWPfcAAAACXBIWXMAAABIAAAASABGyWs+AAAAF0lEQVRIx2NgGAWjYBSMglEwCkbBSAcACBAAAeaR9cIAAAAASUVORK5CYII=" rel="icon" type="image/x-icon" />
     <link rel="apple-touch-icon" href="${request.static_url('menage2:static/applogo.png')}">
     <meta name="apple-mobile-web-app-title" content="Helios">
@@ -17,10 +16,12 @@
     <script src="${request.static_url('menage2:static/htmx.min.js')}" defer></script>
     <script src="${request.static_url('menage2:static/hyperscript.min.js')}" defer></script>
     <script src="${request.static_url('menage2:static/bootstrap.bundle.min.js')}" defer></script>
+    <script src="${request.static_url('menage2:static/composite-input.js')}" defer></script>
     <script src="${request.static_url('menage2:static/menage.js')}" defer></script>
+    <meta name="theme-color" content="#04081A">
   </head>
 
-  <body class="bg-body-secondary" hx-boost="true"
+  <body hx-boost="true"
         data-tags-url="${request.route_url('list_tags_json')}">
 
   <tal:block tal:define="
@@ -42,7 +43,8 @@
     sub_admin_ops python:route_name in ('admin_operations', 'admin_dashboard_token', 'admin_recurrence_sweep')
   ">
 
-  <nav class="navbar navbar-expand-md navbar-dark bg-dark">
+  <div class="helios-header">
+  <nav class="navbar navbar-expand-md navbar-dark">
     <div class="container-fluid">
       <a class="navbar-brand" href="${request.route_url('home')}">🛸 Helios</a>
       <span class="navbar-text d-md-none small">
@@ -76,14 +78,14 @@
             </tal:block>
           </tal:block>
         </ul>
-        <ul class="navbar-nav ms-auto">
+        <ul class="navbar-nav ms-auto align-items-center gap-2">
           <tal:block tal:condition="request.identity is not None">
             <li class="nav-item">
-              <a class="nav-link text-secondary" href="${request.route_url('account')}">${request.identity.username}</a>
+              <a class="btn btn-sm btn-outline-light" href="${request.route_url('account')}">${request.identity.username}</a>
             </li>
             <li class="nav-item">
-              <form method="post" action="${request.route_url('logout')}" class="d-inline">
-                <button type="submit" class="nav-link btn btn-link text-secondary">Log off</button>
+              <form method="post" action="${request.route_url('logout')}" class="m-0">
+                <button type="submit" class="btn btn-sm btn-outline-light">Log off</button>
               </form>
             </li>
           </tal:block>
@@ -189,8 +191,11 @@
     </div>
     <metal:block define-slot="subtitle"></metal:block>
   </div>
+  </div><!-- /.helios-header -->
 
-  <div metal:define-slot="content">No content</div>
+  <div class="helios-content-wrap">
+    <div metal:define-slot="content">No content</div>
+  </div>
 
   </tal:block>
 
