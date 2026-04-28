@@ -21,6 +21,13 @@ Menage is a software suite for managing household day to day tasks:
 
 To avoid encoding issues, always encode unicode characters outside ascii as hex characters as appropriate for the language (javascript, json, python, ...)
 
+# Python
+
+* use pathlib instead of os.path
+* annotate types when you change things, avoid Any
+
+* if you want to run python scripts, use `uv run ...` instead of plain python calls to ensure proper dependencies
+
 # Frameworks
 
 ## Hyperscript instead of Javascript
