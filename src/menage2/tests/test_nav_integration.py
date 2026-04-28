@@ -16,9 +16,9 @@ def _now():
 # ---------------------------------------------------------------------------
 
 
-def test_victuals_nav_active_on_recipes(authenticated_testapp):
+def test_food_nav_active_on_recipes(authenticated_testapp):
     res = authenticated_testapp.get("/recipes", status=200)
-    assert b"Victuals" in res.body
+    assert b"Food" in res.body
     assert b"Recipes" in res.body
 
 
