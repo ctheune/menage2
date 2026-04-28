@@ -1,0 +1,104 @@
+<div metal:use-macro="load: ../layout.pt">
+  <span metal:fill-slot="title-mobile">Composite Playground</span>
+  <div metal:fill-slot="title">Composite Input Playground</div>
+
+  <div metal:fill-slot="content" class="container py-4">
+    <div class="mb-3">
+      <a href="${request.route_url('admin_operations')}" class="link-secondary">&larr; Back to Maintenance</a>
+    </div>
+
+    <div class="row g-4 justify-content-center">
+      <div class="col-12 col-md-10 col-lg-8">
+
+        <!-- Full feature composite -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <i class="bi bi-input-cursor-text"></i> Full composite (tags + assignees + recurrence + date + note)
+          </div>
+          <div class="card-body">
+            <label class="form-label small text-muted">
+              Composite input &mdash; try <code>#tag</code>, <code>@person</code>, <code>*weekly</code>, <code>^2026-05-01</code>, <code>~note</code>
+            </label>
+            <div class="input-group mb-2">
+              <div class="todo-tag-input ci-container flex-grow-1" id="pg-full-ci">
+                <div class="ci-text"
+                     style="flex:1;min-width:6rem;cursor:text;word-break:break-word;min-height:1.5em;"></div>
+              </div>
+            </div>
+            <input type="hidden" id="pg-full-hidden" class="ci-hidden-input"/>
+            <div class="ci-quick-pick d-flex flex-wrap gap-1 mb-2" id="pg-full-qp"></div>
+
+            <label class="form-label small text-muted mt-2">Canonical string (reflected from composite)</label>
+            <textarea id="pg-full-textarea" class="form-control font-monospace" rows="2" readonly
+                      placeholder="(empty)"></textarea>
+          </div>
+        </div>
+
+        <!-- Protocol item composite (tags + assignees + note) -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <i class="bi bi-list-check"></i> Protocol item composite (tags + assignees + note)
+          </div>
+          <div class="card-body">
+            <label class="form-label small text-muted">
+              Composite input &mdash; try <code>#tag</code>, <code>@person</code>, <code>~note</code>
+            </label>
+            <div class="input-group mb-2">
+              <div class="todo-tag-input ci-container flex-grow-1" id="pg-item-ci">
+                <div class="ci-text"
+                     style="flex:1;min-width:6rem;cursor:text;word-break:break-word;min-height:1.5em;"></div>
+              </div>
+            </div>
+            <input type="hidden" id="pg-item-hidden" class="ci-hidden-input"/>
+            <div class="ci-quick-pick d-flex flex-wrap gap-1 mb-2" id="pg-item-qp"></div>
+
+            <label class="form-label small text-muted mt-2">Canonical string (reflected from composite)</label>
+            <textarea id="pg-item-textarea" class="form-control font-monospace" rows="2" readonly
+                      placeholder="(empty)"></textarea>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+(function() {
+  function initPlayground(containerId, hiddenId, textareaId, quickPickId, opts) {
+    var container = document.getElementById(containerId);
+    var hidden = document.getElementById(hiddenId);
+    var textarea = document.getElementById(textareaId);
+    var qp = document.getElementById(quickPickId);
+    if (!container || !hidden || !textarea) return;
+
+    CompositeInput(container, Object.assign({
+      textOuter: container.querySelector('.ci-text'),
+      hiddenInput: hidden,
+      quickPickEl: qp,
+      principalsUrl: '/todos/principals.json',
+      placeholder: 'Type here…',
+    }, opts));
+
+    setInterval(function() {
+      var val = hidden.value || '';
+      if (textarea.value !== val) textarea.value = val;
+    }, 100);
+  }
+
+  function setupPlayground() {
+    initPlayground('pg-full-ci', 'pg-full-hidden', 'pg-full-textarea', 'pg-full-qp', {
+      tags: true, note: true, recurrence: true, dueDate: true, assignees: true,
+    });
+    initPlayground('pg-item-ci', 'pg-item-hidden', 'pg-item-textarea', 'pg-item-qp', {
+      tags: true, note: true, recurrence: false, dueDate: false, assignees: true,
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupPlayground);
+  } else {
+    setupPlayground();
+  }
+})();
+</script>

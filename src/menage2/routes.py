@@ -46,6 +46,7 @@ def includeme(config):
     config.add_route("admin_user_delete", "/admin/users/{id}/delete")
     config.add_route("admin_dashboard_token", "/admin/dashboard-token")
     config.add_route("admin_recurrence_sweep", "/admin/recurrence-sweep")
+    config.add_route("admin_composite_playground", "/admin/composite-playground")
     config.add_route("admin_teams", "/admin/teams")
     config.add_route("admin_team_new", "/admin/teams/new")
     config.add_route("admin_team_edit", "/admin/teams/{id}/edit")
@@ -100,6 +101,7 @@ def includeme(config):
     config.add_route("parse_recurrence_preview", "/todos/parse-recurrence")
     config.add_route("recurrence_history", "/todos/{id}/history")
     config.add_route("list_tags_json", "/todos/tags.json")
+    config.add_route("list_top_tags_json", "/todos/top-tags.json")
     config.add_route("list_principals_json", "/todos/principals.json")
 
     # Protocols

@@ -263,13 +263,30 @@ def admin_operations(request):
         request.route_url("dashboard", token=token_value) if token_value else None
     )
     sweep_spawned = request.params.get("sweep_spawned")
+    includes = request.registry.settings.get("pyramid.includes", "")
+    is_debug = "pyramid_debugtoolbar" in includes
     return {
         "token": token_value,
         "dashboard_url": dashboard_url,
         "sweep_spawned": int(sweep_spawned)
         if sweep_spawned and sweep_spawned.isdigit()
         else None,
+        "is_debug": is_debug,
     }
+
+
+@view_config(
+    route_name="admin_composite_playground",
+    renderer="menage2:templates/admin/composite_playground.pt",
+    permission=PERM_ADMIN,
+)
+def composite_playground(request):
+    includes = request.registry.settings.get("pyramid.includes", "")
+    if "pyramid_debugtoolbar" not in includes:
+        from pyramid.httpexceptions import HTTPNotFound
+
+        raise HTTPNotFound()
+    return {}
 
 
 @view_config(

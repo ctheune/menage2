@@ -224,6 +224,7 @@ def update_protocol(request):
                 if run.todo and run.todo.status.value == "todo":
                     run.todo.text = new_title
         p.tags = parsed.tags
+        p.assignees = set(parsed.assignees)
         p.note = parsed.note or None
         if parsed.recurrence:
             _apply_protocol_recurrence(p, parsed.recurrence, request.dbsession)
@@ -231,14 +232,6 @@ def update_protocol(request):
             ensure_protocol_has_run(p, _today(), _now_utc(), request.dbsession)
         else:
             _apply_protocol_recurrence(p, None, request.dbsession)
-
-    if "assignees" in request.params:
-        raw_assignees = request.params.get("assignees", "")
-        p.assignees = set(
-            a.lstrip("@").strip()
-            for a in raw_assignees.split(",")
-            if a.strip().lstrip("@")
-        )
 
     return HTTPSeeOther(request.route_url("edit_protocol", id=p.id))
 

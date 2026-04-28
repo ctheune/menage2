@@ -73,6 +73,39 @@ def test_edit_protocol_composite_tags_and_note(
     assert p.note == "check corners"
 
 
+def test_edit_protocol_composite_assignees(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user)
+    authenticated_testapp.post(
+        f"/protocols/{p.id}/edit",
+        {"composite": "Clean house #household @alice @bob"},
+        status=303,
+    )
+    dbsession.flush()
+    dbsession.refresh(p)
+    assert p.title == "Clean house"
+    assert "household" in p.tags
+    assert "alice" in p.assignees
+    assert "bob" in p.assignees
+
+
+def test_edit_protocol_composite_clears_assignees(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user)
+    p.assignees = {"alice"}
+    dbsession.flush()
+    authenticated_testapp.post(
+        f"/protocols/{p.id}/edit",
+        {"composite": "Clean house"},
+        status=303,
+    )
+    dbsession.flush()
+    dbsession.refresh(p)
+    assert p.assignees == set()
+
+
 def test_edit_protocol_composite_shows_in_form(
     authenticated_testapp, dbsession, admin_user
 ):
@@ -450,3 +483,39 @@ def test_completing_protocol_todo_with_after_rule_spawns_next(
         .one()
     )
     assert new_todo.due_date == _today() + datetime.timedelta(days=7)
+
+
+# ---------------------------------------------------------------------------
+# Tag JSON endpoints
+# ---------------------------------------------------------------------------
+
+
+def test_list_tags_json_includes_protocol_tags(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user)
+    p.tags = {"maintenance", "weekly"}
+    dbsession.flush()
+    res = authenticated_testapp.get("/todos/tags.json", status=200)
+    data = res.json
+    assert "maintenance" in data
+    assert "weekly" in data
+
+
+def test_list_tags_json_includes_protocol_item_tags(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["check fridge"])
+    item = p.items[0]
+    item.tags = {"cold", "kitchen"}
+    dbsession.flush()
+    res = authenticated_testapp.get("/todos/tags.json", status=200)
+    data = res.json
+    assert "cold" in data
+    assert "kitchen" in data
+
+
+def test_list_top_tags_json_returns_list(authenticated_testapp):
+    res = authenticated_testapp.get("/todos/top-tags.json", status=200)
+    assert isinstance(res.json, list)
+    assert len(res.json) <= 5

@@ -38,9 +38,9 @@ def test_tasks_subnav_on_protocols(authenticated_testapp):
     assert b"Protocols" in res.body
 
 
-def test_operations_nav_active_on_admin_users(authenticated_testapp):
+def test_maintenance_nav_active_on_admin_users(authenticated_testapp):
     res = authenticated_testapp.get("/admin/users", status=200)
-    assert b"Operations" in res.body
+    assert b"Maintenance" in res.body
     assert b"Crew" in res.body
     assert b"Departments" in res.body
 
@@ -115,6 +115,15 @@ def test_admin_operations_shows_sweep_result(authenticated_testapp):
 
 def test_admin_operations_requires_admin(user_testapp):
     user_testapp.get("/admin/operations", status=403)
+
+
+def test_admin_operations_title_is_maintenance(authenticated_testapp):
+    res = authenticated_testapp.get("/admin/operations", status=200)
+    assert b"Maintenance" in res.body
+
+
+def test_composite_playground_requires_admin(user_testapp):
+    user_testapp.get("/admin/composite-playground", status=403)
 
 
 # ---------------------------------------------------------------------------

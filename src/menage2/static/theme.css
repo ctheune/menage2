@@ -183,14 +183,23 @@ body {
     position: absolute;
     top: calc(100% + 2px);
     left: 0;
-    right: 0;
+    min-width: 20rem;
+    max-width: 24rem;
     background: var(--bs-body-bg);
     border: 1px solid var(--bs-border-color);
     border-radius: var(--bs-border-radius);
     box-shadow: var(--bs-box-shadow);
     z-index: 200;
-    max-height: 12rem;
+    padding: 0.4rem 0;
+    max-height: 16rem;
     overflow-y: auto;
+}
+
+.todo-ac-heading {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+    padding: 0.2rem 0.75rem 0.15rem;
 }
 
 .todo-ac-item {
@@ -198,6 +207,34 @@ body {
     font-size: 0.8rem;
     cursor: pointer;
     color: var(--bs-body-color);
+}
+
+/* Shortcut hint badge rendered to the right of composites */
+.ci-shortcut-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.72rem;
+    color: var(--bs-secondary-color);
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-left: none;
+    border-radius: 0 var(--bs-border-radius) var(--bs-border-radius) 0;
+    user-select: none;
+    white-space: nowrap;
+}
+.ci-shortcut-hint .ci-shortcut-key {
+    cursor: help;
+    opacity: 0.6;
+}
+.ci-shortcut-hint .ci-shortcut-key:hover {
+    opacity: 1;
+}
+/* When composite+hint live inside an input-group, remove the composite's right radius */
+.input-group .todo-tag-input {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
 }
 
 .todo-ac-item:hover,

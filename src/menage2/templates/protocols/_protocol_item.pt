@@ -3,9 +3,7 @@
     assignee_str python:' '.join('@' + a for a in sorted(item.assignees));
     canonical python:item.text + (' ' + tag_str if tag_str else '') + (' ' + assignee_str if assignee_str else '') + (' ~' + item.note if item.note else '')
     ">
-<li id="item-${item.id}" class="card mb-1 shadow-sm">
-  <div class="card-body py-1 px-3">
-
+<li id="item-${item.id}">
     <!-- Editable form — owner only -->
     <tal:block tal:condition="is_owner">
       <form class="proto-item-form"
@@ -13,25 +11,21 @@
             hx-target="#item-${item.id}"
             hx-swap="outerHTML">
         <input type="hidden" name="text" class="ci-hidden-input" value="${canonical}"/>
-        <div class="d-flex align-items-start gap-1 mb-1">
-          <div class="ci-container todo-tag-input flex-grow-1" style="min-width:0">
-            <div class="ci-text"
-                 style="flex:1;min-width:6rem;cursor:text;word-break:break-word;min-height:1.5em;"></div>
+        <div class="d-flex align-items-center gap-1">
+          <div class="input-group flex-grow-1" style="min-width:0">
+            <div class="ci-container todo-tag-input flex-grow-1">
+              <div class="ci-text"
+                   style="flex:1;min-width:6rem;cursor:text;word-break:break-word;min-height:1.5em;"></div>
+            </div>
           </div>
+          <button type="submit" class="btn btn-sm btn-outline-secondary d-none ci-save-btn flex-shrink-0">Save</button>
           <button type="button"
-                  class="btn btn-link btn-sm p-0 text-danger flex-shrink-0 mt-1"
+                  class="btn btn-link btn-sm p-0 text-danger flex-shrink-0"
                   data-delete-url="${request.route_url('delete_protocol_item', id=protocol.id, item_id=item.id)}"
                   onclick="deleteProtocolItem(this)"
                   title="Delete item">
             <i class="bi bi-trash3"></i>
           </button>
-        </div>
-        <div class="ci-quick-pick d-flex flex-wrap gap-1 mb-1" style="display:none"></div>
-        <div class="d-flex align-items-center gap-2">
-          <button type="submit" class="btn btn-sm btn-outline-secondary d-none ci-save-btn flex-shrink-0">Save</button>
-          <tal:block tal:repeat="a python:sorted(item.assignees)">
-            <span class="badge rounded-pill todo-assignee-pill-sm">@${a}</span>
-          </tal:block>
         </div>
       </form>
     </tal:block>
@@ -49,6 +43,5 @@
       </div>
     </tal:block>
 
-  </div>
 </li>
 </tal:block>

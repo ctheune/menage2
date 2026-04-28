@@ -1180,12 +1180,56 @@ function initProtocolItemInputs() {
         CompositeInput(container, {
             textOuter: container.querySelector('.ci-text'),
             hiddenInput: form.querySelector('.ci-hidden-input'),
-            quickPickEl: form.querySelector('.ci-quick-pick'),
             saveBtn: form.querySelector('.ci-save-btn'),
             form: form,
-            tags: true, note: true, recurrence: false, dueDate: false, assignees: false,
+            tags: true, note: true, recurrence: false, dueDate: false, assignees: true,
+            principalsUrl: '/todos/principals.json',
         });
     });
+}
+
+function initProtocolNewItemInput() {
+    var container = document.querySelector('.proto-new-item-ci');
+    if (!container) return;
+    var form = document.getElementById('proto-new-item-form');
+    var protocolId = form ? form.dataset.protocolId : null;
+    var sessionKey = protocolId ? 'proto-new-item-tags-' + protocolId : null;
+    var focusKey = protocolId ? 'proto-new-item-focus-' + protocolId : null;
+
+    CompositeInput(container, {
+        textOuter: container.querySelector('.ci-text'),
+        hiddenInput: form ? form.querySelector('.ci-hidden-input') : null,
+        form: form,
+        tags: true, note: true, recurrence: false, dueDate: false, assignees: true,
+        principalsUrl: '/todos/principals.json',
+        sessionKey: sessionKey,
+        placeholder: 'New item…',
+    });
+
+    var scrollKey = protocolId ? 'proto-scroll-' + protocolId : null;
+
+    if (scrollKey) {
+        var savedScroll = sessionStorage.getItem(scrollKey);
+        if (savedScroll) {
+            sessionStorage.removeItem(scrollKey);
+            requestAnimationFrame(function() {
+                window.scrollTo({top: parseInt(savedScroll, 10), behavior: 'instant'});
+            });
+        }
+    }
+
+    if (focusKey && sessionStorage.getItem(focusKey)) {
+        sessionStorage.removeItem(focusKey);
+        var seg = container.querySelector('.todo-text-seg');
+        if (seg) { seg.focus(); }
+    }
+
+    if (form) {
+        form.addEventListener('submit', function() {
+            if (focusKey) sessionStorage.setItem(focusKey, '1');
+            if (scrollKey) sessionStorage.setItem(scrollKey, String(window.scrollY));
+        });
+    }
 }
 
 function deleteProtocolItem(btn) {
@@ -1227,7 +1271,8 @@ function initProtocolTitleInput() {
         hiddenInput: form ? form.querySelector('.ci-hidden-input') : null,
         quickPickEl: form ? form.querySelector('.ci-quick-pick') : null,
         form: form,
-        tags: true, note: true, recurrence: true, dueDate: false, assignees: false,
+        tags: true, note: true, recurrence: true, dueDate: false, assignees: true,
+        principalsUrl: '/todos/principals.json',
         placeholder: 'Protocol title…',
     });
 }
@@ -1239,6 +1284,7 @@ htmx.onLoad(function(content) {
     initTagInput();
     initProtocolItemInputs();
     initProtocolTitleInput();
+    initProtocolNewItemInput();
     if (document.getElementById('protocol-run')) _runHighlight();
 });
 ensureHelpOverlay();
@@ -1247,4 +1293,5 @@ initTodoSwipe(document);
 initTagInput();
 initProtocolItemInputs();
 initProtocolTitleInput();
+initProtocolNewItemInput();
 if (document.getElementById('protocol-run')) _runHighlight();

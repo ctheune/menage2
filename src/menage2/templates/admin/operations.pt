@@ -1,6 +1,6 @@
 <div metal:use-macro="load: ../layout.pt">
-  <span metal:fill-slot="title-mobile">Operations</span>
-  <div metal:fill-slot="title">Operations</div>
+  <span metal:fill-slot="title-mobile">Maintenance</span>
+  <div metal:fill-slot="title">Maintenance</div>
 
   <div metal:fill-slot="content" class="container py-4">
     <div class="row g-4 justify-content-center">
@@ -76,6 +76,29 @@
         </div>
 
       </div>
+
+      <tal:block tal:condition="is_debug">
+      <div class="col-12 col-md-6 col-lg-5">
+
+        <!-- Developer tools card (debug mode only) -->
+        <div class="card border-warning">
+          <div class="card-header text-warning-emphasis bg-warning-subtle">
+            <i class="bi bi-bug"></i> Developer Tools
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">
+              Debug mode is active. These tools are only visible when the debug toolbar is enabled.
+            </p>
+            <a href="${request.route_url('admin_composite_playground')}"
+               class="btn btn-sm btn-outline-warning">
+              <i class="bi bi-input-cursor-text"></i> Composite Input Playground
+            </a>
+          </div>
+        </div>
+
+      </div>
+      </tal:block>
+
     </div>
   </div>
 </div>

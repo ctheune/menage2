@@ -13,10 +13,7 @@ function _ciFetchJSON(url, cb) {
 }
 
 function _ciKnownTags(tagsUrl, cb) {
-    var fromPage = Array.from(document.querySelectorAll('.tag-group-header[data-tag]'))
-        .map(function(el) { return el.dataset.tag; })
-        .filter(function(t) { return t && t !== '__untagged__'; });
-    if (fromPage.length) { cb(fromPage); return; }
+    if (!tagsUrl) { cb([]); return; }
     _ciFetchJSON(tagsUrl, cb);
 }
 
@@ -75,6 +72,7 @@ function CompositeInput(containerEl, opts) {
     var saveBtn        = opts.saveBtn || null;
     var form           = opts.form || containerEl.closest('form');
     var tagsUrl        = opts.tagsUrl || (document.body && document.body.dataset.tagsUrl) || '';
+    var quickPickUrl   = opts.quickPickUrl || (document.body && document.body.dataset.topTagsUrl) || tagsUrl;
     var principalsUrl  = opts.principalsUrl || '';
     var sessionKey     = opts.sessionKey || null;
     var _placeholder   = opts.placeholder || 'Add text…';
@@ -105,6 +103,12 @@ function CompositeInput(containerEl, opts) {
             var t = m.slice(1);
             if (enableTags && tags.indexOf(t) === -1) tags.push(t);
         });
+        if (enableAssignees) {
+            (_initialCanonical.match(/@(\S+)/g) || []).forEach(function(m) {
+                var a = m.slice(1);
+                if (assignees.indexOf(a) === -1) assignees.push(a);
+            });
+        }
         if (enableRec) {
             var _rm = _initialCanonical.match(/\*([^#*\^~@]+?)(?=\s*[#*\^~@]|$)/);
             if (_rm) recLabel = _rm[1].trim();
@@ -349,7 +353,7 @@ function CompositeInput(containerEl, opts) {
     function renderQuickPick() {
         if (!quickPickEl || !enableTags) return;
         quickPickEl.innerHTML = '';
-        _ciKnownTags(tagsUrl, function(available) {
+        _ciFetchJSON(quickPickUrl, function(available) {
             var chips = available.filter(function(t) { return tags.indexOf(t) === -1; });
             if (!chips.length) { quickPickEl.style.display = 'none'; return; }
             chips.forEach(function(tag) {
@@ -475,6 +479,10 @@ function CompositeInput(containerEl, opts) {
         if (!matches.length) { hideAc(); return; }
         acSelected = -1;
         acEl.innerHTML = '';
+        var heading = document.createElement('div');
+        heading.className = 'todo-ac-heading';
+        heading.textContent = 'Tags';
+        acEl.appendChild(heading);
         matches.forEach(function(tag) {
             var item = document.createElement('div');
             item.className = 'todo-ac-item';
@@ -507,6 +515,10 @@ function CompositeInput(containerEl, opts) {
         _acMode = 'assignee';
         acSelected = -1;
         acEl.innerHTML = '';
+        var heading = document.createElement('div');
+        heading.className = 'todo-ac-heading';
+        heading.textContent = 'Assignees';
+        acEl.appendChild(heading);
         matches.forEach(function(p) {
             var item = document.createElement('div');
             item.className = 'todo-ac-item';
@@ -784,6 +796,29 @@ function CompositeInput(containerEl, opts) {
         dateISO = null; dateLabel = null; recLabel = null; noteText = '';
         _editingId = null;
     }
+
+    // --- Shortcut hint badge ---
+    (function() {
+        var _hintDefs = [];
+        if (enableTags)      _hintDefs.push({c: '#', t: 'Type #tag to add a tag'});
+        if (enableAssignees) _hintDefs.push({c: '@', t: 'Type @name to assign someone'});
+        if (enableNote)      _hintDefs.push({c: '~', t: 'Type ~ for a note'});
+        if (enableDate)      _hintDefs.push({c: '^', t: 'Type ^ for a due date'});
+        if (enableRec)       _hintDefs.push({c: '*', t: 'Type * for a repeat rule'});
+        if (!_hintDefs.length) return;
+
+        var _hintEl = document.createElement('span');
+        _hintEl.className = 'input-group-text ci-shortcut-hint';
+        _hintDefs.forEach(function(h) {
+            var s = document.createElement('span');
+            s.className = 'ci-shortcut-key';
+            s.textContent = h.c;
+            s.title = h.t;
+            _hintEl.appendChild(s);
+        });
+        // Insert hint as a right-side sibling — works when parent is a flex/input-group container
+        containerEl.insertAdjacentElement('afterend', _hintEl);
+    })();
 
     // --- Initial render ---
     renderAllPills(_initialText);

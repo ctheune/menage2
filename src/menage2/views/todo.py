@@ -819,12 +819,46 @@ def todos_activate_batch(request):
 
 @view_config(route_name="list_tags_json", renderer="json")
 def list_tags_json(request):
-    """Unique tags from active todos — used by the protocol item quick-pick."""
-    todos = _active_todos(request.dbsession, _today(), user=request.identity)
+    """All known tags visible to the current user (todos + protocols + protocol items)."""
+    from menage2.models.protocol import Protocol, ProtocolItem
+
+    user = request.identity
     tags: set[str] = set()
-    for todo in todos:
-        tags.update(todo.tags or set())
+
+    for row in request.dbsession.execute(
+        select(Todo.tags).where(Todo.owner_id == user.id)
+    ).scalars():
+        tags.update(row or set())
+
+    for row in request.dbsession.execute(
+        select(Protocol.tags).where(Protocol.owner_id == user.id)
+    ).scalars():
+        tags.update(row or set())
+
+    for row in request.dbsession.execute(
+        select(ProtocolItem.tags).join(Protocol).where(Protocol.owner_id == user.id)
+    ).scalars():
+        tags.update(row or set())
+
     return sorted(tags)
+
+
+@view_config(route_name="list_top_tags_json", renderer="json")
+def list_top_tags_json(request):
+    """Top 5 most-used tags from todos created in the last 30 days."""
+    from sqlalchemy import text
+
+    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=30)
+    rows = request.dbsession.execute(
+        text(
+            "SELECT tag, count(*) AS cnt"
+            " FROM todos, unnest(tags) AS tag"
+            " WHERE created_at >= :cutoff AND owner_id = :uid"
+            " GROUP BY tag ORDER BY cnt DESC, tag LIMIT 5"
+        ),
+        {"cutoff": cutoff, "uid": request.identity.id},
+    ).fetchall()
+    return [row[0] for row in rows]
 
 
 @view_config(route_name="list_principals_json", renderer="json")
