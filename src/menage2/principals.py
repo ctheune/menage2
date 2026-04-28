@@ -13,7 +13,9 @@ A todo is visible to user U if ANY of:
 
 Filter modes
 ------------
-  "personal"/"all" — owner, direct assignee, or assignee-role team member
+  "personal" — unowned (legacy), owned-and-not-delegated-away (or self is assignee),
+               direct assignee, or assignee-role team member
+  "all"      — owner, direct assignee, or assignee-role team member
   "delegated_out"  — owner_id == me AND assignees != {}
   "delegated_in"   — (direct assignee OR any team member) AND owner_id != me
 
@@ -99,8 +101,18 @@ def filter_todos_for_user(stmt, user, dbsession, filter_mode: str = "personal"):
             or_(*delegated_in_clauses) if delegated_in_clauses else is_direct_assignee,
         )
 
-    # "personal" and "all" — items the user is responsible for.
-    # Includes: owned, unowned (legacy NULL), direct assignee, assignee-role team.
+    if filter_mode == "personal":
+        # Owned todos that haven't been delegated away (or the owner is also an
+        # assignee), plus todos directly assigned/team-assigned to this user.
+        not_delegated_away = ~has_assignees | is_direct_assignee
+        personal_clauses = [
+            is_owner & not_delegated_away,
+            is_unowned,
+            is_direct_assignee,
+        ] + assignee_role_team_clauses
+        return stmt.where(or_(*personal_clauses))
+
+    # "all" — all items the user is responsible for, including delegated out.
     responsible_clauses = [
         is_owner,
         is_unowned,

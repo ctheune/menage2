@@ -225,10 +225,10 @@ def test_visibility_all_excludes_other_users_unassigned(
     assert not any(r.id == t.id for r in rows)
 
 
-def test_visibility_personal_includes_delegated_out(
+def test_visibility_personal_excludes_delegated_out_without_self(
     dbsession, admin_user, regular_user
 ):
-    # personal = everything I'm responsible for; delegated-out todos still show
+    # Owned + assigned to someone else (not me) must NOT appear in personal.
     t = _todo(
         dbsession,
         "Delegated out",
@@ -237,6 +237,36 @@ def test_visibility_personal_includes_delegated_out(
     )
     stmt = select(Todo).where(Todo.id == t.id)
     result = filter_todos_for_user(stmt, admin_user, dbsession, "personal")
+    rows = dbsession.execute(result).scalars().all()
+    assert not any(r.id == t.id for r in rows)
+
+
+def test_visibility_personal_includes_owned_self_assigned(
+    dbsession, admin_user, regular_user
+):
+    # Owned + I am one of the assignees → still personal.
+    t = _todo(
+        dbsession,
+        "Self-assigned",
+        owner_id=admin_user.id,
+        assignees={admin_user.username, regular_user.username},
+    )
+    stmt = select(Todo).where(Todo.id == t.id)
+    result = filter_todos_for_user(stmt, admin_user, dbsession, "personal")
+    rows = dbsession.execute(result).scalars().all()
+    assert any(r.id == t.id for r in rows)
+
+
+def test_visibility_all_includes_delegated_out(dbsession, admin_user, regular_user):
+    # "all" mode still shows owned todos that are delegated out.
+    t = _todo(
+        dbsession,
+        "Delegated out all",
+        owner_id=admin_user.id,
+        assignees={regular_user.username},
+    )
+    stmt = select(Todo).where(Todo.id == t.id)
+    result = filter_todos_for_user(stmt, admin_user, dbsession, "all")
     rows = dbsession.execute(result).scalars().all()
     assert any(r.id == t.id for r in rows)
 
