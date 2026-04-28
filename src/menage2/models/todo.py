@@ -81,6 +81,9 @@ class Todo(Base):
     due_date = Column(Date)
     note = Column(Text)
 
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    assignees = Column(TagSet, nullable=False, server_default="{}")
+
     recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
     recurred_from_id = Column(Integer, ForeignKey("todos.id"), nullable=True)
 
@@ -94,6 +97,7 @@ class Todo(Base):
         nullable=True,
     )
 
+    owner = relationship("User", foreign_keys=[owner_id])
     recurrence = relationship("RecurrenceRule", lazy="joined")
     recurred_from = relationship(
         "Todo", remote_side="Todo.id", foreign_keys=[recurred_from_id]
@@ -108,4 +112,6 @@ class Todo(Base):
     __table_args__ = (
         Index("ix_todos_due_date", "due_date"),
         Index("ix_todos_recurrence_id", "recurrence_id"),
+        Index("ix_todos_owner_id", "owner_id"),
+        Index("ix_todos_assignees", "assignees", postgresql_using="gin"),
     )

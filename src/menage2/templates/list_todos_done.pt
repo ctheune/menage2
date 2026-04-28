@@ -8,6 +8,20 @@
       <a href="${request.route_url('list_todos')}" class="link-secondary">← Back to Todos</a>
     </div>
 
+    <!-- Filter toggle bar -->
+    <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
+      <span class="text-muted small me-1">Show:</span>
+      <tal:block tal:define="modes python:[('all','All'),('personal','Personal'),('delegated_out','Delegated out'),('delegated_in','Delegated in')]">
+        <tal:block tal:repeat="mode modes">
+          <a tal:define="mkey python:mode[0]; mlabel python:mode[1]"
+             href="${request.route_url('list_todos_done')}?filter=${mkey}"
+             tal:attributes="class python:'btn btn-sm rounded-pill ' + ('btn-dark' if filter_mode == mkey else 'btn-outline-secondary')">
+            ${mlabel}
+          </a>
+        </tal:block>
+      </tal:block>
+    </div>
+
     <div id="done-list"
          data-batch-activate-url="${request.route_url('todos_activate_batch')}">
 

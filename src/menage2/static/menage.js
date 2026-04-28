@@ -102,8 +102,19 @@ function initTodoSwipe() {} // kept for htmx.onLoad call below; delegation handl
 
 function parseTagsFromRaw(raw) {
     var tagMatches = (raw.match(/#\S+/g) || []).map(function(t) { return t.slice(1); });
-    var text = raw.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
-    return { tags: tagMatches, text: text };
+    var assigneeMatches = (raw.match(/@\S+/g) || []).map(function(a) { return a.slice(1); });
+    var text = raw.replace(/#\S+/g, '').replace(/@\S+/g, '').replace(/\s+/g, ' ').trim();
+    return { tags: tagMatches, assignees: assigneeMatches, text: text };
+}
+
+// Module-level principals cache (survives HTMX re-inits of initTagInput).
+var _principalsCache = null;
+function _fetchPrincipals(cb) {
+    if (_principalsCache !== null) { cb(_principalsCache); return; }
+    fetch('/todos/principals.json')
+        .then(function(r) { return r.json(); })
+        .then(function(d) { _principalsCache = d; cb(d); })
+        .catch(function() { cb([]); });
 }
 
 // Delegated handler: clicking a todo-item row toggles its checkbox
@@ -126,7 +137,9 @@ document.addEventListener('click', function(e) {
     document.dispatchEvent(new CustomEvent('todoEditStart', {detail: {
         id: li.id.replace('todo-', ''),
         text: li.dataset.todoText || '',
+        note: li.dataset.todoNote || '',
         tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
+        assignees: (li.dataset.todoAssignees || '').split(',').filter(Boolean),
         dueDate: li.dataset.dueDate || null,
         recurrence: li.dataset.recurrence || null,
         editUrl: li.dataset.editUrl || ''
@@ -143,17 +156,20 @@ function initTagInput() {
     var quickPick = document.getElementById('todo-quick-pick');
 
     var tags = JSON.parse(sessionStorage.getItem('todo-tags') || '[]');
+    var assignees = [];
     var addUrl = form.getAttribute('hx-post');
     var savedTags = null;
     var savedDateISO = null;
     var savedRecLabel = null;
     var savedNoteText = null;
+    var savedAssignees = null;
     var editingId = null;
     var dateISO = null;
     var dateLabel = null;
     var recLabel = null;
     var noteText = '';
     var _placeholder = 'New todo\u2026';
+    var _acMode = null; // null | 'tag' | 'assignee'
 
     // --- Segment helpers ---
     // DOM structure: [span.todo-text-seg] [span.pill] [span.todo-text-seg] [span.pill] ...
@@ -304,6 +320,15 @@ function initTagInput() {
         return pill;
     }
 
+    function createAssigneePill(name) {
+        var pill = document.createElement('span');
+        pill.className = 'todo-assignee-pill';
+        pill.dataset.pill = 'assignee';
+        pill.dataset.assignee = name;
+        pill.innerHTML = '@' + name + ' <button class="todo-assignee-remove" type="button" tabindex="-1" data-assignee="' + name + '">\xd7</button>';
+        return pill;
+    }
+
     // Rebuild DOM: [seg(text)] [pill] [empty-seg] [pill] [empty-seg] ...
     // Pills are inline between editable spans; passing overrideText replaces first-seg content.
     function renderAllPills(overrideText) {
@@ -314,6 +339,7 @@ function initTagInput() {
         // Build pill list first so we know whether to add a trailing space
         var pillList = [];
         tags.forEach(function(tag) { pillList.push(createTagPill(tag)); });
+        assignees.forEach(function(name) { pillList.push(createAssigneePill(name)); });
         if (dateISO) pillList.push(createDatePill());
         if (recLabel) pillList.push(createRecPill());
         if (noteText) pillList.push(createNotePill());
@@ -382,6 +408,16 @@ function initTagInput() {
         renderAllPills(); renderQuickPick(); focusLastSeg();
     }
 
+    function addAssignee(name) {
+        if (assignees.indexOf(name) === -1) { assignees.push(name); renderAllPills(); }
+        focusLastSeg();
+    }
+
+    function removeAssignee(name) {
+        assignees = assignees.filter(function(a) { return a !== name; });
+        renderAllPills(); focusLastSeg();
+    }
+
     // --- Date state ---
 
     function _formatDateLabel(iso) {
@@ -424,6 +460,7 @@ function initTagInput() {
 
     function removePillFromState(el) {
         if (el.dataset.pill === 'tag') removeTag(el.dataset.tag);
+        else if (el.dataset.pill === 'assignee') removeAssignee(el.dataset.assignee);
         else if (el.dataset.pill === 'date') clearDate();
         else if (el.dataset.pill === 'rec') clearRecurrence();
         else if (el.dataset.pill === 'note') clearNote();
@@ -446,7 +483,10 @@ function initTagInput() {
         if (rmNote) { e.stopPropagation(); clearNote(); focusLastSeg(); return; }
         var notePill = e.target.closest('.todo-note-pill');
         if (notePill) { e.stopPropagation(); openNotePillPicker(); return; }
+        var rmAssignee = e.target.closest('.todo-assignee-remove');
+        if (rmAssignee) { e.stopPropagation(); removeAssignee(rmAssignee.dataset.assignee); return; }
         if (e.target.closest('.todo-tag-pill')) return;
+        if (e.target.closest('.todo-assignee-pill')) return;
         if (!e.target.classList.contains('todo-text-seg')) focusLastSeg();
     });
 
@@ -503,10 +543,57 @@ function initTagInput() {
         return fi === f.length ? 2 : -1;
     }
 
+    function showAcPrincipals(matches) {
+        if (!matches.length) { hideAc(); return; }
+        _acMode = 'assignee';
+        acSelected = -1;
+        acEl.innerHTML = '';
+        matches.forEach(function(p) {
+            var item = document.createElement('div');
+            item.className = 'todo-ac-item';
+            item.textContent = '@' + p.name + (p.type === 'team' ? ' (team)' : '');
+            item.dataset.assignee = p.name;
+            item.addEventListener('mousedown', function(e) { e.preventDefault(); selectAcAssignee(p.name); });
+            acEl.appendChild(item);
+        });
+        acEl.style.display = 'block';
+    }
+
+    function selectAcAssignee(name) {
+        var sel = window.getSelection();
+        if (sel && sel.rangeCount) {
+            var range = sel.getRangeAt(0);
+            if (range.startContainer.nodeType === Node.TEXT_NODE) {
+                var tn = range.startContainer, pos = range.startOffset;
+                var newBefore = tn.textContent.slice(0, pos).replace(/@\S*$/, '');
+                tn.textContent = newBefore + tn.textContent.slice(pos);
+                range.setStart(tn, newBefore.length); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+            }
+        }
+        hideAc();
+        _acMode = null;
+        addAssignee(name);
+    }
+
     function updateAc() {
         var textBefore = getTextBeforeCursor();
+        var mAt = textBefore.match(/@(\S*)$/);
+        if (mAt) {
+            _acMode = 'assignee';
+            var fragment = mAt[1];
+            _fetchPrincipals(function(principals) {
+                var scored = principals
+                    .map(function(p) { return {name: p.name, type: p.type, score: fuzzyScore(fragment, p.name)}; })
+                    .filter(function(p) { return p.score >= 0 && assignees.indexOf(p.name) === -1; });
+                scored.sort(function(a, b) { return a.score - b.score || a.name.localeCompare(b.name); });
+                showAcPrincipals(scored);
+            });
+            return;
+        }
         var m = textBefore.match(/#(\S*)$/);
-        if (!m) { hideAc(); return; }
+        if (!m) { _acMode = null; hideAc(); return; }
+        _acMode = 'tag';
         var fragment = m[1];
         var known = Array.from(document.querySelectorAll('.tag-group-header[data-tag]'))
             .map(function(el) { return el.dataset.tag; })
@@ -539,10 +626,16 @@ function initTagInput() {
                 return;
             }
             if ((e.key === 'Enter' || e.key === 'Tab') && acSelected >= 0) {
-                e.preventDefault(); selectAc(items[acSelected].dataset.tag); return;
+                e.preventDefault();
+                if (_acMode === 'assignee') selectAcAssignee(items[acSelected].dataset.assignee);
+                else selectAc(items[acSelected].dataset.tag);
+                return;
             }
             if (e.key === 'Tab' && acSelected < 0 && items.length) {
-                e.preventDefault(); selectAc(items[0].dataset.tag); return;
+                e.preventDefault();
+                if (_acMode === 'assignee') selectAcAssignee(items[0].dataset.assignee);
+                else selectAc(items[0].dataset.tag);
+                return;
             }
             if (e.key === 'Escape') { hideAc(); return; }
         }
@@ -634,7 +727,19 @@ function initTagInput() {
                 var newPos = beforeText.length + 1;
                 range.setStart(tn, newPos); range.collapse(true);
                 sel.removeAllRanges(); sel.addRange(range);
-                hideAc(); addTag(tag); updateEmptyClass();
+                hideAc(); _acMode = null; addTag(tag); updateEmptyClass();
+                return;
+            }
+
+            var mAt = before.replace(/\u00a0/g, ' ').match(/@(\S+) $/);
+            if (mAt) {
+                var principal = mAt[1], removeLenAt = mAt[0].length;
+                var beforeTextAt = text.slice(0, pos - removeLenAt).replace(/\s+$/, ' ');
+                tn.textContent = beforeTextAt + ' ' + text.slice(pos);
+                var newPosAt = beforeTextAt.length + 1;
+                range.setStart(tn, newPosAt); range.collapse(true);
+                sel.removeAllRanges(); sel.addRange(range);
+                hideAc(); _acMode = null; addAssignee(principal); updateEmptyClass();
                 return;
             }
         }
@@ -662,13 +767,15 @@ function initTagInput() {
 
     // --- Edit mode ---
 
-    function enterEditMode(id, text, tagList, dueDate, recurrence, editUrl, note) {
+    function enterEditMode(id, text, tagList, dueDate, recurrence, editUrl, note, assigneeList) {
         savedTags = tags.slice();
         savedDateISO = dateISO;
         savedRecLabel = recLabel;
         savedNoteText = noteText;
+        savedAssignees = assignees.slice();
         editingId = id;
         tags = tagList.slice();
+        assignees = (assigneeList || []).slice();
         dateISO = dueDate || null;
         dateLabel = null;
         recLabel = recurrence || null;
@@ -686,6 +793,7 @@ function initTagInput() {
     function exitEditMode() {
         editingId = null;
         tags = savedTags !== null ? savedTags : []; savedTags = null;
+        assignees = savedAssignees !== null ? savedAssignees : []; savedAssignees = null;
         dateISO = savedDateISO; dateLabel = null; savedDateISO = null;
         recLabel = savedRecLabel; savedRecLabel = null;
         noteText = savedNoteText !== null ? savedNoteText : ''; savedNoteText = null;
@@ -699,7 +807,7 @@ function initTagInput() {
 
     document.addEventListener('todoEditStart', function(e) {
         var d = e.detail;
-        enterEditMode(d.id, d.text, d.tags, d.dueDate, d.recurrence, d.editUrl, d.note || '');
+        enterEditMode(d.id, d.text, d.tags, d.dueDate, d.recurrence, d.editUrl, d.note || '', d.assignees || []);
     });
 
     // --- Form submission ---
@@ -711,8 +819,13 @@ function initTagInput() {
         var typedTags = (rawText.match(/#\S+/g) || []).map(function(t) { return t.slice(1); });
         var allTags = tags.slice();
         typedTags.forEach(function(t) { if (allTags.indexOf(t) === -1) allTags.push(t); });
-        var cleanText = rawText.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
-        var parts = [cleanText].concat(allTags.map(function(t) { return '#' + t; }));
+        var typedAssignees = (rawText.match(/@\S+/g) || []).map(function(a) { return a.slice(1); });
+        var allAssignees = assignees.slice();
+        typedAssignees.forEach(function(a) { if (allAssignees.indexOf(a) === -1) allAssignees.push(a); });
+        var cleanText = rawText.replace(/#\S+/g, '').replace(/@\S+/g, '').replace(/\s+/g, ' ').trim();
+        var parts = [cleanText]
+            .concat(allTags.map(function(t) { return '#' + t; }))
+            .concat(allAssignees.map(function(a) { return '@' + a; }));
         if (dateISO) parts.push('^' + dateISO);
         if (recLabel) parts.push('*' + recLabel);
         if (noteText) parts.push('~' + noteText);
@@ -724,12 +837,14 @@ function initTagInput() {
         _pendingText = buildCompositeText();
         if (editingId) {
             tags = savedTags !== null ? savedTags : [];
-            savedTags = null; savedDateISO = null; savedRecLabel = null; savedNoteText = null;
+            assignees = savedAssignees !== null ? savedAssignees : [];
+            savedTags = null; savedAssignees = null; savedDateISO = null; savedRecLabel = null; savedNoteText = null;
             editingId = null;
             container.classList.remove('todo-tag-input--editing');
             _placeholder = 'New todo\u2026';
         }
         sessionStorage.setItem('todo-tags', JSON.stringify(tags));
+        assignees = [];
         dateISO = null; dateLabel = null; recLabel = null; noteText = '';
         renderAllPills('');
     }, true);
@@ -742,6 +857,7 @@ function initTagInput() {
         var raw = e.detail.input || '';
         var parsed = parseTagsFromRaw(raw);
         parsed.tags.forEach(function(t) { if (tags.indexOf(t) === -1) tags.push(t); });
+        parsed.assignees.forEach(function(a) { if (assignees.indexOf(a) === -1) assignees.push(a); });
         renderAllPills(parsed.text || '');
         renderQuickPick();
         focusFirstSeg();
@@ -841,6 +957,7 @@ document.addEventListener('keydown', function(e) {
             text: li.dataset.todoText || '',
             note: li.dataset.todoNote || '',
             tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
+            assignees: (li.dataset.todoAssignees || '').split(',').filter(Boolean),
             dueDate: li.dataset.dueDate || null,
             recurrence: li.dataset.recurrence || null,
             editUrl: li.dataset.editUrl || ''

@@ -22,6 +22,7 @@ from menage2.models.todo import (
     Todo,
     TodoStatus,
 )
+from menage2.principals import filter_todos_for_user, get_all_principals
 from menage2.recurrence import (
     chain_history,
     rule_to_spec,
@@ -34,16 +35,18 @@ from menage2.recurrence import (
 )
 
 _TAG_RE = re.compile(r"#(\S+)")
+_ASSIGNEE_RE = re.compile(r"@(\S+)")
 # Match ^...  up to next marker or end-of-string. Lookahead never consumes.
-_DATE_RE = re.compile(r"\^([^#*^~]+?)(?=\s*[#*^~]|$)")
-_RECURRENCE_MARKER_RE = re.compile(r"\*([^#*^~]+?)(?=\s*[#*^~]|$)")
-_NOTE_RE = re.compile(r"~([^#*^~]+?)(?=\s*[#*^~]|$)")
+_DATE_RE = re.compile(r"\^([^#*^~@]+?)(?=\s*[#*^~@]|$)")
+_RECURRENCE_MARKER_RE = re.compile(r"\*([^#*^~@]+?)(?=\s*[#*^~@]|$)")
+_NOTE_RE = re.compile(r"~([^#*^~@]+?)(?=\s*[#*^~@]|$)")
 
 
 @dataclass
 class ParsedTodoInput:
     text: str
     tags: set[str] = field(default_factory=set)
+    assignees: set[str] = field(default_factory=set)
     due_date: datetime.date | None = None
     recurrence: RecurrenceSpec | None = None
     note: str = ""
@@ -61,6 +64,7 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
         today = datetime.date.today()
 
     tags = set(_TAG_RE.findall(raw))
+    assignees = set(_ASSIGNEE_RE.findall(raw))
     text = raw
 
     due_date: datetime.date | None = None
@@ -86,9 +90,15 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
         text = text[: m.start()] + text[m.end() :]
 
     text = _TAG_RE.sub("", text)
+    text = _ASSIGNEE_RE.sub("", text)
     text = re.sub(r"\s+", " ", text).strip()
     return ParsedTodoInput(
-        text=text, tags=tags, due_date=due_date, recurrence=recurrence, note=note
+        text=text,
+        tags=tags,
+        assignees=assignees,
+        due_date=due_date,
+        recurrence=recurrence,
+        note=note,
     )
 
 
@@ -290,20 +300,21 @@ def _scheduled_section_oob(request) -> str:
     return f'<div id="scheduled-section" hx-swap-oob="true">{btn}</div>'
 
 
-def _active_todos(dbsession, today: datetime.date) -> list[Todo]:
+def _active_todos(
+    dbsession, today: datetime.date, user=None, filter_mode: str = "all"
+) -> list[Todo]:
     """Items shown in the main list: status=todo and due today/earlier (or undated)."""
-    return (
-        dbsession.execute(
-            select(Todo)
-            .where(
-                Todo.status == TodoStatus.todo,
-                or_(Todo.due_date.is_(None), Todo.due_date <= today),
-            )
-            .order_by(nulls_last(asc(Todo.due_date)), asc(Todo.created_at))
+    stmt = (
+        select(Todo)
+        .where(
+            Todo.status == TodoStatus.todo,
+            or_(Todo.due_date.is_(None), Todo.due_date <= today),
         )
-        .scalars()
-        .all()
+        .order_by(nulls_last(asc(Todo.due_date)), asc(Todo.created_at))
     )
+    if user is not None:
+        stmt = filter_todos_for_user(stmt, user, dbsession, filter_mode)
+    return dbsession.execute(stmt).scalars().all()
 
 
 @view_config(route_name="home")
@@ -311,11 +322,18 @@ def home(request):
     return HTTPSeeOther(request.route_url("list_todos"))
 
 
+_VALID_FILTER_MODES = {"all", "personal", "delegated_out", "delegated_in"}
+
+
 @view_config(route_name="list_todos", renderer="menage2:templates/list_todos.pt")
 def list_todos(request):
     today = _today()
+    filter_mode = request.params.get("filter", "all")
+    if filter_mode not in _VALID_FILTER_MODES:
+        filter_mode = "all"
     spawn_due_every_if_needed(request.dbsession, today, _now_utc())
-    todos = _active_todos(request.dbsession, today)
+    user = request.identity
+    todos = _active_todos(request.dbsession, today, user=user, filter_mode=filter_mode)
     groups = build_tag_tree(todos)
     groups_html = render(
         "menage2:templates/_todo_groups.pt",
@@ -330,6 +348,7 @@ def list_todos(request):
         "scheduled_count": _scheduled_count(request, today),
         "done_count": _done_count(request),
         "today": today,
+        "filter_mode": filter_mode,
     }
 
 
@@ -347,11 +366,14 @@ def add_todo(request):
             {"showAddTodoError": {"input": raw}}
         )
         return request.response
+    owner_id = request.identity.id if request.identity else None
     todo = Todo(
         text=parsed.text,
         tags=parsed.tags,
+        assignees=parsed.assignees,
         note=parsed.note,
         due_date=parsed.due_date,
+        owner_id=owner_id,
         status=TodoStatus.todo,
         created_at=_now_utc(),
     )
@@ -660,16 +682,17 @@ def todo_undo(request):
     route_name="list_todos_done", renderer="menage2:templates/list_todos_done.pt"
 )
 def list_todos_done(request):
-    todos = (
-        request.dbsession.execute(
-            select(Todo)
-            .where(Todo.status == TodoStatus.done)
-            .order_by(Todo.done_at.desc())
-        )
-        .scalars()
-        .all()
+    filter_mode = request.params.get("filter", "all")
+    if filter_mode not in _VALID_FILTER_MODES:
+        filter_mode = "all"
+    user = request.identity
+    stmt = (
+        select(Todo).where(Todo.status == TodoStatus.done).order_by(Todo.done_at.desc())
     )
-    return {"todos": todos}
+    if user is not None:
+        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
+    todos = request.dbsession.execute(stmt).scalars().all()
+    return {"todos": todos, "filter_mode": filter_mode}
 
 
 @view_config(
@@ -678,16 +701,19 @@ def list_todos_done(request):
 )
 def list_todos_scheduled(request):
     today = _today()
+    filter_mode = request.params.get("filter", "all")
+    if filter_mode not in _VALID_FILTER_MODES:
+        filter_mode = "all"
     spawn_due_every_if_needed(request.dbsession, today, _now_utc())
-    todos = (
-        request.dbsession.execute(
-            select(Todo)
-            .where(Todo.status == TodoStatus.todo, Todo.due_date > today)
-            .order_by(asc(Todo.due_date), asc(Todo.created_at))
-        )
-        .scalars()
-        .all()
+    user = request.identity
+    stmt = (
+        select(Todo)
+        .where(Todo.status == TodoStatus.todo, Todo.due_date > today)
+        .order_by(asc(Todo.due_date), asc(Todo.created_at))
     )
+    if user is not None:
+        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
+    todos = request.dbsession.execute(stmt).scalars().all()
     # Group by date for a calendar-style header.
     groups: list[dict] = []
     current_date: datetime.date | None = None
@@ -699,6 +725,7 @@ def list_todos_scheduled(request):
     return {
         "groups": groups,
         "today": today,
+        "filter_mode": filter_mode,
         "form_html": _render_todo_form(
             request, request.route_url("list_todos_scheduled")
         ),
@@ -723,6 +750,7 @@ def edit_todo(request):
         return request.response
     todo.text = parsed.text
     todo.tags = parsed.tags
+    todo.assignees = parsed.assignees
     todo.note = parsed.note
     todo.due_date = parsed.due_date
     _apply_recurrence_spec(todo, parsed.recurrence, request.dbsession)
@@ -766,3 +794,9 @@ def list_tags_json(request):
     for todo in todos:
         tags.update(todo.tags or set())
     return sorted(tags)
+
+
+@view_config(route_name="list_principals_json", renderer="json")
+def list_principals_json(request):
+    """All principals (active users + teams) for @mention autocomplete."""
+    return get_all_principals(request.dbsession)

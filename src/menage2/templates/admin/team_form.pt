@@ -1,0 +1,92 @@
+<div metal:use-macro="load: ../layout.pt">
+  <span metal:fill-slot="title-mobile">${'Edit Team' if team else 'New Team'}</span>
+  <div metal:fill-slot="title">${'Edit Team: @' + team.name if team else 'Add Team'}</div>
+
+  <div metal:fill-slot="content" class="container py-3">
+    <div class="row justify-content-center">
+      <div class="col-12 col-sm-10 col-md-7 col-lg-5">
+
+        <div class="card mb-4">
+          <div class="card-body">
+            <form method="post" action="${action}">
+              <div class="mb-3">
+                <label for="name" class="form-label">Team Name</label>
+                <input type="text" id="name" name="name" required autofocus autocomplete="off"
+                       class="form-control font-monospace"
+                       value="${team.name if team else ''}"
+                       placeholder="e.g. ops or cleaning-crew" />
+                <div class="form-text">Used as @name in todos. Must be unique across users and teams.</div>
+                <p tal:condition="'name' in errors" class="text-danger small mt-1">${errors['name']}</p>
+              </div>
+              <div class="d-flex gap-3 align-items-center">
+                <button type="submit" class="btn btn-dark">
+                  ${('Save Changes' if team else 'Create Team')}
+                </button>
+                <a href="${request.route_url('admin_teams')}" class="link-secondary">Cancel</a>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <tal:block tal:condition="team is not None">
+          <div class="card">
+            <div class="card-header fw-semibold small">Members</div>
+            <div class="table-responsive" tal:condition="team.members">
+              <table class="table table-sm mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr tal:repeat="m team.members">
+                    <td class="align-middle font-monospace small">${m.user.username}</td>
+                    <td class="align-middle">
+                      <span tal:condition="m.role == 'assignee'" class="badge bg-primary">Assignee</span>
+                      <span tal:condition="m.role == 'supervisor'" class="badge bg-secondary">Supervisor</span>
+                    </td>
+                    <td class="align-middle">
+                      <form method="post"
+                            action="${request.route_url('admin_team_member_remove', id=team.id, member_id=m.id)}"
+                            class="d-inline">
+                        <button type="submit" class="btn btn-link btn-sm p-0 text-danger">Remove</button>
+                      </form>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div tal:condition="not team.members" class="card-body text-muted small">No members yet.</div>
+
+            <div class="card-footer">
+              <form method="post" action="${request.route_url('admin_team_member_add', id=team.id)}"
+                    class="d-flex gap-2 align-items-center flex-wrap">
+                <select name="user_id" class="form-select form-select-sm" style="max-width:180px">
+                  <tal:block tal:repeat="u users">
+                    <option value="${u.id}">${u.username}</option>
+                  </tal:block>
+                </select>
+                <div class="d-flex gap-3">
+                  <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="radio" name="role" id="role-assignee"
+                           value="assignee" checked="checked" />
+                    <label class="form-check-label small" for="role-assignee">Assignee</label>
+                  </div>
+                  <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="radio" name="role" id="role-supervisor"
+                           value="supervisor" />
+                    <label class="form-check-label small" for="role-supervisor">Supervisor</label>
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-sm btn-outline-dark">Add</button>
+              </form>
+            </div>
+          </div>
+        </tal:block>
+
+      </div>
+    </div>
+  </div>
+</div>

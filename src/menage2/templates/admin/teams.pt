@@ -1,0 +1,58 @@
+<div metal:use-macro="load: ../layout.pt">
+  <span metal:fill-slot="title-mobile">Teams</span>
+  <span metal:fill-slot="title">Team Management</span>
+
+  <span metal:fill-slot="actions">
+    <a href="${request.route_url('admin_team_new')}" class="btn btn-sm btn-dark">
+      <i class="bi bi-plus-lg"></i> Add Team
+    </a>
+  </span>
+
+  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
+
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th>
+              <th>Members</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr tal:repeat="team teams">
+              <td class="align-middle font-monospace">@${team.name}</td>
+              <td class="align-middle text-muted small">
+                <tal:block tal:repeat="m team.members">
+                  <span class="badge bg-secondary me-1">${m.user.username}
+                    <span class="text-muted">(${m.role})</span>
+                  </span>
+                </tal:block>
+                <span tal:condition="not team.members" class="text-muted">—</span>
+              </td>
+              <td class="align-middle text-nowrap">
+                <a href="${request.route_url('admin_team_edit', id=team.id)}" class="link-secondary small me-2">Edit</a>
+                <form method="post" action="${request.route_url('admin_team_delete', id=team.id)}"
+                      class="d-inline"
+                      onsubmit="return confirm('Delete team ${team.name}? This cannot be undone.')">
+                  <button type="submit" class="btn btn-link btn-sm p-0 text-danger">Delete</button>
+                </form>
+              </td>
+            </tr>
+            <tr tal:condition="not teams">
+              <td colspan="3" class="text-muted text-center py-3">No teams yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <a href="${request.route_url('admin_users')}" class="link-secondary">
+        &#8592; Users
+      </a>
+    </div>
+
+  </div>
+</div>

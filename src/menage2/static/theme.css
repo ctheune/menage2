@@ -661,3 +661,53 @@
     font-size: 1.25rem;
     z-index: 0;
 }
+
+/* ── Assignee pills (input) ──────────────────────────────────────────── */
+.todo-assignee-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2em;
+    background: #0d9488;
+    color: #fff;
+    border-radius: 999px;
+    padding: 0 0.55em;
+    font-size: 0.78em;
+    font-weight: 500;
+    line-height: 1.6;
+    white-space: nowrap;
+    cursor: default;
+    user-select: none;
+}
+
+.todo-assignee-remove {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.8);
+    padding: 0;
+    font-size: 0.9em;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+}
+
+.todo-assignee-remove:hover {
+    color: #fff;
+}
+
+/* Assignee display on todo list rows */
+.todo-assignees {
+    font-size: 0.72rem;
+    color: #0d9488;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 8em;
+}
+
+/* Small badge used in protocol item lists */
+.todo-assignee-pill-sm {
+    background-color: #0d9488;
+    color: #fff;
+    font-size: 0.68rem;
+}

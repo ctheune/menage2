@@ -22,6 +22,7 @@ from .protocol import (  # noqa
     ProtocolRunItemStatus,
 )
 from .recipe import Ingredient, IngredientUsage, Recipe  # noqa
+from .team import Team, TeamMember  # noqa
 from .todo import Todo, TodoStatus  # noqa
 from .user import Passkey, User  # noqa
 

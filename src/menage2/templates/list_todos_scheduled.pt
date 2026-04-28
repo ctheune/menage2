@@ -9,6 +9,20 @@
       <a href="${request.route_url('list_todos')}" class="link-secondary">← Back to Todos</a>
     </div>
 
+    <!-- Filter toggle bar -->
+    <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
+      <span class="text-muted small me-1">Show:</span>
+      <tal:block tal:define="modes python:[('all','All'),('personal','Personal'),('delegated_out','Delegated out'),('delegated_in','Delegated in')]">
+        <tal:block tal:repeat="mode modes">
+          <a tal:define="mkey python:mode[0]; mlabel python:mode[1]"
+             href="${request.route_url('list_todos_scheduled')}?filter=${mkey}"
+             tal:attributes="class python:'btn btn-sm rounded-pill ' + ('btn-dark' if filter_mode == mkey else 'btn-outline-secondary')">
+            ${mlabel}
+          </a>
+        </tal:block>
+      </tal:block>
+    </div>
+
     <!-- Same composite-input form as the main view; the hidden `next` keeps
          the user on this page after a submit/edit. -->
     <tal:block tal:replace="structure form_html"/>
@@ -34,6 +48,7 @@
           class="todo-item mb-1 shadow-sm"
           data-todo-text="${todo.text}"
           data-todo-tags="${python:','.join(sorted(todo.tags))}"
+          data-todo-assignees="${python:','.join(sorted(todo.assignees))}"
           data-due-date="${todo.due_date.isoformat()}"
           tal:attributes="data-recurrence python:_recurrence_label(todo);
                           data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else '';
@@ -60,6 +75,11 @@
                title="Open protocol run">
               <i class="bi bi-clipboard-check"></i>
             </a>
+
+            <span tal:condition="todo.assignees"
+                  class="todo-assignees flex-shrink-0 small text-muted">
+              <tal:block tal:repeat="a python:sorted(todo.assignees)">@${a} </tal:block>
+            </span>
 
             <span tal:condition="todo.recurrence_id"
                   class="todo-recurrence flex-shrink-0 small"

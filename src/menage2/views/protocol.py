@@ -111,7 +111,8 @@ def list_protocols_palette(request):
 @view_config(route_name="new_protocol", request_method="POST")
 def new_protocol(request):
     title = request.params.get("title", "").strip() or "Untitled protocol"
-    p = Protocol(title=title, created_at=_now_utc())
+    owner_id = request.identity.id if request.identity else None
+    p = Protocol(title=title, owner_id=owner_id, created_at=_now_utc())
     request.dbsession.add(p)
     request.dbsession.flush()
     return HTTPSeeOther(request.route_url("edit_protocol", id=p.id))
@@ -239,6 +240,7 @@ def add_protocol_item(request):
         position=next_pos,
         text=parsed.text,
         tags=parsed.tags,
+        assignees=parsed.assignees,
         note=parsed.note,
     )
     request.dbsession.add(item)
@@ -256,6 +258,7 @@ def update_protocol_item(request):
         return HTTPSeeOther(request.route_url("edit_protocol", id=item.protocol_id))
     item.text = parsed.text
     item.tags = parsed.tags
+    item.assignees = parsed.assignees
     item.note = parsed.note
     return HTTPSeeOther(request.route_url("edit_protocol", id=item.protocol_id))
 
@@ -270,6 +273,7 @@ def update_protocol_item_partial(request):
         if parsed.text:
             item.text = parsed.text
             item.tags = parsed.tags
+            item.assignees = parsed.assignees
             item.note = parsed.note
     request.dbsession.flush()
     body = _render_protocol_item(request, p, item)
@@ -294,7 +298,9 @@ def delete_protocol_item(request):
 @view_config(route_name="start_protocol_run", request_method="POST")
 def start_protocol_run(request):
     p = _get_or_404(request, Protocol)
+    owner_id = request.identity.id if request.identity else None
     run = spawn_protocol_run(p, _today(), _now_utc(), request.dbsession)
+    run.owner_id = owner_id
     return HTTPSeeOther(request.route_url("show_protocol_run", id=run.id))
 
 
@@ -316,12 +322,16 @@ def _snapshot_run_items(run, dbsession):
             return
         protocol = run.protocol
         for src in sorted(protocol.items, key=lambda i: i.position):
+            item_assignees = (
+                set(src.assignees) if src.assignees else set(protocol.assignees)
+            )
             dbsession.add(
                 ProtocolRunItem(
                     run_id=run.id,
                     position=src.position,
                     text=src.text,
                     tags=set(src.tags),
+                    assignees=item_assignees,
                     note=src.note,
                     status=ProtocolRunItemStatus.pending,
                 )
@@ -398,10 +408,13 @@ def run_item_done(request):
 @view_config(route_name="run_item_send", request_method="POST")
 def run_item_send(request):
     item = _get_or_404(request, ProtocolRunItem, "item_id")
+    owner_id = request.identity.id if request.identity else None
     new_todo = Todo(
         text=item.text,
         tags=set(item.tags),
+        assignees=set(item.assignees),
         note=item.note,
+        owner_id=owner_id,
         status=TodoStatus.todo,
         created_at=_now_utc(),
     )
@@ -426,6 +439,7 @@ def run_item_edit(request):
         return _run_partial_response(request, item.run)
     item.text = parsed.text
     item.tags = parsed.tags
+    item.assignees = parsed.assignees
     if parsed.note:
         item.note = parsed.note
     return _run_partial_response(request, item.run)

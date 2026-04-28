@@ -1,6 +1,7 @@
 <tal:block tal:define="
     tag_str python:' '.join('#' + t for t in sorted(item.tags));
-    canonical python:item.text + (' ' + tag_str if tag_str else '') + (' ~' + item.note if item.note else '')
+    assignee_str python:' '.join('@' + a for a in sorted(item.assignees));
+    canonical python:item.text + (' ' + tag_str if tag_str else '') + (' ' + assignee_str if assignee_str else '') + (' ~' + item.note if item.note else '')
     ">
 <li id="item-${item.id}" class="card mb-1 shadow-sm">
   <div class="card-body py-1 px-3">
@@ -27,6 +28,9 @@
       <div class="proto-item-quick-pick" style="display:none"></div>
       <div class="d-flex align-items-center gap-2 mt-1">
         <button type="submit" class="btn btn-sm btn-outline-secondary d-none proto-item-save flex-shrink-0">Save</button>
+        <tal:block tal:repeat="a python:sorted(item.assignees)">
+          <span class="badge rounded-pill todo-assignee-pill-sm">@${a}</span>
+        </tal:block>
       </div>
     </form>
   </div>

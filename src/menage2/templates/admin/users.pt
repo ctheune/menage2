@@ -65,6 +65,10 @@
     </div>
 
     <div class="mt-4 d-flex gap-3 align-items-center">
+      <a href="${request.route_url('admin_teams')}" class="link-secondary">
+        Teams →
+      </a>
+      <span class="text-muted">·</span>
       <a href="${request.route_url('admin_dashboard_token')}" class="link-secondary">
         Dashboard Secret URL →
       </a>

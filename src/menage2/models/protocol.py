@@ -33,6 +33,8 @@ class Protocol(Base):
 
     id = Column(Integer, primary_key=True)
     title = Column(Text, nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    assignees = Column(TagSet, nullable=False, server_default="{}")
     recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
@@ -41,6 +43,7 @@ class Protocol(Base):
     )
     archived_at = Column(DateTime(timezone=True))
 
+    owner = relationship("User", foreign_keys=[owner_id])
     items = relationship(
         "ProtocolItem",
         back_populates="protocol",
@@ -63,6 +66,7 @@ class ProtocolItem(Base):
     position = Column(Integer, nullable=False, default=0)
     text = Column(Text, nullable=False)
     tags = Column(TagSet, nullable=False, server_default="{}")
+    assignees = Column(TagSet, nullable=False, server_default="{}")
     note = Column(Text)
 
     protocol = relationship("Protocol", back_populates="items")
@@ -73,6 +77,7 @@ class ProtocolRun(Base):
 
     id = Column(Integer, primary_key=True)
     protocol_id = Column(Integer, ForeignKey("protocols.id"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     spawned_at = Column(
         DateTime(timezone=True),
         nullable=False,
@@ -82,6 +87,7 @@ class ProtocolRun(Base):
     closed_at = Column(DateTime(timezone=True))
 
     protocol = relationship("Protocol", back_populates="runs")
+    owner = relationship("User", foreign_keys=[owner_id])
     items = relationship(
         "ProtocolRunItem",
         back_populates="run",
@@ -105,6 +111,7 @@ class ProtocolRunItem(Base):
     position = Column(Integer, nullable=False, default=0)
     text = Column(Text, nullable=False)
     tags = Column(TagSet, nullable=False, server_default="{}")
+    assignees = Column(TagSet, nullable=False, server_default="{}")
     note = Column(Text)
     status = Column(
         Enum(ProtocolRunItemStatus, name="protocolrunitemstatus"),
