@@ -5,6 +5,7 @@ import datetime
 import pytest
 from sqlalchemy import select
 
+from menage2.models.protocol import Protocol
 from menage2.models.team import Team, TeamMember
 from menage2.models.todo import Todo, TodoStatus
 from menage2.models.user import User
@@ -224,7 +225,10 @@ def test_visibility_all_excludes_other_users_unassigned(
     assert not any(r.id == t.id for r in rows)
 
 
-def test_visibility_personal_excludes_delegated(dbsession, admin_user, regular_user):
+def test_visibility_personal_includes_delegated_out(
+    dbsession, admin_user, regular_user
+):
+    # personal = everything I'm responsible for; delegated-out todos still show
     t = _todo(
         dbsession,
         "Delegated out",
@@ -234,13 +238,30 @@ def test_visibility_personal_excludes_delegated(dbsession, admin_user, regular_u
     stmt = select(Todo).where(Todo.id == t.id)
     result = filter_todos_for_user(stmt, admin_user, dbsession, "personal")
     rows = dbsession.execute(result).scalars().all()
-    assert not any(r.id == t.id for r in rows)
+    assert any(r.id == t.id for r in rows)
 
 
 def test_visibility_personal_includes_own_unassigned(dbsession, admin_user):
     t = _todo(dbsession, "Personal", owner_id=admin_user.id)
     stmt = select(Todo).where(Todo.id == t.id)
     result = filter_todos_for_user(stmt, admin_user, dbsession, "personal")
+    rows = dbsession.execute(result).scalars().all()
+    assert any(r.id == t.id for r in rows)
+
+
+def test_visibility_personal_includes_team_assignee(
+    dbsession, admin_user, regular_user
+):
+    team = Team(name="haushalt", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    dbsession.add(TeamMember(team_id=team.id, user_id=regular_user.id, role="assignee"))
+    dbsession.flush()
+    t = _todo(
+        dbsession, "Haushalt task", owner_id=admin_user.id, assignees={"haushalt"}
+    )
+    stmt = select(Todo).where(Todo.id == t.id)
+    result = filter_todos_for_user(stmt, regular_user, dbsession, "personal")
     rows = dbsession.execute(result).scalars().all()
     assert any(r.id == t.id for r in rows)
 
@@ -330,3 +351,83 @@ def test_get_user_team_memberships(dbsession, regular_user):
     dbsession.flush()
     memberships = get_user_team_memberships(dbsession, regular_user)
     assert memberships == {"alpha": "assignee"}
+
+
+# ---------------------------------------------------------------------------
+# Protocol visibility
+# ---------------------------------------------------------------------------
+
+
+def test_protocol_assigned_to_team_visible_to_team_assignee(
+    user_testapp, dbsession, admin_user, regular_user
+):
+    """A protocol with a team in assignees must appear for team members."""
+    team = Team(name="haushalt", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    dbsession.add(TeamMember(team_id=team.id, user_id=regular_user.id, role="assignee"))
+    p = Protocol(
+        title="Team protocol",
+        owner_id=admin_user.id,
+        assignees={"haushalt"},
+        created_at=_now(),
+    )
+    dbsession.add(p)
+    dbsession.flush()
+
+    res = user_testapp.get("/protocols", status=200)
+    assert b"Team protocol" in res.body
+
+
+def test_protocol_assignee_cannot_edit_or_archive(
+    user_testapp, dbsession, admin_user, regular_user
+):
+    """Non-owner assignees must get 403 on all mutating protocol endpoints."""
+    from menage2.models.protocol import ProtocolItem
+
+    p = Protocol(
+        title="Owner-only protocol",
+        owner_id=admin_user.id,
+        assignees={regular_user.username},
+        created_at=_now(),
+    )
+    dbsession.add(p)
+    dbsession.flush()
+    item = ProtocolItem(protocol_id=p.id, position=0, text="Do thing")
+    dbsession.add(item)
+    dbsession.flush()
+
+    # View is allowed.
+    user_testapp.get(f"/protocols/{p.id}/edit", status=200)
+
+    # All mutating endpoints return 403.
+    user_testapp.post(f"/protocols/{p.id}/edit", {"title": "Hacked"}, status=403)
+    user_testapp.post(f"/protocols/{p.id}/archive", status=403)
+    user_testapp.post(f"/protocols/{p.id}/items", {"text": "injected"}, status=403)
+    user_testapp.post(
+        f"/protocols/{p.id}/items/{item.id}",
+        {"text": "changed"},
+        status=403,
+    )
+    user_testapp.post(
+        f"/protocols/{p.id}/items/{item.id}/partial",
+        {"text": "changed"},
+        status=403,
+    )
+    user_testapp.post(f"/protocols/{p.id}/items/{item.id}/delete", status=403)
+
+
+def test_protocol_assignee_can_start_run(
+    user_testapp, dbsession, admin_user, regular_user
+):
+    """Non-owner assignees are allowed to start a run."""
+    p = Protocol(
+        title="Runnable protocol",
+        owner_id=admin_user.id,
+        assignees={regular_user.username},
+        created_at=_now(),
+    )
+    dbsession.add(p)
+    dbsession.flush()
+    res = user_testapp.post(f"/protocols/{p.id}/start", status=303)
+    assert "/protocols/run/" in res.location

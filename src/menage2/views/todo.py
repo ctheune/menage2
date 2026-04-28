@@ -239,31 +239,39 @@ def _undo_trigger(
     )
 
 
-def _on_hold_count(request) -> int:
+def _on_hold_count(request, user, filter_mode: str) -> int:
     request.dbsession.flush()
-    return request.dbsession.execute(
+    stmt = (
         select(func.count()).select_from(Todo).where(Todo.status == TodoStatus.on_hold)
-    ).scalar()
+    )
+    if user is not None:
+        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
+    return request.dbsession.execute(stmt).scalar()
 
 
-def _scheduled_count(request, today: datetime.date) -> int:
+def _scheduled_count(request, today: datetime.date, user, filter_mode: str) -> int:
     request.dbsession.flush()
-    return request.dbsession.execute(
+    stmt = (
         select(func.count())
         .select_from(Todo)
         .where(Todo.status == TodoStatus.todo, Todo.due_date > today)
-    ).scalar()
+    )
+    if user is not None:
+        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
+    return request.dbsession.execute(stmt).scalar()
 
 
-def _done_count(request) -> int:
+def _done_count(request, user, filter_mode: str) -> int:
     request.dbsession.flush()
-    return request.dbsession.execute(
-        select(func.count()).select_from(Todo).where(Todo.status == TodoStatus.done)
-    ).scalar()
+    stmt = select(func.count()).select_from(Todo).where(Todo.status == TodoStatus.done)
+    if user is not None:
+        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
+    return request.dbsession.execute(stmt).scalar()
 
 
-def _on_hold_section_oob(request) -> str:
-    count = _on_hold_count(request)
+def _on_hold_section_oob(request, filter_mode: str = "personal") -> str:
+    user = request.identity
+    count = _on_hold_count(request, user, filter_mode)
     activate_url = request.route_url("todos_activate_all_on_hold")
     if count > 0:
         btn = (
@@ -281,9 +289,10 @@ def _on_hold_section_oob(request) -> str:
     return f'<div id="on-hold-section" hx-swap-oob="true">{btn}</div>'
 
 
-def _scheduled_section_oob(request) -> str:
+def _scheduled_section_oob(request, filter_mode: str = "personal") -> str:
     today = _today()
-    count = _scheduled_count(request, today)
+    user = request.identity
+    count = _scheduled_count(request, today, user, filter_mode)
     url = request.route_url("list_todos_scheduled")
     if count > 0:
         btn = (
@@ -301,7 +310,7 @@ def _scheduled_section_oob(request) -> str:
 
 
 def _active_todos(
-    dbsession, today: datetime.date, user=None, filter_mode: str = "all"
+    dbsession, today: datetime.date, user=None, filter_mode: str = "personal"
 ) -> list[Todo]:
     """Items shown in the main list: status=todo and due today/earlier (or undated)."""
     stmt = (
@@ -328,9 +337,9 @@ _VALID_FILTER_MODES = {"all", "personal", "delegated_out", "delegated_in"}
 @view_config(route_name="list_todos", renderer="menage2:templates/list_todos.pt")
 def list_todos(request):
     today = _today()
-    filter_mode = request.params.get("filter", "all")
+    filter_mode = request.params.get("filter", "personal")
     if filter_mode not in _VALID_FILTER_MODES:
-        filter_mode = "all"
+        filter_mode = "personal"
     spawn_due_every_if_needed(request.dbsession, today, _now_utc())
     user = request.identity
     todos = _active_todos(request.dbsession, today, user=user, filter_mode=filter_mode)
@@ -344,9 +353,9 @@ def list_todos(request):
         "groups": groups,
         "groups_html": groups_html,
         "form_html": _render_todo_form(request, request.route_url("list_todos")),
-        "on_hold_count": _on_hold_count(request),
-        "scheduled_count": _scheduled_count(request, today),
-        "done_count": _done_count(request),
+        "on_hold_count": _on_hold_count(request, user, filter_mode),
+        "scheduled_count": _scheduled_count(request, today, user, filter_mode),
+        "done_count": _done_count(request, user, filter_mode),
         "today": today,
         "filter_mode": filter_mode,
     }
@@ -407,7 +416,7 @@ def todos_done(request):
                     run.closed_at = now
                 spawn_protocol_after(run, today, now, request.dbsession)
                 spawn_protocol_every_on_completion(run, today, now, request.dbsession)
-    todos = _active_todos(request.dbsession, today)
+    todos = _active_todos(request.dbsession, today, user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
         {"groups": build_tag_tree(todos), "today": _today()},
@@ -433,7 +442,7 @@ def todos_hold(request):
             texts.append(todo.text)
             todo.status = TodoStatus.on_hold
             todo.on_hold_at = _now_utc()
-    todos = _active_todos(request.dbsession, _today())
+    todos = _active_todos(request.dbsession, _today(), user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
         {"groups": build_tag_tree(todos), "today": _today()},
@@ -518,7 +527,7 @@ def todos_postpone(request):
             todo.due_date = absolute_date
         else:
             todo.due_date = _bump_due_date(todo.due_date, today, interval)
-    todos = _active_todos(request.dbsession, today)
+    todos = _active_todos(request.dbsession, today, user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
         {"groups": build_tag_tree(todos), "today": today},
@@ -580,7 +589,7 @@ def set_recurrence(request):
             request.response.status_int = 422
             return request.response
         _apply_recurrence_spec(todo, spec, request.dbsession)
-    todos = _active_todos(request.dbsession, today)
+    todos = _active_todos(request.dbsession, today, user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
         {"groups": build_tag_tree(todos), "today": today},
@@ -633,7 +642,7 @@ def set_due_date(request):
             )
             return request.response
         todo.due_date = parsed.date
-    todos = _active_todos(request.dbsession, today)
+    todos = _active_todos(request.dbsession, today, user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
         {"groups": build_tag_tree(todos), "today": today},
@@ -663,7 +672,7 @@ def todo_undo(request):
                 todo.done_at = None
             if prev_status != TodoStatus.on_hold:
                 todo.on_hold_at = None
-    todos = _active_todos(request.dbsession, _today())
+    todos = _active_todos(request.dbsession, _today(), user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
         {"groups": build_tag_tree(todos), "today": _today()},
@@ -682,9 +691,9 @@ def todo_undo(request):
     route_name="list_todos_done", renderer="menage2:templates/list_todos_done.pt"
 )
 def list_todos_done(request):
-    filter_mode = request.params.get("filter", "all")
+    filter_mode = request.params.get("filter", "personal")
     if filter_mode not in _VALID_FILTER_MODES:
-        filter_mode = "all"
+        filter_mode = "personal"
     user = request.identity
     stmt = (
         select(Todo).where(Todo.status == TodoStatus.done).order_by(Todo.done_at.desc())
@@ -701,9 +710,9 @@ def list_todos_done(request):
 )
 def list_todos_scheduled(request):
     today = _today()
-    filter_mode = request.params.get("filter", "all")
+    filter_mode = request.params.get("filter", "personal")
     if filter_mode not in _VALID_FILTER_MODES:
-        filter_mode = "all"
+        filter_mode = "personal"
     spawn_due_every_if_needed(request.dbsession, today, _now_utc())
     user = request.identity
     stmt = (
@@ -789,7 +798,7 @@ def todos_activate_batch(request):
 @view_config(route_name="list_tags_json", renderer="json")
 def list_tags_json(request):
     """Unique tags from active todos — used by the protocol item quick-pick."""
-    todos = _active_todos(request.dbsession, _today())
+    todos = _active_todos(request.dbsession, _today(), user=request.identity)
     tags: set[str] = set()
     for todo in todos:
         tags.update(todo.tags or set())

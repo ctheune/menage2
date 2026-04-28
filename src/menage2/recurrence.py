@@ -262,21 +262,30 @@ def _sweep_every_rules(
 
 
 def spawn_protocol_run(
-    protocol: Protocol, due_date: datetime.date, now_utc: datetime.datetime, dbsession
+    protocol: Protocol,
+    due_date: datetime.date,
+    now_utc: datetime.datetime,
+    dbsession,
+    owner_id: int | None = None,
 ) -> ProtocolRun:
     """Create one ProtocolRun + its calendar Todo. Items are NOT snapshotted
     yet — that happens lazily when the user opens the run page.
     """
-    run = ProtocolRun(protocol_id=protocol.id, spawned_at=now_utc)
+    effective_owner = owner_id if owner_id is not None else protocol.owner_id
+    run = ProtocolRun(
+        protocol_id=protocol.id, spawned_at=now_utc, owner_id=effective_owner
+    )
     dbsession.add(run)
     dbsession.flush()
     todo = Todo(
         text=protocol.title,
         tags=set(),
+        assignees=set(protocol.assignees) if protocol.assignees else set(),
         status=TodoStatus.todo,
         created_at=now_utc,
         due_date=due_date,
         protocol_run_id=run.id,
+        owner_id=effective_owner,
     )
     dbsession.add(todo)
     dbsession.flush()

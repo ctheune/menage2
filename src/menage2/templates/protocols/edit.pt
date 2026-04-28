@@ -16,31 +16,41 @@
       <a href="${request.route_url('list_protocols')}" class="link-secondary">← Back to Protocols</a>
     </div>
 
-    <!-- Title + recurrence form -->
-    <form method="post" action="${request.route_url('edit_protocol', id=protocol.id)}"
-          class="card mb-3">
-      <div class="card-body">
-        <label class="form-label small text-muted">Title</label>
-        <input type="text" name="title" value="${protocol.title}" class="form-control mb-3"/>
+    <!-- Title + recurrence form — owner only -->
+    <tal:block tal:condition="is_owner">
+      <form method="post" action="${request.route_url('edit_protocol', id=protocol.id)}"
+            class="card mb-3">
+        <div class="card-body">
+          <label class="form-label small text-muted">Title</label>
+          <input type="text" name="title" value="${protocol.title}" class="form-control mb-3"/>
 
-        <label class="form-label small text-muted">Repeat (optional)</label>
-        <div class="d-flex gap-2 align-items-center">
-          <input type="text" name="recurrence" class="form-control"
-                 placeholder="every wednesday / after 1 week / every month …"
-                 value="${rule_label or ''}"/>
-          <button type="submit" class="btn btn-sm btn-dark">Save</button>
+          <label class="form-label small text-muted">Assignees (optional)</label>
+          <input type="text" name="assignees" class="form-control mb-3"
+                 placeholder="@alice, @haushalt — comma-separated"
+                 value="${python:', '.join('@' + a for a in sorted(protocol.assignees)) if protocol.assignees else ''}"/>
+          <small class="text-muted d-block mb-3" style="margin-top:-0.75rem">
+            Who can see and run this protocol. Leave empty to keep it private to you.
+          </small>
+
+          <label class="form-label small text-muted">Repeat (optional)</label>
+          <div class="d-flex gap-2 align-items-center">
+            <input type="text" name="recurrence" class="form-control"
+                   placeholder="every wednesday / after 1 week / every month …"
+                   value="${rule_label or ''}"/>
+            <button type="submit" class="btn btn-sm btn-dark">Save</button>
+          </div>
+          <small class="text-muted d-block mt-1">
+            Leave empty to remove the recurrence. Same syntax as the
+            <code>*</code> picker on todos.
+          </small>
         </div>
-        <small class="text-muted d-block mt-1">
-          Leave empty to remove the recurrence. Same syntax as the
-          <code>*</code> picker on todos.
-        </small>
-      </div>
-    </form>
+      </form>
+    </tal:block>
 
     <!-- Items -->
     <h5 class="mt-4 mb-2">Items</h5>
     <p tal:condition="not protocol.items" class="text-muted fst-italic">
-      No items yet. Add the first one below.
+      No items yet<tal:block tal:condition="is_owner">. Add the first one below</tal:block>.
     </p>
     <ul class="list-unstyled" tal:condition="protocol.items">
       <tal:block tal:repeat="item python:sorted(protocol.items, key=lambda i: i.position)">
@@ -48,24 +58,26 @@
       </tal:block>
     </ul>
 
-    <!-- Add item form -->
-    <form method="post" action="${request.route_url('add_protocol_item', id=protocol.id)}"
-          class="card mt-3">
-      <div class="card-body py-2 px-3 d-flex gap-2 align-items-center">
-        <input type="text" name="text"
-               placeholder="New item — e.g. 'Check fridge #shopping ~look in back'"
-               class="form-control form-control-sm"/>
-        <button type="submit" class="btn btn-sm btn-dark">Add</button>
-      </div>
-    </form>
+    <!-- Add item form — owner only -->
+    <tal:block tal:condition="is_owner">
+      <form method="post" action="${request.route_url('add_protocol_item', id=protocol.id)}"
+            class="card mt-3">
+        <div class="card-body py-2 px-3 d-flex gap-2 align-items-center">
+          <input type="text" name="text"
+                 placeholder="New item — e.g. 'Check fridge #shopping ~look in back'"
+                 class="form-control form-control-sm"/>
+          <button type="submit" class="btn btn-sm btn-dark">Add</button>
+        </div>
+      </form>
 
-    <hr class="my-4"/>
+      <hr class="my-4"/>
 
-    <!-- Archive -->
-    <form method="post" action="${request.route_url('archive_protocol', id=protocol.id)}"
-          onsubmit="return confirm('Archive this protocol?')">
-      <button type="submit" class="btn btn-link btn-sm p-0 text-danger">Archive protocol</button>
-    </form>
+      <!-- Archive -->
+      <form method="post" action="${request.route_url('archive_protocol', id=protocol.id)}"
+            onsubmit="return confirm('Archive this protocol?')">
+        <button type="submit" class="btn btn-link btn-sm p-0 text-danger">Archive protocol</button>
+      </form>
+    </tal:block>
 
   </div>
 </div>

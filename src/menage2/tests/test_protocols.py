@@ -25,8 +25,8 @@ def _today():
     return datetime.date.today()
 
 
-def _make_protocol(dbsession, title="Weekly inventory", items=()):
-    p = Protocol(title=title, created_at=_now())
+def _make_protocol(dbsession, admin_user, title="Weekly inventory", items=()):
+    p = Protocol(title=title, owner_id=admin_user.id, created_at=_now())
     dbsession.add(p)
     dbsession.flush()
     for i, txt in enumerate(items):
@@ -40,8 +40,8 @@ def _make_protocol(dbsession, title="Weekly inventory", items=()):
 # ---------------------------------------------------------------------------
 
 
-def test_list_protocols_page(authenticated_testapp, dbsession):
-    _make_protocol(dbsession, title="Pantry sweep")
+def test_list_protocols_page(authenticated_testapp, dbsession, admin_user):
+    _make_protocol(dbsession, admin_user, title="Pantry sweep")
     res = authenticated_testapp.get("/protocols", status=200)
     assert b"Pantry sweep" in res.body
 
@@ -57,8 +57,10 @@ def test_new_protocol_creates_and_redirects_to_editor(authenticated_testapp, dbs
     )
 
 
-def test_edit_protocol_updates_title_and_recurrence(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession)
+def test_edit_protocol_updates_title_and_recurrence(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user)
     authenticated_testapp.post(
         f"/protocols/{p.id}/edit",
         {"title": "Renamed", "recurrence": "every wednesday"},
@@ -71,7 +73,9 @@ def test_edit_protocol_updates_title_and_recurrence(authenticated_testapp, dbses
     assert p.recurrence.weekday == 2
 
 
-def test_edit_protocol_clears_recurrence_when_empty(authenticated_testapp, dbsession):
+def test_edit_protocol_clears_recurrence_when_empty(
+    authenticated_testapp, dbsession, admin_user
+):
     rule = RecurrenceRule(
         kind=RecurrenceKind.every,
         interval_value=1,
@@ -79,7 +83,7 @@ def test_edit_protocol_clears_recurrence_when_empty(authenticated_testapp, dbses
     )
     dbsession.add(rule)
     dbsession.flush()
-    p = _make_protocol(dbsession)
+    p = _make_protocol(dbsession, admin_user)
     p.recurrence = rule
     dbsession.flush()
     authenticated_testapp.post(
@@ -92,8 +96,8 @@ def test_edit_protocol_clears_recurrence_when_empty(authenticated_testapp, dbses
     assert p.recurrence_id is None
 
 
-def test_archive_and_unarchive(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession)
+def test_archive_and_unarchive(authenticated_testapp, dbsession, admin_user):
+    p = _make_protocol(dbsession, admin_user)
     authenticated_testapp.post(f"/protocols/{p.id}/archive", status=303)
     dbsession.flush()
     dbsession.refresh(p)
@@ -104,8 +108,8 @@ def test_archive_and_unarchive(authenticated_testapp, dbsession):
     assert p.archived_at is None
 
 
-def test_add_protocol_item_extracts_tags(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession)
+def test_add_protocol_item_extracts_tags(authenticated_testapp, dbsession, admin_user):
+    p = _make_protocol(dbsession, admin_user)
     authenticated_testapp.post(
         f"/protocols/{p.id}/items",
         {"text": "Check fridge #shopping:groceries"},
@@ -119,8 +123,8 @@ def test_add_protocol_item_extracts_tags(authenticated_testapp, dbsession):
     assert item.tags == {"shopping:groceries"}
 
 
-def test_update_protocol_item(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, items=["initial"])
+def test_update_protocol_item(authenticated_testapp, dbsession, admin_user):
+    p = _make_protocol(dbsession, admin_user, items=["initial"])
     item = p.items[0]
     authenticated_testapp.post(
         f"/protocols/{p.id}/items/{item.id}",
@@ -133,8 +137,8 @@ def test_update_protocol_item(authenticated_testapp, dbsession):
     assert item.tags == {"tag"}
 
 
-def test_add_protocol_item_extracts_note(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession)
+def test_add_protocol_item_extracts_note(authenticated_testapp, dbsession, admin_user):
+    p = _make_protocol(dbsession, admin_user)
     authenticated_testapp.post(
         f"/protocols/{p.id}/items",
         {"text": "Check fridge ~look in the back"},
@@ -147,8 +151,10 @@ def test_add_protocol_item_extracts_note(authenticated_testapp, dbsession):
     assert item.note == "look in the back"
 
 
-def test_update_protocol_item_partial_returns_html(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, items=["original"])
+def test_update_protocol_item_partial_returns_html(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["original"])
     item = p.items[0]
     res = authenticated_testapp.post(
         f"/protocols/{p.id}/items/{item.id}/partial",
@@ -164,8 +170,8 @@ def test_update_protocol_item_partial_returns_html(authenticated_testapp, dbsess
     assert item.note == "my note"
 
 
-def test_delete_protocol_item(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, items=["one", "two"])
+def test_delete_protocol_item(authenticated_testapp, dbsession, admin_user):
+    p = _make_protocol(dbsession, admin_user, items=["one", "two"])
     item = p.items[0]
     item_id = item.id
     authenticated_testapp.post(
@@ -180,9 +186,11 @@ def test_delete_protocol_item(authenticated_testapp, dbsession):
 # ---------------------------------------------------------------------------
 
 
-def test_palette_json_returns_active_protocols(authenticated_testapp, dbsession):
-    _make_protocol(dbsession, title="Active")
-    archived = _make_protocol(dbsession, title="Archived")
+def test_palette_json_returns_active_protocols(
+    authenticated_testapp, dbsession, admin_user
+):
+    _make_protocol(dbsession, admin_user, title="Active")
+    archived = _make_protocol(dbsession, admin_user, title="Archived")
     archived.archived_at = _now()
     dbsession.flush()
     res = authenticated_testapp.get("/protocols/palette.json", status=200)
@@ -197,8 +205,10 @@ def test_palette_json_returns_active_protocols(authenticated_testapp, dbsession)
 # ---------------------------------------------------------------------------
 
 
-def test_start_protocol_run_creates_run_and_todo(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, items=["a", "b"])
+def test_start_protocol_run_creates_run_and_todo(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["a", "b"])
     res = authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     assert "/protocols/run/" in res.location
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
@@ -209,8 +219,10 @@ def test_start_protocol_run_creates_run_and_todo(authenticated_testapp, dbsessio
     assert run.items == []  # snapshot deferred
 
 
-def test_show_run_snapshots_items_on_first_open(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, items=["alpha", "beta", "gamma"])
+def test_show_run_snapshots_items_on_first_open(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["alpha", "beta", "gamma"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
     res = authenticated_testapp.get(f"/protocols/run/{run.id}", status=200)
@@ -223,9 +235,11 @@ def test_show_run_snapshots_items_on_first_open(authenticated_testapp, dbsession
     assert all(i.status == ProtocolRunItemStatus.pending for i in run.items)
 
 
-def test_show_run_reuses_snapshot_after_template_edit(authenticated_testapp, dbsession):
+def test_show_run_reuses_snapshot_after_template_edit(
+    authenticated_testapp, dbsession, admin_user
+):
     """A run's snapshot is frozen after first open; later template edits don't leak in."""
-    p = _make_protocol(dbsession, items=["original-1", "original-2"])
+    p = _make_protocol(dbsession, admin_user, items=["original-1", "original-2"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
     authenticated_testapp.get(f"/protocols/run/{run.id}", status=200)
@@ -254,8 +268,8 @@ def _start_and_open_run(testapp, dbsession, p):
     return run
 
 
-def test_run_item_done_marks_status(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, items=["one", "two"])
+def test_run_item_done_marks_status(authenticated_testapp, dbsession, admin_user):
+    p = _make_protocol(dbsession, admin_user, items=["one", "two"])
     run = _start_and_open_run(authenticated_testapp, dbsession, p)
     item = run.items[0]
     authenticated_testapp.post(
@@ -267,8 +281,10 @@ def test_run_item_done_marks_status(authenticated_testapp, dbsession):
     assert item.status == ProtocolRunItemStatus.done
 
 
-def test_run_item_send_creates_todo_and_links_back(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, items=["buy bread"])
+def test_run_item_send_creates_todo_and_links_back(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["buy bread"])
     run = _start_and_open_run(authenticated_testapp, dbsession, p)
     item = run.items[0]
     authenticated_testapp.post(
@@ -283,8 +299,8 @@ def test_run_item_send_creates_todo_and_links_back(authenticated_testapp, dbsess
     assert todo.text == "buy bread"
 
 
-def test_run_item_edit_updates_text(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, items=["original"])
+def test_run_item_edit_updates_text(authenticated_testapp, dbsession, admin_user):
+    p = _make_protocol(dbsession, admin_user, items=["original"])
     run = _start_and_open_run(authenticated_testapp, dbsession, p)
     item = run.items[0]
     authenticated_testapp.post(
@@ -298,8 +314,10 @@ def test_run_item_edit_updates_text(authenticated_testapp, dbsession):
     assert item.tags == {"tag"}
 
 
-def test_run_auto_closes_when_all_resolved(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, items=["a", "b"])
+def test_run_auto_closes_when_all_resolved(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["a", "b"])
     run = _start_and_open_run(authenticated_testapp, dbsession, p)
     for item in run.items:
         authenticated_testapp.post(
@@ -320,8 +338,10 @@ def test_run_auto_closes_when_all_resolved(authenticated_testapp, dbsession):
 # ---------------------------------------------------------------------------
 
 
-def test_completing_protocol_run_todo_closes_run(authenticated_testapp, dbsession):
-    p = _make_protocol(dbsession, items=["x"])
+def test_completing_protocol_run_todo_closes_run(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["x"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
     todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
@@ -334,9 +354,9 @@ def test_completing_protocol_run_todo_closes_run(authenticated_testapp, dbsessio
 
 
 def test_edit_protocol_title_syncs_to_active_run_todos(
-    authenticated_testapp, dbsession
+    authenticated_testapp, dbsession, admin_user
 ):
-    p = _make_protocol(dbsession, title="Old title", items=["x"])
+    p = _make_protocol(dbsession, admin_user, title="Old title", items=["x"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
     todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
@@ -349,7 +369,9 @@ def test_edit_protocol_title_syncs_to_active_run_todos(
     assert todo.text == "New title"
 
 
-def test_run_all_done_spawns_next_for_after_rule(authenticated_testapp, dbsession):
+def test_run_all_done_spawns_next_for_after_rule(
+    authenticated_testapp, dbsession, admin_user
+):
     rule = RecurrenceRule(
         kind=RecurrenceKind.after,
         interval_value=1,
@@ -357,7 +379,7 @@ def test_run_all_done_spawns_next_for_after_rule(authenticated_testapp, dbsessio
     )
     dbsession.add(rule)
     dbsession.flush()
-    p = _make_protocol(dbsession, items=["a"])
+    p = _make_protocol(dbsession, admin_user, items=["a"])
     p.recurrence_id = rule.id
     dbsession.flush()
     run = _start_and_open_run(authenticated_testapp, dbsession, p)
@@ -370,7 +392,7 @@ def test_run_all_done_spawns_next_for_after_rule(authenticated_testapp, dbsessio
 
 
 def test_completing_protocol_todo_with_after_rule_spawns_next(
-    authenticated_testapp, dbsession
+    authenticated_testapp, dbsession, admin_user
 ):
     rule = RecurrenceRule(
         kind=RecurrenceKind.after,
@@ -379,7 +401,7 @@ def test_completing_protocol_todo_with_after_rule_spawns_next(
     )
     dbsession.add(rule)
     dbsession.flush()
-    p = _make_protocol(dbsession, items=["x"])
+    p = _make_protocol(dbsession, admin_user, items=["x"])
     p.recurrence_id = rule.id
     dbsession.flush()
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)

@@ -626,16 +626,24 @@ def test_add_todo_workflow(authenticated_testapp, dbsession):
     assert b"chores" in res.body
 
 
-def test_done_view_shows_completed(authenticated_testapp, dbsession):
-    todo = _todo("Completed", status=TodoStatus.done, done_at=_now())
+def test_done_view_shows_completed(authenticated_testapp, dbsession, admin_user):
+    todo = _todo(
+        "Completed", status=TodoStatus.done, done_at=_now(), owner_id=admin_user.id
+    )
     dbsession.add(todo)
     dbsession.flush()
     res = authenticated_testapp.get("/todos/done", status=200)
     assert b"Completed" in res.body
 
 
-def test_scheduled_view_lists_future_items(authenticated_testapp, dbsession):
-    todo = _todo("Pay rent", due_date=_today() + datetime.timedelta(days=5))
+def test_scheduled_view_lists_future_items(
+    authenticated_testapp, dbsession, admin_user
+):
+    todo = _todo(
+        "Pay rent",
+        due_date=_today() + datetime.timedelta(days=5),
+        owner_id=admin_user.id,
+    )
     dbsession.add(todo)
     dbsession.flush()
     res = authenticated_testapp.get("/todos/scheduled", status=200)

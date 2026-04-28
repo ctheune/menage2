@@ -13,16 +13,15 @@ A todo is visible to user U if ANY of:
 
 Filter modes
 ------------
-  "all"           — visible AND (owner, direct assignee, or assignee-role team member)
-  "personal"      — owner_id == me AND assignees == {}
-  "delegated_out" — owner_id == me AND assignees != {}
-  "delegated_in"  — (direct assignee OR any team member) AND owner_id != me
+  "personal"/"all" — owner, direct assignee, or assignee-role team member
+  "delegated_out"  — owner_id == me AND assignees != {}
+  "delegated_in"   — (direct assignee OR any team member) AND owner_id != me
 
 NOTE: Team expansion is done inline (one array-containment clause per team the
 user belongs to).  Household teams are tiny so this is fine; avoids a join.
 """
 
-from sqlalchemy import Text, and_, cast, or_, select
+from sqlalchemy import Text, cast, or_, select
 from sqlalchemy.dialects.postgresql import ARRAY
 
 from .models.team import Team, TeamMember
@@ -61,14 +60,14 @@ def _assignees_contains(name: str):
     return Todo.assignees.contains(cast([name], ARRAY(Text)))
 
 
-def filter_todos_for_user(stmt, user, dbsession, filter_mode: str = "all"):
+def filter_todos_for_user(stmt, user, dbsession, filter_mode: str = "personal"):
     """Wrap a SELECT(Todo) statement with per-user visibility + filter_mode clauses.
 
     Args:
         stmt: A SQLAlchemy select() statement already selecting Todo rows.
         user: The authenticated User ORM object.
         dbsession: Active SQLAlchemy session.
-        filter_mode: One of "all", "personal", "delegated_out", "delegated_in".
+        filter_mode: One of "personal", "all", "delegated_out", "delegated_in".
     """
     memberships = get_user_team_memberships(dbsession, user)
 
@@ -89,9 +88,6 @@ def filter_todos_for_user(stmt, user, dbsession, filter_mode: str = "all"):
     is_direct_assignee = _assignees_contains(user.username)
     has_assignees = Todo.assignees != cast([], ARRAY(Text))
 
-    if filter_mode == "personal":
-        return stmt.where(is_owner, ~has_assignees)
-
     if filter_mode == "delegated_out":
         return stmt.where(is_owner, has_assignees)
 
@@ -103,7 +99,7 @@ def filter_todos_for_user(stmt, user, dbsession, filter_mode: str = "all"):
             or_(*delegated_in_clauses) if delegated_in_clauses else is_direct_assignee,
         )
 
-    # Default: "all" — items the user is responsible for.
+    # "personal" and "all" — items the user is responsible for.
     # Includes: owned, unowned (legacy NULL), direct assignee, assignee-role team.
     responsible_clauses = [
         is_owner,

@@ -33,7 +33,7 @@ class Protocol(Base):
 
     id = Column(Integer, primary_key=True)
     title = Column(Text, nullable=False)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     assignees = Column(TagSet, nullable=False, server_default="{}")
     recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
     created_at = Column(

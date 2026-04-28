@@ -7,7 +7,7 @@ GET of /protocols/run/{id}, idempotent under the recurrence module's lock.
 import datetime
 import threading
 
-from pyramid.httpexceptions import HTTPNotFound, HTTPSeeOther
+from pyramid.httpexceptions import HTTPForbidden, HTTPNotFound, HTTPSeeOther
 from pyramid.renderers import render
 from pyramid.view import view_config
 from sqlalchemy import select
@@ -21,6 +21,7 @@ from menage2.models.protocol import (
     ProtocolRunItemStatus,
 )
 from menage2.models.todo import Todo, TodoStatus
+from menage2.principals import get_user_team_memberships
 from menage2.recurrence import (
     ensure_protocol_has_run,
     rule_to_spec,
@@ -54,6 +55,16 @@ def _get_or_404(request, model, id_param="id"):
     return obj
 
 
+def _is_protocol_owner(request, protocol):
+    user = request.identity
+    return user is not None and user.id == protocol.owner_id
+
+
+def _require_owner(request, protocol):
+    if not _is_protocol_owner(request, protocol):
+        raise HTTPForbidden()
+
+
 # ---------------------------------------------------------------------------
 # Listing
 # ---------------------------------------------------------------------------
@@ -63,20 +74,44 @@ def _get_or_404(request, model, id_param="id"):
     route_name="list_protocols", renderer="menage2:templates/protocols/list.pt"
 )
 def list_protocols(request):
+    user = request.identity
+
+    def _filter(stmt):
+        if user is None:
+            return stmt
+        from sqlalchemy import Text, cast, or_
+        from sqlalchemy.dialects.postgresql import ARRAY
+
+        def _contains(name):
+            return Protocol.assignees.contains(cast([name], ARRAY(Text)))
+
+        memberships = get_user_team_memberships(request.dbsession, user)
+        team_clauses = [_contains(team_name) for team_name in memberships]
+        visible_clauses = [
+            Protocol.owner_id == user.id,
+            Protocol.owner_id.is_(None),
+            _contains(user.username),
+        ] + team_clauses
+        return stmt.where(or_(*visible_clauses))
+
     active = (
         request.dbsession.execute(
-            select(Protocol)
-            .where(Protocol.archived_at.is_(None))
-            .order_by(Protocol.title)
+            _filter(
+                select(Protocol)
+                .where(Protocol.archived_at.is_(None))
+                .order_by(Protocol.title)
+            )
         )
         .scalars()
         .all()
     )
     archived = (
         request.dbsession.execute(
-            select(Protocol)
-            .where(Protocol.archived_at.is_not(None))
-            .order_by(Protocol.title)
+            _filter(
+                select(Protocol)
+                .where(Protocol.archived_at.is_not(None))
+                .order_by(Protocol.title)
+            )
         )
         .scalars()
         .all()
@@ -121,6 +156,7 @@ def new_protocol(request):
 @view_config(route_name="archive_protocol", request_method="POST")
 def archive_protocol(request):
     p = _get_or_404(request, Protocol)
+    _require_owner(request, p)
     p.archived_at = _now_utc()
     return HTTPSeeOther(request.route_url("list_protocols"))
 
@@ -128,6 +164,7 @@ def archive_protocol(request):
 @view_config(route_name="unarchive_protocol", request_method="POST")
 def unarchive_protocol(request):
     p = _get_or_404(request, Protocol)
+    _require_owner(request, p)
     p.archived_at = None
     return HTTPSeeOther(request.route_url("list_protocols"))
 
@@ -137,10 +174,10 @@ def unarchive_protocol(request):
 # ---------------------------------------------------------------------------
 
 
-def _render_protocol_item(request, protocol, item):
+def _render_protocol_item(request, protocol, item, is_owner=True):
     return render(
         "menage2:templates/protocols/_protocol_item.pt",
-        {"protocol": protocol, "item": item},
+        {"protocol": protocol, "item": item, "is_owner": is_owner},
         request=request,
     )
 
@@ -152,16 +189,19 @@ def _render_protocol_item(request, protocol, item):
 )
 def edit_protocol(request):
     p = _get_or_404(request, Protocol)
+    is_owner = _is_protocol_owner(request, p)
     return {
         "protocol": p,
         "rule_label": _rule_label(p),
-        "render_item": lambda item: _render_protocol_item(request, p, item),
+        "is_owner": is_owner,
+        "render_item": lambda item: _render_protocol_item(request, p, item, is_owner),
     }
 
 
 @view_config(route_name="edit_protocol", request_method="POST")
 def update_protocol(request):
     p = _get_or_404(request, Protocol)
+    _require_owner(request, p)
     title = request.params.get("title", "").strip()
     if title and title != p.title:
         p.title = title
@@ -179,6 +219,13 @@ def update_protocol(request):
         for run in active_runs:
             if run.todo and run.todo.status.value == "todo":
                 run.todo.text = title
+    if "assignees" in request.params:
+        raw_assignees = request.params.get("assignees", "")
+        p.assignees = set(
+            a.lstrip("@").strip()
+            for a in raw_assignees.split(",")
+            if a.strip().lstrip("@")
+        )
     raw_recurrence = request.params.get("recurrence", "")
     if "recurrence" in request.params:
         if raw_recurrence.strip():
@@ -220,6 +267,7 @@ def _apply_protocol_recurrence(protocol, spec, dbsession):
 @view_config(route_name="add_protocol_item", request_method="POST")
 def add_protocol_item(request):
     p = _get_or_404(request, Protocol)
+    _require_owner(request, p)
     raw = request.params.get("text", "").strip()
     if not raw:
         return HTTPSeeOther(request.route_url("edit_protocol", id=p.id))
@@ -250,6 +298,7 @@ def add_protocol_item(request):
 @view_config(route_name="update_protocol_item", request_method="POST")
 def update_protocol_item(request):
     item = _get_or_404(request, ProtocolItem, "item_id")
+    _require_owner(request, item.protocol)
     raw = request.params.get("text", "").strip()
     if not raw:
         return HTTPSeeOther(request.route_url("edit_protocol", id=item.protocol_id))
@@ -267,6 +316,7 @@ def update_protocol_item(request):
 def update_protocol_item_partial(request):
     item = _get_or_404(request, ProtocolItem, "item_id")
     p = _get_or_404(request, Protocol)
+    _require_owner(request, p)
     raw = request.params.get("text", "").strip()
     if raw:
         parsed = parse_todo_input(raw)
@@ -285,6 +335,7 @@ def update_protocol_item_partial(request):
 @view_config(route_name="delete_protocol_item", request_method="POST")
 def delete_protocol_item(request):
     item = _get_or_404(request, ProtocolItem, "item_id")
+    _require_owner(request, item.protocol)
     protocol_id = item.protocol_id
     request.dbsession.delete(item)
     return HTTPSeeOther(request.route_url("edit_protocol", id=protocol_id))
@@ -299,8 +350,9 @@ def delete_protocol_item(request):
 def start_protocol_run(request):
     p = _get_or_404(request, Protocol)
     owner_id = request.identity.id if request.identity else None
-    run = spawn_protocol_run(p, _today(), _now_utc(), request.dbsession)
-    run.owner_id = owner_id
+    run = spawn_protocol_run(
+        p, _today(), _now_utc(), request.dbsession, owner_id=owner_id
+    )
     return HTTPSeeOther(request.route_url("show_protocol_run", id=run.id))
 
 

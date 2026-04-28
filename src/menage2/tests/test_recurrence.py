@@ -377,15 +377,19 @@ def test_chain_history_single_item_when_no_parent(dbsession):
 # ---------------------------------------------------------------------------
 
 
-def _make_protocol(dbsession, title="Weekly inventory", recurrence=None):
-    p = Protocol(title=title, recurrence_id=recurrence.id if recurrence else None)
+def _make_protocol(dbsession, admin_user, title="Weekly inventory", recurrence=None):
+    p = Protocol(
+        title=title,
+        owner_id=admin_user.id,
+        recurrence_id=recurrence.id if recurrence else None,
+    )
     dbsession.add(p)
     dbsession.flush()
     return p
 
 
-def test_spawn_protocol_run_creates_run_and_todo(dbsession):
-    p = _make_protocol(dbsession)
+def test_spawn_protocol_run_creates_run_and_todo(dbsession, admin_user):
+    p = _make_protocol(dbsession, admin_user)
     today = datetime.date(2026, 4, 29)
     run = spawn_protocol_run(p, today, _now(), dbsession)
     assert run.protocol_id == p.id
@@ -397,9 +401,9 @@ def test_spawn_protocol_run_creates_run_and_todo(dbsession):
     assert todo.status == TodoStatus.todo
 
 
-def test_spawn_protocol_after_creates_next_run(dbsession):
+def test_spawn_protocol_after_creates_next_run(dbsession, admin_user):
     rule = _make_rule(dbsession, "after", "week", n=1)
-    p = _make_protocol(dbsession, recurrence=rule)
+    p = _make_protocol(dbsession, admin_user, recurrence=rule)
     initial = spawn_protocol_run(p, datetime.date(2026, 4, 29), _now(), dbsession)
     completion = datetime.date(2026, 5, 2)  # completed 3 days late
     new_run = spawn_protocol_after(initial, completion, _now(), dbsession)
@@ -408,19 +412,19 @@ def test_spawn_protocol_after_creates_next_run(dbsession):
     assert new_todo.due_date == datetime.date(2026, 5, 9)
 
 
-def test_spawn_protocol_after_no_op_for_every(dbsession):
+def test_spawn_protocol_after_no_op_for_every(dbsession, admin_user):
     rule = _make_rule(dbsession, "every", "week", weekday=2)
-    p = _make_protocol(dbsession, recurrence=rule)
+    p = _make_protocol(dbsession, admin_user, recurrence=rule)
     run = spawn_protocol_run(p, datetime.date(2026, 4, 29), _now(), dbsession)
     assert (
         spawn_protocol_after(run, datetime.date(2026, 5, 1), _now(), dbsession) is None
     )
 
 
-def test_spawn_protocol_every_on_completion_creates_next(dbsession):
+def test_spawn_protocol_every_on_completion_creates_next(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)  # Wed
     rule = _make_rule(dbsession, "every", "week", weekday=2)
-    p = _make_protocol(dbsession, recurrence=rule)
+    p = _make_protocol(dbsession, admin_user, recurrence=rule)
     run = spawn_protocol_run(p, today, _now(), dbsession)
     # Simulate completion: mark the run's todo done so the future-active check
     # no longer counts it.
@@ -443,20 +447,22 @@ def test_spawn_protocol_every_on_completion_creates_next(dbsession):
     assert futures[0].due_date == datetime.date(2026, 5, 6)
 
 
-def test_spawn_protocol_every_skips_when_future_active_run_exists(dbsession):
+def test_spawn_protocol_every_skips_when_future_active_run_exists(
+    dbsession, admin_user
+):
     today = datetime.date(2026, 4, 29)
     rule = _make_rule(dbsession, "every", "week", weekday=2)
-    p = _make_protocol(dbsession, recurrence=rule)
+    p = _make_protocol(dbsession, admin_user, recurrence=rule)
     spawn_protocol_run(p, today, _now(), dbsession)  # already today-active
     run = spawn_protocol_run(p, today - datetime.timedelta(days=7), _now(), dbsession)
     spawned = spawn_protocol_every_on_completion(run, today, _now(), dbsession)
     assert spawned == 0
 
 
-def test_daily_sweep_includes_protocols(dbsession):
+def test_daily_sweep_includes_protocols(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
     rule = _make_rule(dbsession, "every", "week", weekday=2)
-    p = _make_protocol(dbsession, recurrence=rule)
+    p = _make_protocol(dbsession, admin_user, recurrence=rule)
     # Past run only — chain has no today-or-future active.
     spawn_protocol_run(p, today - datetime.timedelta(days=14), _now(), dbsession)
     spawned = spawn_due_every_if_needed(dbsession, today, _now())
@@ -470,10 +476,10 @@ def test_daily_sweep_includes_protocols(dbsession):
     assert actives >= 1
 
 
-def test_daily_sweep_skips_archived_protocols(dbsession):
+def test_daily_sweep_skips_archived_protocols(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
     rule = _make_rule(dbsession, "every", "week", weekday=2)
-    p = _make_protocol(dbsession, recurrence=rule)
+    p = _make_protocol(dbsession, admin_user, recurrence=rule)
     p.archived_at = _now()
     spawn_protocol_run(p, today - datetime.timedelta(days=14), _now(), dbsession)
     before = (
@@ -484,10 +490,10 @@ def test_daily_sweep_skips_archived_protocols(dbsession):
     assert before == after
 
 
-def test_ensure_protocol_has_run_creates_first_run(dbsession):
+def test_ensure_protocol_has_run_creates_first_run(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)  # Wed
     rule = _make_rule(dbsession, "every", "week", weekday=2)
-    p = _make_protocol(dbsession, recurrence=rule)
+    p = _make_protocol(dbsession, admin_user, recurrence=rule)
     ensure_protocol_has_run(p, today, _now(), dbsession)
     runs = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).all()
     assert len(runs) >= 1
@@ -497,10 +503,10 @@ def test_ensure_protocol_has_run_creates_first_run(dbsession):
     assert any(t.due_date >= today for t in todos)
 
 
-def test_ensure_protocol_has_run_no_op_when_active_exists(dbsession):
+def test_ensure_protocol_has_run_no_op_when_active_exists(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
     rule = _make_rule(dbsession, "every", "week", weekday=2)
-    p = _make_protocol(dbsession, recurrence=rule)
+    p = _make_protocol(dbsession, admin_user, recurrence=rule)
     spawn_protocol_run(p, today, _now(), dbsession)
     before = (
         dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).count()
@@ -510,9 +516,9 @@ def test_ensure_protocol_has_run_no_op_when_active_exists(dbsession):
     assert before == after
 
 
-def test_ensure_protocol_has_run_no_op_without_recurrence(dbsession):
+def test_ensure_protocol_has_run_no_op_without_recurrence(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
-    p = _make_protocol(dbsession)  # no recurrence
+    p = _make_protocol(dbsession, admin_user)  # no recurrence
     ensure_protocol_has_run(p, today, _now(), dbsession)
     assert (
         dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).count()

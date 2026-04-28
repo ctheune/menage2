@@ -5,34 +5,52 @@
     ">
 <li id="item-${item.id}" class="card mb-1 shadow-sm">
   <div class="card-body py-1 px-3">
-    <form class="proto-item-form"
-          hx-post="${request.route_url('update_protocol_item_partial', id=protocol.id, item_id=item.id)}"
-          hx-target="#item-${item.id}"
-          hx-swap="outerHTML"
-          data-canonical="${canonical}"
-          data-note="${item.note or ''}">
-      <input type="hidden" name="text" class="proto-item-hidden" value="${canonical}"/>
-      <div class="proto-item-input-wrap d-flex flex-wrap gap-1 align-items-center mb-1">
-        <input type="text" class="form-control form-control-sm proto-item-text"
-               style="min-width:8rem; flex:1"
-               placeholder="Item text…"
-               value="${item.text}"/>
-        <button type="button"
-                class="btn btn-link btn-sm p-0 text-danger flex-shrink-0"
-                data-delete-url="${request.route_url('delete_protocol_item', id=protocol.id, item_id=item.id)}"
-                onclick="deleteProtocolItem(this)"
-                title="Delete item">
-          <i class="bi bi-trash3"></i>
-        </button>
-      </div>
-      <div class="proto-item-quick-pick" style="display:none"></div>
-      <div class="d-flex align-items-center gap-2 mt-1">
-        <button type="submit" class="btn btn-sm btn-outline-secondary d-none proto-item-save flex-shrink-0">Save</button>
+
+    <!-- Editable form — owner only -->
+    <tal:block tal:condition="is_owner">
+      <form class="proto-item-form"
+            hx-post="${request.route_url('update_protocol_item_partial', id=protocol.id, item_id=item.id)}"
+            hx-target="#item-${item.id}"
+            hx-swap="outerHTML"
+            data-canonical="${canonical}"
+            data-note="${item.note or ''}">
+        <input type="hidden" name="text" class="proto-item-hidden" value="${canonical}"/>
+        <div class="proto-item-input-wrap d-flex flex-wrap gap-1 align-items-center mb-1">
+          <input type="text" class="form-control form-control-sm proto-item-text"
+                 style="min-width:8rem; flex:1"
+                 placeholder="Item text…"
+                 value="${item.text}"/>
+          <button type="button"
+                  class="btn btn-link btn-sm p-0 text-danger flex-shrink-0"
+                  data-delete-url="${request.route_url('delete_protocol_item', id=protocol.id, item_id=item.id)}"
+                  onclick="deleteProtocolItem(this)"
+                  title="Delete item">
+            <i class="bi bi-trash3"></i>
+          </button>
+        </div>
+        <div class="proto-item-quick-pick" style="display:none"></div>
+        <div class="d-flex align-items-center gap-2 mt-1">
+          <button type="submit" class="btn btn-sm btn-outline-secondary d-none proto-item-save flex-shrink-0">Save</button>
+          <tal:block tal:repeat="a python:sorted(item.assignees)">
+            <span class="badge rounded-pill todo-assignee-pill-sm">@${a}</span>
+          </tal:block>
+        </div>
+      </form>
+    </tal:block>
+
+    <!-- Read-only view — non-owners -->
+    <tal:block tal:condition="not is_owner">
+      <div class="d-flex align-items-center gap-2 py-1">
+        <span class="flex-grow-1">${item.text}</span>
+        <tal:block tal:repeat="t python:sorted(item.tags)">
+          <span class="badge rounded-pill bg-secondary">#${t}</span>
+        </tal:block>
         <tal:block tal:repeat="a python:sorted(item.assignees)">
           <span class="badge rounded-pill todo-assignee-pill-sm">@${a}</span>
         </tal:block>
       </div>
-    </form>
+    </tal:block>
+
   </div>
 </li>
 </tal:block>
