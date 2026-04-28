@@ -100,7 +100,7 @@
 
       <!-- Section sub-navigation -->
       <tal:block tal:condition="in_section">
-        <ul class="nav nav-underline">
+        <ul class="nav nav-tabs border-0">
 
           <tal:block tal:condition="in_victuals">
             <li class="nav-item">
@@ -120,15 +120,33 @@
           <tal:block tal:condition="in_tasks">
             <li class="nav-item">
               <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_active else 'nav-link'"
-                 href="${request.route_url('list_todos')}">Active</a>
+                 href="${request.route_url('list_todos')}">
+                Active
+                <span tal:condition="python:nav_task_counts and nav_task_counts['active']"
+                      class="badge rounded-pill bg-dark ms-1">
+                  ${nav_task_counts['active']}
+                </span>
+              </a>
             </li>
             <li class="nav-item">
               <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_hold else 'nav-link'"
-                 href="${request.route_url('list_todos_hold')}">On Hold</a>
+                 href="${request.route_url('list_todos_hold')}">
+                On Hold
+                <span tal:condition="python:nav_task_counts and nav_task_counts['hold']"
+                      class="badge rounded-pill bg-secondary ms-1">
+                  ${nav_task_counts['hold']}
+                </span>
+              </a>
             </li>
             <li class="nav-item">
               <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_scheduled else 'nav-link'"
-                 href="${request.route_url('list_todos_scheduled')}">Scheduled</a>
+                 href="${request.route_url('list_todos_scheduled')}">
+                Scheduled
+                <span tal:condition="python:nav_task_counts and nav_task_counts['scheduled']"
+                      class="badge rounded-pill bg-primary ms-1">
+                  ${nav_task_counts['scheduled']}
+                </span>
+              </a>
             </li>
             <li class="nav-item">
               <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_done else 'nav-link'"

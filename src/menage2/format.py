@@ -1,3 +1,4 @@
+import datetime as _dt
 from datetime import datetime, timedelta, timezone
 
 from babel.core import Locale
@@ -5,6 +6,45 @@ from babel.dates import get_timezone
 from babel.support import Format
 from pyramid.events import subscriber
 from pyramid.interfaces import IBeforeRender
+from sqlalchemy import func, or_, select
+
+_TASKS_ROUTES = frozenset(
+    {
+        "list_todos",
+        "list_todos_done",
+        "list_todos_scheduled",
+        "list_todos_hold",
+        "add_todo",
+        "edit_todo",
+        "todos_done",
+        "todos_hold",
+        "todos_postpone",
+        "todos_activate_all_on_hold",
+        "todo_undo",
+        "todos_activate_batch",
+        "set_due_date",
+        "parse_date_preview",
+        "set_recurrence",
+        "parse_recurrence_preview",
+        "recurrence_history",
+        "list_tags_json",
+        "list_principals_json",
+        "list_protocols",
+        "new_protocol",
+        "edit_protocol",
+        "archive_protocol",
+        "unarchive_protocol",
+        "add_protocol_item",
+        "update_protocol_item",
+        "update_protocol_item_partial",
+        "delete_protocol_item",
+        "start_protocol_run",
+        "show_protocol_run",
+        "list_protocols_palette",
+    }
+)
+
+_VALID_FILTER_MODES = frozenset({"all", "personal", "delegated_out", "delegated_in"})
 
 
 def format_timedelta(td: timedelta):
@@ -78,3 +118,58 @@ def globals_factory(event):
     event["humanize_ago"] = humanize_ago
     event["absolute_with_weekday"] = humanize_ago_with_weekday
     event["_recurrence_label"] = _recurrence_label
+
+    # Task sub-nav counts (active / on-hold / scheduled)
+    request = event["request"]
+    route_name = request.matched_route.name if request.matched_route else ""
+    nav_task_counts = None
+    if (
+        route_name in _TASKS_ROUTES
+        and request.identity is not None
+        and hasattr(request, "dbsession")
+    ):
+        from menage2.models.todo import Todo, TodoStatus
+        from menage2.principals import filter_todos_for_user
+
+        today = _dt.date.today()
+        user = request.identity
+        filter_mode = request.params.get("filter", "personal")
+        if filter_mode not in _VALID_FILTER_MODES:
+            filter_mode = "personal"
+        db = request.dbsession
+        db.flush()
+
+        stmt_active = filter_todos_for_user(
+            select(func.count())
+            .select_from(Todo)
+            .where(
+                Todo.status == TodoStatus.todo,
+                or_(Todo.due_date.is_(None), Todo.due_date <= today),
+            ),
+            user,
+            db,
+            filter_mode,
+        )
+        stmt_hold = filter_todos_for_user(
+            select(func.count())
+            .select_from(Todo)
+            .where(Todo.status == TodoStatus.on_hold),
+            user,
+            db,
+            filter_mode,
+        )
+        stmt_sched = filter_todos_for_user(
+            select(func.count())
+            .select_from(Todo)
+            .where(Todo.status == TodoStatus.todo, Todo.due_date > today),
+            user,
+            db,
+            filter_mode,
+        )
+        nav_task_counts = {
+            "active": db.execute(stmt_active).scalar(),
+            "hold": db.execute(stmt_hold).scalar(),
+            "scheduled": db.execute(stmt_sched).scalar(),
+        }
+
+    event["nav_task_counts"] = nav_task_counts
