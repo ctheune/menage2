@@ -51,6 +51,28 @@
       </div>
       <div class="col-12 col-md-6 col-lg-5">
 
+        <!-- Base name card -->
+        <div class="card">
+          <div class="card-header">
+            <i class="bi bi-house-heart"></i> Base Name
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">
+              The name shown in the browser title, navbar, and app icon.
+            </p>
+            <form method="post" action="${request.route_url('admin_base_name')}">
+              <div class="input-group input-group-sm">
+                <input type="text" name="base_name" class="form-control"
+                       value="${base_name}" maxlength="60" required />
+                <button type="submit" class="btn btn-dark btn-sm">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </div>
+      <div class="col-12 col-md-6 col-lg-5">
+
         <!-- Recurrence sweep card -->
         <div class="card">
           <div class="card-header">

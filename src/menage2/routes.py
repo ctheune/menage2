@@ -45,6 +45,7 @@ def includeme(config):
     config.add_route("admin_user_deactivate", "/admin/users/{id}/deactivate")
     config.add_route("admin_user_delete", "/admin/users/{id}/delete")
     config.add_route("admin_dashboard_token", "/admin/dashboard-token")
+    config.add_route("admin_base_name", "/admin/base-name")
     config.add_route("admin_recurrence_sweep", "/admin/recurrence-sweep")
     config.add_route("admin_composite_playground", "/admin/composite-playground")
     config.add_route("admin_teams", "/admin/teams")

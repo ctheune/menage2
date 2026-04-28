@@ -14,6 +14,9 @@ from ..recurrence import force_recurrence_sweep
 from ..security import PERM_ADMIN
 from ..views.auth import DASHBOARD_TOKEN_KEY
 
+BASE_NAME_KEY = "base_name"
+DEFAULT_BASE_NAME = "Happy Valley"
+
 _ph = PasswordHasher()
 
 
@@ -265,6 +268,7 @@ def admin_operations(request):
     sweep_spawned = request.params.get("sweep_spawned")
     includes = request.registry.settings.get("pyramid.includes", "")
     is_debug = "pyramid_debugtoolbar" in includes
+    base_name_item = request.dbsession.get(ConfigItem, BASE_NAME_KEY)
     return {
         "token": token_value,
         "dashboard_url": dashboard_url,
@@ -272,6 +276,7 @@ def admin_operations(request):
         if sweep_spawned and sweep_spawned.isdigit()
         else None,
         "is_debug": is_debug,
+        "base_name": base_name_item.value if base_name_item else DEFAULT_BASE_NAME,
     }
 
 
@@ -301,6 +306,19 @@ def dashboard_token_view(request):
             request.dbsession.add(ConfigItem(key=DASHBOARD_TOKEN_KEY, value=token))
         else:
             config_item.value = token
+    return HTTPSeeOther(location=request.route_url("admin_operations"))
+
+
+@view_config(route_name="admin_base_name", permission=PERM_ADMIN)
+def base_name_view(request) -> HTTPSeeOther:
+    if request.method == "POST":
+        name = request.params.get("base_name", "").strip()
+        if name:
+            item = request.dbsession.get(ConfigItem, BASE_NAME_KEY)
+            if item is None:
+                request.dbsession.add(ConfigItem(key=BASE_NAME_KEY, value=name))
+            else:
+                item.value = name
     return HTTPSeeOther(location=request.route_url("admin_operations"))
 
 

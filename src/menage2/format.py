@@ -100,6 +100,16 @@ def globals_factory(event):
     fmt = Format(locale, get_timezone(tz_name))
     event["format"] = fmt
 
+    from menage2.models.config import ConfigItem
+    from menage2.views.admin import BASE_NAME_KEY, DEFAULT_BASE_NAME
+
+    request = event["request"]
+    if hasattr(request, "dbsession"):
+        item = request.dbsession.get(ConfigItem, BASE_NAME_KEY)
+        event["base_name"] = item.value if item else DEFAULT_BASE_NAME
+    else:
+        event["base_name"] = DEFAULT_BASE_NAME
+
     def humanize_ago_with_weekday(dt: datetime) -> str:
         weekday = fmt.date(dt, format="EEEE")
         absolute = fmt.datetime(dt, format="medium")
