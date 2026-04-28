@@ -8,7 +8,7 @@
     <!-- Filter toggle bar -->
     <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
       <span class="text-muted small me-1">Show:</span>
-      <tal:block tal:define="modes python:[('personal','Personal'),('delegated_out','Delegated out'),('delegated_in','Delegated in'),('all','All')]">
+      <tal:block tal:define="modes python:[('personal','My Tasks'),('delegated_out','Delegated out'),('delegated_in','Delegated in'),('all','All')]">
         <tal:block tal:repeat="mode modes">
           <a tal:define="mkey python:mode[0]; mlabel python:mode[1]"
              href="${request.route_url('list_todos')}?filter=${mkey}"
