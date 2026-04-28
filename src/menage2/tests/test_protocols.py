@@ -57,13 +57,38 @@ def test_new_protocol_creates_and_redirects_to_editor(authenticated_testapp, dbs
     )
 
 
+def test_edit_protocol_composite_tags_and_note(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user)
+    authenticated_testapp.post(
+        f"/protocols/{p.id}/edit",
+        {"composite": "Cleaning round #household ~check corners"},
+        status=303,
+    )
+    dbsession.flush()
+    dbsession.refresh(p)
+    assert p.title == "Cleaning round"
+    assert "household" in p.tags
+    assert p.note == "check corners"
+
+
+def test_edit_protocol_composite_shows_in_form(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user)
+    res = authenticated_testapp.get(f"/protocols/{p.id}/edit", status=200)
+    assert b"ci-container" in res.body
+    assert b"ci-hidden-input" in res.body
+
+
 def test_edit_protocol_updates_title_and_recurrence(
     authenticated_testapp, dbsession, admin_user
 ):
     p = _make_protocol(dbsession, admin_user)
     authenticated_testapp.post(
         f"/protocols/{p.id}/edit",
-        {"title": "Renamed", "recurrence": "every wednesday"},
+        {"composite": "Renamed *every wednesday"},
         status=303,
     )
     dbsession.flush()
@@ -88,7 +113,7 @@ def test_edit_protocol_clears_recurrence_when_empty(
     dbsession.flush()
     authenticated_testapp.post(
         f"/protocols/{p.id}/edit",
-        {"title": p.title, "recurrence": ""},
+        {"composite": p.title},
         status=303,
     )
     dbsession.flush()
@@ -362,7 +387,7 @@ def test_edit_protocol_title_syncs_to_active_run_todos(
     todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
     assert todo.text == "Old title"
     authenticated_testapp.post(
-        f"/protocols/{p.id}/edit", {"title": "New title"}, status=303
+        f"/protocols/{p.id}/edit", {"composite": "New title"}, status=303
     )
     dbsession.flush()
     dbsession.refresh(todo)

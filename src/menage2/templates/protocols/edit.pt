@@ -1,3 +1,9 @@
+<tal:block tal:define="
+    tag_str python:' '.join('#' + t for t in sorted(protocol.tags));
+    rec_label python:('*' + rule_label) if rule_label else '';
+    note_part python:(' ~' + protocol.note) if protocol.note else '';
+    proto_canonical python:protocol.title + (' ' + tag_str if tag_str else '') + (' ' + rec_label if rec_label else '') + note_part
+    ">
 <div metal:use-macro="load: ../layout.pt">
 
   <span metal:fill-slot="title-mobile">${protocol.title}</span>
@@ -20,18 +26,28 @@
   <div metal:fill-slot="content" class="container-fluid px-3 py-3">
 
     <div class="mb-3">
-      <a href="${request.route_url('list_protocols')}" class="link-secondary">← Back to Protocols</a>
+      <a href="${request.route_url('list_protocols')}" class="link-secondary">&larr; Back to Protocols</a>
     </div>
 
-    <!-- Title + recurrence form — owner only -->
+    <!-- Title / tags / recurrence / note form — owner only -->
     <tal:block tal:condition="is_owner">
       <form method="post" action="${request.route_url('edit_protocol', id=protocol.id)}"
-            class="card mb-3">
+            class="card mb-3" id="proto-title-form">
         <div class="card-body">
-          <label class="form-label small text-muted">Title</label>
-          <input type="text" name="title" value="${protocol.title}" class="form-control mb-3"/>
+          <label class="form-label small text-muted">
+            Title (use <code>#tag</code>, <code>*repeat</code>, <code>~note</code>)
+          </label>
 
-          <label class="form-label small text-muted">Assignees (optional)</label>
+          <!-- Composite input container -->
+          <div class="todo-tag-input ci-container" id="proto-title-ci"
+               style="margin-bottom:0.5rem">
+            <div class="ci-text"
+                 style="flex:1;min-width:6rem;cursor:text;word-break:break-word;min-height:1.5em;"></div>
+          </div>
+          <input type="hidden" name="composite" class="ci-hidden-input" value="${proto_canonical}"/>
+          <div class="ci-quick-pick d-flex flex-wrap gap-1 mb-2" style="display:none"></div>
+
+          <label class="form-label small text-muted mt-2">Assignees (optional)</label>
           <input type="text" name="assignees" class="form-control mb-3"
                  placeholder="@alice, @haushalt — comma-separated"
                  value="${python:', '.join('@' + a for a in sorted(protocol.assignees)) if protocol.assignees else ''}"/>
@@ -39,17 +55,7 @@
             Who can see and run this protocol. Leave empty to keep it private to you.
           </small>
 
-          <label class="form-label small text-muted">Repeat (optional)</label>
-          <div class="d-flex gap-2 align-items-center">
-            <input type="text" name="recurrence" class="form-control"
-                   placeholder="every wednesday / after 1 week / every month …"
-                   value="${rule_label or ''}"/>
-            <button type="submit" class="btn btn-sm btn-dark">Save</button>
-          </div>
-          <small class="text-muted d-block mt-1">
-            Leave empty to remove the recurrence. Same syntax as the
-            <code>*</code> picker on todos.
-          </small>
+          <button type="submit" class="btn btn-sm btn-dark">Save</button>
         </div>
       </form>
     </tal:block>
@@ -76,8 +82,8 @@
           <button type="submit" class="btn btn-sm btn-dark">Add</button>
         </div>
       </form>
-
     </tal:block>
 
   </div>
 </div>
+</tal:block>

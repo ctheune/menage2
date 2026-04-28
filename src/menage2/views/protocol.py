@@ -202,23 +202,36 @@ def edit_protocol(request):
 def update_protocol(request):
     p = _get_or_404(request, Protocol)
     _require_owner(request, p)
-    title = request.params.get("title", "").strip()
-    if title and title != p.title:
-        p.title = title
-        # Sync title to any active linked todos
-        active_runs = (
-            request.dbsession.execute(
-                select(ProtocolRun).where(
-                    ProtocolRun.protocol_id == p.id,
-                    ProtocolRun.closed_at.is_(None),
+
+    # Composite input (title + #tags + *recurrence + ~note)
+    composite = request.params.get("composite", "").strip()
+    if composite:
+        parsed = parse_todo_input(composite, _today())
+        new_title = parsed.text.strip() or p.title
+        if new_title != p.title:
+            p.title = new_title
+            active_runs = (
+                request.dbsession.execute(
+                    select(ProtocolRun).where(
+                        ProtocolRun.protocol_id == p.id,
+                        ProtocolRun.closed_at.is_(None),
+                    )
                 )
+                .scalars()
+                .all()
             )
-            .scalars()
-            .all()
-        )
-        for run in active_runs:
-            if run.todo and run.todo.status.value == "todo":
-                run.todo.text = title
+            for run in active_runs:
+                if run.todo and run.todo.status.value == "todo":
+                    run.todo.text = new_title
+        p.tags = parsed.tags
+        p.note = parsed.note or None
+        if parsed.recurrence:
+            _apply_protocol_recurrence(p, parsed.recurrence, request.dbsession)
+            request.dbsession.flush()
+            ensure_protocol_has_run(p, _today(), _now_utc(), request.dbsession)
+        else:
+            _apply_protocol_recurrence(p, None, request.dbsession)
+
     if "assignees" in request.params:
         raw_assignees = request.params.get("assignees", "")
         p.assignees = set(
@@ -226,18 +239,7 @@ def update_protocol(request):
             for a in raw_assignees.split(",")
             if a.strip().lstrip("@")
         )
-    raw_recurrence = request.params.get("recurrence", "")
-    if "recurrence" in request.params:
-        if raw_recurrence.strip():
-            spec = parse_recurrence(raw_recurrence.strip())
-            if not spec:
-                request.response.status_int = 422
-                return request.response
-            _apply_protocol_recurrence(p, spec, request.dbsession)
-            request.dbsession.flush()
-            ensure_protocol_has_run(p, _today(), _now_utc(), request.dbsession)
-        else:
-            _apply_protocol_recurrence(p, None, request.dbsession)
+
     return HTTPSeeOther(request.route_url("edit_protocol", id=p.id))
 
 
