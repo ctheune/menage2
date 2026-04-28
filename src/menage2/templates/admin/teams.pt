@@ -48,11 +48,5 @@
       </div>
     </div>
 
-    <div class="mt-4">
-      <a href="${request.route_url('admin_users')}" class="link-secondary">
-        &#8592; Users
-      </a>
-    </div>
-
   </div>
 </div>

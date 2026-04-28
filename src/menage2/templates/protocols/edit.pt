@@ -8,6 +8,13 @@
           class="d-inline m-0">
       <button type="submit" class="btn btn-sm btn-primary">Start a run now</button>
     </form>
+    <tal:block tal:condition="is_owner">
+      <form method="post" action="${request.route_url('archive_protocol', id=protocol.id)}"
+            class="d-inline m-0"
+            onsubmit="return confirm('Archive this protocol?')">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Archive</button>
+      </form>
+    </tal:block>
   </span>
 
   <div metal:fill-slot="content" class="container-fluid px-3 py-3">
@@ -70,13 +77,6 @@
         </div>
       </form>
 
-      <hr class="my-4"/>
-
-      <!-- Archive -->
-      <form method="post" action="${request.route_url('archive_protocol', id=protocol.id)}"
-            onsubmit="return confirm('Archive this protocol?')">
-        <button type="submit" class="btn btn-link btn-sm p-0 text-danger">Archive protocol</button>
-      </form>
     </tal:block>
 
   </div>

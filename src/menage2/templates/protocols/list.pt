@@ -5,7 +5,6 @@
 
   <span metal:fill-slot="actions">
     <form method="post" action="${request.route_url('new_protocol')}" class="m-0 d-flex gap-1">
-      <input type="text" name="title" placeholder="Title…" class="form-control form-control-sm" style="width:12rem"/>
       <button type="submit" class="btn btn-sm btn-dark text-nowrap">
         <i class="bi bi-plus-lg"></i> New protocol
       </button>

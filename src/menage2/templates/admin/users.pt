@@ -64,24 +64,6 @@
       </div>
     </div>
 
-    <div class="mt-4 d-flex gap-3 align-items-center">
-      <a href="${request.route_url('admin_teams')}" class="link-secondary">
-        Teams →
-      </a>
-      <span class="text-muted">·</span>
-      <a href="${request.route_url('admin_dashboard_token')}" class="link-secondary">
-        Dashboard Secret URL →
-      </a>
-      <span class="text-muted">·</span>
-      <form method="post"
-            action="${request.route_url('admin_recurrence_sweep')}"
-            class="d-inline m-0">
-        <button type="submit" class="btn btn-link btn-sm p-0 link-secondary"
-                title="Re-run the daily recurrence sweep regardless of the marker">
-          Rerun recurrence sweep
-        </button>
-      </form>
-    </div>
 
   </div>
 </div>

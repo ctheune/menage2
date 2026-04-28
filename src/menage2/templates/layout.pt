@@ -23,6 +23,25 @@
   <body class="bg-body-secondary" hx-boost="true"
         data-tags-url="${request.route_url('list_tags_json')}">
 
+  <tal:block tal:define="
+    route_name python:request.matched_route.name if request.matched_route else '';
+    in_victuals python:route_name in ('list_recipes', 'add_recipe', 'edit_recipe', 'recipe_steps', 'list_ingredients', 'ingredient_recipes', 'ingredient_toggle_tag', 'suggest_ingredient', 'list_weeks', 'add_week', 'edit_week', 'add_day', 'send_to_shopping_list', 'set_dinner', 'toggle_day_shopping', 'delete_day', 'planner', 'letscook');
+    in_tasks python:route_name in ('list_todos', 'list_todos_done', 'list_todos_scheduled', 'list_todos_hold', 'add_todo', 'edit_todo', 'todos_done', 'todos_hold', 'todos_postpone', 'todos_activate_all_on_hold', 'todo_undo', 'todos_activate_batch', 'set_due_date', 'parse_date_preview', 'set_recurrence', 'parse_recurrence_preview', 'recurrence_history', 'list_tags_json', 'list_principals_json', 'list_protocols', 'new_protocol', 'edit_protocol', 'archive_protocol', 'unarchive_protocol', 'add_protocol_item', 'update_protocol_item', 'update_protocol_item_partial', 'delete_protocol_item', 'start_protocol_run', 'show_protocol_run', 'list_protocols_palette');
+    in_operations python:route_name in ('admin_operations', 'admin_users', 'admin_user_new', 'admin_user_edit', 'admin_user_deactivate', 'admin_user_delete', 'admin_teams', 'admin_team_new', 'admin_team_edit', 'admin_team_delete', 'admin_team_member_add', 'admin_team_member_remove', 'admin_dashboard_token', 'admin_recurrence_sweep');
+    in_section python:in_victuals or in_tasks or in_operations;
+    sub_meal python:route_name in ('list_weeks', 'add_week', 'edit_week', 'add_day', 'send_to_shopping_list', 'set_dinner', 'toggle_day_shopping', 'delete_day', 'planner', 'letscook');
+    sub_recipes python:route_name in ('list_recipes', 'add_recipe', 'edit_recipe', 'recipe_steps');
+    sub_ingredients python:route_name in ('list_ingredients', 'ingredient_recipes', 'ingredient_toggle_tag', 'suggest_ingredient');
+    sub_todo_active python:route_name in ('list_todos', 'add_todo', 'edit_todo', 'todos_done', 'todos_hold', 'todos_postpone', 'todos_activate_all_on_hold', 'todo_undo', 'todos_activate_batch', 'set_due_date', 'parse_date_preview', 'set_recurrence', 'parse_recurrence_preview', 'recurrence_history', 'list_tags_json', 'list_principals_json');
+    sub_todo_hold python:route_name == 'list_todos_hold';
+    sub_todo_scheduled python:route_name == 'list_todos_scheduled';
+    sub_todo_done python:route_name == 'list_todos_done';
+    sub_protocols python:route_name in ('list_protocols', 'new_protocol', 'edit_protocol', 'archive_protocol', 'unarchive_protocol', 'add_protocol_item', 'update_protocol_item', 'update_protocol_item_partial', 'delete_protocol_item', 'start_protocol_run', 'show_protocol_run', 'list_protocols_palette');
+    sub_crew python:route_name in ('admin_users', 'admin_user_new', 'admin_user_edit', 'admin_user_deactivate', 'admin_user_delete');
+    sub_departments python:route_name in ('admin_teams', 'admin_team_new', 'admin_team_edit', 'admin_team_delete', 'admin_team_member_add', 'admin_team_member_remove');
+    sub_admin_ops python:route_name in ('admin_operations', 'admin_dashboard_token', 'admin_recurrence_sweep')
+  ">
+
   <nav class="navbar navbar-expand-md navbar-dark bg-dark">
     <div class="container-fluid">
       <a class="navbar-brand" href="${request.route_url('home')}">Menage</a>
@@ -33,20 +52,38 @@
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="nav-links">
-        <ul class="navbar-nav ms-auto">
-          <li class="nav-item"><a class="nav-link" href="${request.route_url('list_recipes')}">Rezepte</a></li>
-          <li class="nav-item"><a class="nav-link" href="${request.route_url('list_ingredients')}">Zutaten</a></li>
-          <li class="nav-item"><a class="nav-link" href="${request.route_url('list_weeks')}">Wochenpläne</a></li>
-          <li class="nav-item"><a class="nav-link" href="${request.route_url('list_todos')}">TODO</a></li>
-          <li class="nav-item"><a class="nav-link" href="${request.route_url('list_protocols')}">Protocols</a></li>
-          <tal:block tal:condition="request.identity is not None and request.identity.is_admin">
-            <li class="nav-item"><a class="nav-link" href="${request.route_url('admin_users')}">Admin</a></li>
-          </tal:block>
+        <ul class="navbar-nav me-auto">
           <tal:block tal:condition="request.identity is not None">
-            <li class="nav-item"><a class="nav-link text-secondary" href="${request.route_url('account')}">${request.identity.username}</a></li>
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if in_victuals else 'nav-link'"
+                 href="${request.route_url('list_weeks')}">
+                <i class="bi bi-basket2"></i> Victuals
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if in_tasks else 'nav-link'"
+                 href="${request.route_url('list_todos')}">
+                <i class="bi bi-list-check"></i> Tasks
+              </a>
+            </li>
+            <tal:block tal:condition="request.identity.is_admin">
+              <li class="nav-item">
+                <a class="nav-link" tal:attributes="class python:'nav-link active' if in_operations else 'nav-link'"
+                   href="${request.route_url('admin_users')}">
+                  <i class="bi bi-gear"></i> Operations
+                </a>
+              </li>
+            </tal:block>
+          </tal:block>
+        </ul>
+        <ul class="navbar-nav ms-auto">
+          <tal:block tal:condition="request.identity is not None">
+            <li class="nav-item">
+              <a class="nav-link text-secondary" href="${request.route_url('account')}">${request.identity.username}</a>
+            </li>
             <li class="nav-item">
               <form method="post" action="${request.route_url('logout')}" class="d-inline">
-                <button type="submit" class="nav-link btn btn-link text-secondary">Sign out</button>
+                <button type="submit" class="nav-link btn btn-link text-secondary">Log off</button>
               </form>
             </li>
           </tal:block>
@@ -59,10 +96,75 @@
   </nav>
 
   <div class="d-none d-md-block bg-white border-bottom">
-    <div class="px-3 py-2 d-flex align-items-center justify-content-between">
-      <h4 class="mb-0 lh-base">
-        <metal:block define-slot="title">Der unendliche Speiseplan</metal:block>
-      </h4>
+    <div class="px-3 py-1 d-flex align-items-center justify-content-between">
+
+      <!-- Section sub-navigation -->
+      <tal:block tal:condition="in_section">
+        <ul class="nav nav-underline">
+
+          <tal:block tal:condition="in_victuals">
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_meal else 'nav-link'"
+                 href="${request.route_url('list_weeks')}">Meal Planner</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_recipes else 'nav-link'"
+                 href="${request.route_url('list_recipes')}">Recipes</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_ingredients else 'nav-link'"
+                 href="${request.route_url('list_ingredients')}">Ingredients</a>
+            </li>
+          </tal:block>
+
+          <tal:block tal:condition="in_tasks">
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_active else 'nav-link'"
+                 href="${request.route_url('list_todos')}">Active</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_hold else 'nav-link'"
+                 href="${request.route_url('list_todos_hold')}">On Hold</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_scheduled else 'nav-link'"
+                 href="${request.route_url('list_todos_scheduled')}">Scheduled</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_done else 'nav-link'"
+                 href="${request.route_url('list_todos_done')}">Done</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_protocols else 'nav-link'"
+                 href="${request.route_url('list_protocols')}">Protocols</a>
+            </li>
+          </tal:block>
+
+          <tal:block tal:condition="in_operations">
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_crew else 'nav-link'"
+                 href="${request.route_url('admin_users')}">Crew</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_departments else 'nav-link'"
+                 href="${request.route_url('admin_teams')}">Departments</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_admin_ops else 'nav-link'"
+                 href="${request.route_url('admin_operations')}">Operations</a>
+            </li>
+          </tal:block>
+
+        </ul>
+      </tal:block>
+
+      <!-- Standalone page title (login, account, setup, etc.) -->
+      <tal:block tal:condition="not in_section">
+        <h4 class="mb-0 lh-base">
+          <metal:block define-slot="title">Menage</metal:block>
+        </h4>
+      </tal:block>
+
       <div class="d-flex gap-2">
         <metal:block define-slot="actions"></metal:block>
       </div>
@@ -71,6 +173,8 @@
   </div>
 
   <div metal:define-slot="content">No content</div>
+
+  </tal:block>
 
   </body>
 </html>

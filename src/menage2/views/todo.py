@@ -688,6 +688,28 @@ def todo_undo(request):
 
 
 @view_config(
+    route_name="list_todos_hold", renderer="menage2:templates/list_todos_hold.pt"
+)
+def list_todos_hold(request):
+    filter_mode = request.params.get("filter", "personal")
+    if filter_mode not in _VALID_FILTER_MODES:
+        filter_mode = "personal"
+    user = request.identity
+    stmt = (
+        select(Todo)
+        .where(Todo.status == TodoStatus.on_hold)
+        .order_by(asc(Todo.created_at))
+    )
+    if user is not None:
+        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
+    todos = request.dbsession.execute(stmt).scalars().all()
+    return {
+        "todos": todos,
+        "filter_mode": filter_mode,
+    }
+
+
+@view_config(
     route_name="list_todos_done", renderer="menage2:templates/list_todos_done.pt"
 )
 def list_todos_done(request):

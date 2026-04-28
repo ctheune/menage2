@@ -73,14 +73,21 @@ def test_cannot_delete_last_admin(authenticated_testapp, admin_user):
     authenticated_testapp.post(f"/admin/users/{admin_user.id}/delete", status=400)
 
 
-def test_dashboard_token_view(authenticated_testapp):
-    res = authenticated_testapp.get("/admin/dashboard-token", status=200)
+def test_admin_operations_view(authenticated_testapp):
+    res = authenticated_testapp.get("/admin/operations", status=200)
     assert b"dashboard" in res.body.lower()
+
+
+def test_dashboard_token_redirect(authenticated_testapp):
+    res = authenticated_testapp.get("/admin/dashboard-token", status=303)
+    assert "admin/operations" in res.location
 
 
 def test_dashboard_token_reset(authenticated_testapp):
-    res = authenticated_testapp.post("/admin/dashboard-token", status=200)
-    assert b"dashboard" in res.body.lower()
+    res = authenticated_testapp.post("/admin/dashboard-token", status=303)
+    assert "admin/operations" in res.location
+    follow = authenticated_testapp.get(res.location, status=200)
+    assert b"dashboard" in follow.body.lower()
 
 
 def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession):
@@ -127,7 +134,7 @@ def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession):
     assert actives >= 1
 
     follow = authenticated_testapp.get(res.location, status=200)
-    assert b"Recurrence sweep ran" in follow.body
+    assert b"sweep ran" in follow.body.lower()
 
 
 def test_recurrence_sweep_requires_admin(user_testapp):

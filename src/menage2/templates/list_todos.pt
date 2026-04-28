@@ -5,46 +5,6 @@
 
   <div metal:fill-slot="content" class="container-fluid px-3 py-3">
 
-    <!-- Secondary action bar: on-hold + scheduled + done (OOB targets must keep ids) -->
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-      <div id="on-hold-section">
-        <tal:block tal:condition="on_hold_count > 0">
-          <button hx-post="${request.route_url('todos_activate_all_on_hold')}"
-                  hx-target="body"
-                  class="btn btn-sm btn-secondary rounded-pill">
-            <i class="bi bi-pause-fill"></i> On hold
-            <span class="badge bg-light text-secondary ms-1">${on_hold_count}</span>
-          </button>
-        </tal:block>
-        <tal:block tal:condition="on_hold_count == 0">
-          <span class="badge bg-secondary rounded-pill py-2 px-3">
-            <i class="bi bi-pause-fill"></i> On hold
-            <span class="badge bg-dark ms-1">0</span>
-          </span>
-        </tal:block>
-      </div>
-      <div id="scheduled-section">
-        <tal:block tal:condition="scheduled_count > 0">
-          <a href="${request.route_url('list_todos_scheduled')}"
-             class="btn btn-sm btn-outline-primary rounded-pill">
-            <i class="bi bi-calendar-event"></i> Scheduled
-            <span class="badge bg-primary text-white ms-1">${scheduled_count}</span>
-          </a>
-        </tal:block>
-        <tal:block tal:condition="scheduled_count == 0">
-          <span class="badge bg-light text-muted rounded-pill py-2 px-3 border">
-            <i class="bi bi-calendar-event"></i> Scheduled
-            <span class="badge bg-secondary ms-1">0</span>
-          </span>
-        </tal:block>
-      </div>
-      <a href="${request.route_url('list_todos_done')}"
-         class="btn btn-sm btn-outline-secondary rounded-pill">
-        <i class="bi bi-check-lg"></i> Done
-        <span class="badge bg-secondary ms-1">${done_count}</span>
-      </a>
-    </div>
-
     <!-- Filter toggle bar -->
     <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
       <span class="text-muted small me-1">Show:</span>

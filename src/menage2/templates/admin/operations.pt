@@ -1,0 +1,81 @@
+<div metal:use-macro="load: ../layout.pt">
+  <span metal:fill-slot="title-mobile">Operations</span>
+  <div metal:fill-slot="title">Operations</div>
+
+  <div metal:fill-slot="content" class="container py-4">
+    <div class="row g-4 justify-content-center">
+      <div class="col-12 col-md-6 col-lg-5">
+
+        <!-- Dashboard URL card -->
+        <div class="card">
+          <div class="card-header">
+            <i class="bi bi-display"></i> Kitchen Dashboard
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">
+              The kitchen dashboard is accessible via a secret URL. Only share this URL with devices
+              that should display the dashboard. Resetting it will invalidate any existing bookmarks.
+            </p>
+
+            <tal:block tal:condition="token is not None">
+              <label class="form-label small text-muted">Current Dashboard URL</label>
+              <div class="input-group mb-3">
+                <input type="text" readonly
+                       value="${dashboard_url}"
+                       class="form-control form-control-sm font-monospace"
+                       onclick="this.select()" />
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        onclick="navigator.clipboard.writeText('${dashboard_url}')">
+                  Copy
+                </button>
+              </div>
+            </tal:block>
+
+            <div tal:condition="token is None" class="alert alert-warning small">
+              No dashboard URL has been generated yet.
+            </div>
+
+            <form tal:condition="token is not None"
+                  method="post" action="${request.route_url('admin_dashboard_token')}"
+                  onsubmit="return confirm('Reset the dashboard URL? All existing bookmarks will stop working.')">
+              <button type="submit" class="btn btn-dark btn-sm">Reset URL</button>
+            </form>
+            <form tal:condition="token is None"
+                  method="post" action="${request.route_url('admin_dashboard_token')}">
+              <button type="submit" class="btn btn-dark btn-sm">Generate URL</button>
+            </form>
+          </div>
+        </div>
+
+      </div>
+      <div class="col-12 col-md-6 col-lg-5">
+
+        <!-- Recurrence sweep card -->
+        <div class="card">
+          <div class="card-header">
+            <i class="bi bi-arrow-repeat"></i> Recurrence Sweep
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">
+              Force the daily recurrence sweep regardless of the scheduled marker.
+              Useful after editing rules in bulk or recovering from a missed run.
+            </p>
+
+            <div tal:condition="sweep_spawned is not None"
+                 class="alert alert-info py-2 small mb-3">
+              Recurrence sweep ran &mdash; spawned ${sweep_spawned} todo(s).
+            </div>
+
+            <form method="post" action="${request.route_url('admin_recurrence_sweep')}">
+              <button type="submit" class="btn btn-dark btn-sm">
+                <i class="bi bi-arrow-repeat"></i> Run sweep now
+              </button>
+            </form>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>

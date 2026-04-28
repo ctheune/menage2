@@ -38,6 +38,7 @@ def includeme(config):
     )
 
     # Admin
+    config.add_route("admin_operations", "/admin/operations")
     config.add_route("admin_users", "/admin/users")
     config.add_route("admin_user_new", "/admin/users/new")
     config.add_route("admin_user_edit", "/admin/users/{id}/edit")
@@ -84,6 +85,7 @@ def includeme(config):
     config.add_route("list_todos", "/todos")
     config.add_route("list_todos_done", "/todos/done")
     config.add_route("list_todos_scheduled", "/todos/scheduled")
+    config.add_route("list_todos_hold", "/todos/hold")
     config.add_route("add_todo", "/todos/add")
     config.add_route("todos_done", "/todos/done-items")
     config.add_route("todos_hold", "/todos/hold-items")

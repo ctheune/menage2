@@ -252,28 +252,39 @@ def delete_user(request):
 
 
 @view_config(
+    route_name="admin_operations",
+    renderer="menage2:templates/admin/operations.pt",
+    permission=PERM_ADMIN,
+)
+def admin_operations(request):
+    config_item = request.dbsession.get(ConfigItem, DASHBOARD_TOKEN_KEY)
+    token_value = config_item.value if config_item else None
+    dashboard_url = (
+        request.route_url("dashboard", token=token_value) if token_value else None
+    )
+    sweep_spawned = request.params.get("sweep_spawned")
+    return {
+        "token": token_value,
+        "dashboard_url": dashboard_url,
+        "sweep_spawned": int(sweep_spawned)
+        if sweep_spawned and sweep_spawned.isdigit()
+        else None,
+    }
+
+
+@view_config(
     route_name="admin_dashboard_token",
-    renderer="menage2:templates/admin/dashboard_token.pt",
     permission=PERM_ADMIN,
 )
 def dashboard_token_view(request):
-    config_item = request.dbsession.get(ConfigItem, DASHBOARD_TOKEN_KEY)
-
     if request.method == "POST":
+        config_item = request.dbsession.get(ConfigItem, DASHBOARD_TOKEN_KEY)
         token = secrets.token_urlsafe(64)
         if config_item is None:
             request.dbsession.add(ConfigItem(key=DASHBOARD_TOKEN_KEY, value=token))
         else:
             config_item.value = token
-        request.dbsession.flush()
-        config_item = request.dbsession.get(ConfigItem, DASHBOARD_TOKEN_KEY)
-
-    token_value = config_item.value if config_item else None
-    dashboard_url = (
-        request.route_url("dashboard", token=token_value) if token_value else None
-    )
-
-    return {"token": token_value, "dashboard_url": dashboard_url}
+    return HTTPSeeOther(location=request.route_url("admin_operations"))
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +305,7 @@ def recurrence_sweep(request):
     spawned = force_recurrence_sweep(request.dbsession, today, _now())
     return HTTPSeeOther(
         location=request.route_url(
-            "admin_users",
+            "admin_operations",
             _query={"sweep_spawned": str(spawned)},
         )
     )
