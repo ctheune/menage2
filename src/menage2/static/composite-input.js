@@ -89,13 +89,17 @@ function CompositeInput(containerEl, opts) {
     var noteText  = '';
     var _acMode   = null;
 
-    var _savedTags      = null;
-    var _savedDateISO   = null;
-    var _savedRecLabel  = null;
-    var _savedNoteText  = null;
-    var _savedAssignees = null;
-    var _editingId      = null;
-    var _addUrl         = form ? form.getAttribute('hx-post') : null;
+    var _savedTags        = null;
+    var _savedDateISO     = null;
+    var _savedRecLabel    = null;
+    var _savedNoteText    = null;
+    var _savedAssignees   = null;
+    var _savedAttachments = null;
+    var _editingId        = null;
+    var _addUrl           = form ? form.getAttribute('hx-post') : null;
+
+    var attachments          = [];  // [{uuid, filename, thumbUrl}]
+    var removedAttachmentUUIDs = [];
 
     // Parse initial canonical to seed state
     if (_initialCanonical) {
@@ -284,6 +288,21 @@ function CompositeInput(containerEl, opts) {
         return pill;
     }
 
+    function createAttachmentPill(att) {
+        var pill = document.createElement('span');
+        pill.className = 'todo-attachment-pill';
+        pill.dataset.pill = 'attachment';
+        pill.dataset.uuid = att.uuid;
+        pill.title = att.filename;
+        var imgHtml = att.thumbUrl
+            ? '<img src="' + att.thumbUrl + '" alt="">'
+            : '';
+        pill.innerHTML = imgHtml + ' 📎 ' + att.filename
+            + ' <button class="todo-attachment-remove" type="button" tabindex="-1"'
+            + ' data-uuid="' + att.uuid + '" title="Remove attachment">\xd7</button>';
+        return pill;
+    }
+
     // --- Hidden input + save button sync ---
 
     function buildCompositeText() {
@@ -328,6 +347,7 @@ function CompositeInput(containerEl, opts) {
         if (enableDate && dateISO) pillList.push(createDatePill());
         if (enableRec && recLabel) pillList.push(createRecPill());
         if (enableNote && noteText) pillList.push(createNotePill());
+        attachments.forEach(function(att) { pillList.push(createAttachmentPill(att)); });
 
         var savedText = rawSaved.replace(/ /g, ' ').trimEnd();
         if (pillList.length > 0 && savedText.length > 0) savedText += ' ';
@@ -458,8 +478,18 @@ function CompositeInput(containerEl, opts) {
         if (notePill) { e.stopPropagation(); openNotePillPicker(); return; }
         var rmAssignee = e.target.closest('.todo-assignee-remove');
         if (rmAssignee) { e.stopPropagation(); removeAssignee(rmAssignee.dataset.assignee); return; }
+        var rmAttachment = e.target.closest('.todo-attachment-remove');
+        if (rmAttachment) {
+            e.stopPropagation();
+            var uuidToRemove = rmAttachment.dataset.uuid;
+            attachments = attachments.filter(function(a) { return a.uuid !== uuidToRemove; });
+            removedAttachmentUUIDs.push(uuidToRemove);
+            renderAllPills();
+            return;
+        }
         if (e.target.closest('.todo-tag-pill')) return;
         if (e.target.closest('.todo-assignee-pill')) return;
+        if (e.target.closest('.todo-attachment-pill')) return;
         if (!e.target.classList.contains('todo-text-seg')) focusLastSeg();
     });
 
@@ -755,18 +785,21 @@ function CompositeInput(containerEl, opts) {
 
     // --- Edit mode (used by todo form to switch between add/edit) ---
 
-    function enterEditMode(id, text, tagList, dueDate, recurrence, editUrl, note, assigneeList) {
+    function enterEditMode(id, text, tagList, dueDate, recurrence, editUrl, note, assigneeList, attachmentList) {
         _savedTags = tags.slice();
         _savedDateISO = dateISO;
         _savedRecLabel = recLabel;
         _savedNoteText = noteText;
         _savedAssignees = assignees.slice();
+        _savedAttachments = attachments.slice();
+        removedAttachmentUUIDs = [];
         _editingId = id;
         if (enableTags) tags = tagList.slice();
         if (enableAssignees) assignees = (assigneeList || []).slice();
         if (enableDate) { dateISO = dueDate || null; dateLabel = null; }
         if (enableRec) recLabel = recurrence || null;
         if (enableNote) noteText = note || '';
+        attachments = (attachmentList || []).slice();
         _placeholder = 'Edit todo…';
         renderAllPills(text || '');
         if (form && editUrl) { form.setAttribute('hx-post', editUrl); if (window.htmx) htmx.process(form); }
@@ -783,6 +816,9 @@ function CompositeInput(containerEl, opts) {
         if (enableDate) { dateISO = _savedDateISO; dateLabel = null; _savedDateISO = null; }
         if (enableRec) { recLabel = _savedRecLabel; _savedRecLabel = null; }
         if (enableNote) { noteText = _savedNoteText !== null ? _savedNoteText : ''; _savedNoteText = null; }
+        attachments = _savedAttachments !== null ? _savedAttachments.slice() : [];
+        removedAttachmentUUIDs = [];
+        _savedAttachments = null;
         _placeholder = opts.placeholder || 'New todo…';
         renderAllPills('');
         renderQuickPick();
@@ -853,5 +889,6 @@ function CompositeInput(containerEl, opts) {
         getAssignees: function() { return assignees; },
         focusLast: focusLastSeg,
         focusFirst: focusFirstSeg,
+        getRemovedAttachments: function() { return removedAttachmentUUIDs.slice(); },
     };
 }

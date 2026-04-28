@@ -200,5 +200,27 @@
 
   </tal:block>
 
+  <div class="modal fade" id="attachmentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen-sm-down modal-xl modal-dialog-centered">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-0 pb-0">
+          <span id="attachmentModalCounter" class="text-white-50 small me-auto"></span>
+          <button type="button" class="btn-close btn-close-white btn-lg"
+                  data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-0 d-flex align-items-center justify-content-center position-relative">
+          <button id="attachmentModalPrev" type="button"
+                  class="btn btn-link position-absolute start-0 top-50 translate-middle-y text-white px-3 py-4"
+                  aria-label="Previous" style="font-size:2.5rem;line-height:1">&#8249;</button>
+          <img id="attachmentModalImage" src="" alt=""
+               class="img-fluid" style="max-height:90vh;object-fit:contain" />
+          <button id="attachmentModalNext" type="button"
+                  class="btn btn-link position-absolute end-0 top-50 translate-middle-y text-white px-3 py-4"
+                  aria-label="Next" style="font-size:2.5rem;line-height:1">&#8250;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   </body>
 </html>

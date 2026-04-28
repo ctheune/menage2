@@ -98,6 +98,13 @@ class Todo(Base):
     )
 
     owner = relationship("User", foreign_keys=[owner_id])
+    attachments = relationship(
+        "TodoAttachment",
+        back_populates="todo",
+        cascade="all, delete-orphan",
+        lazy="select",
+        order_by="TodoAttachment.created_at",
+    )
     recurrence = relationship("RecurrenceRule", lazy="joined")
     recurred_from = relationship(
         "Todo", remote_side="Todo.id", foreign_keys=[recurred_from_id]
@@ -115,3 +122,26 @@ class Todo(Base):
         Index("ix_todos_owner_id", "owner_id"),
         Index("ix_todos_assignees", "assignees", postgresql_using="gin"),
     )
+
+
+class TodoAttachment(Base):
+    __tablename__ = "todo_attachments"
+
+    id = Column(Integer, primary_key=True)
+    todo_id = Column(
+        Integer,
+        ForeignKey("todos.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    uuid = Column(Text, nullable=False, unique=True)
+    original_filename = Column(Text, nullable=False)
+    mimetype = Column(Text, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+    )
+
+    todo = relationship("Todo", back_populates="attachments")
+
+    __table_args__ = (Index("ix_todo_attachments_todo_id", "todo_id"),)

@@ -100,6 +100,14 @@ def includeme(config):
     config.add_route("set_recurrence", "/todos/{id}/recurrence")
     config.add_route("parse_recurrence_preview", "/todos/parse-recurrence")
     config.add_route("recurrence_history", "/todos/{id}/history")
+    config.add_route("todo_attachment_upload", "/todos/{id}/attachments")
+    config.add_route(
+        "todo_attachment_thumbnail", "/todos/{todo_id}/attachment/{uuid}/thumbnail"
+    )
+    config.add_route("todo_attachment_full", "/todos/{todo_id}/attachment/{uuid}/full")
+    config.add_route(
+        "todo_attachment_delete", "/todos/{todo_id}/attachment/{uuid}/delete"
+    )
     config.add_route("list_tags_json", "/todos/tags.json")
     config.add_route("list_top_tags_json", "/todos/top-tags.json")
     config.add_route("list_principals_json", "/todos/principals.json")

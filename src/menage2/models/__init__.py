@@ -23,7 +23,7 @@ from .protocol import (  # noqa
 )
 from .recipe import Ingredient, IngredientUsage, Recipe  # noqa
 from .team import Team, TeamMember  # noqa
-from .todo import Todo, TodoStatus  # noqa
+from .todo import Todo, TodoAttachment, TodoStatus  # noqa
 from .user import Passkey, User  # noqa
 
 # Run ``configure_mappers`` after defining all of the models to ensure

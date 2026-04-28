@@ -127,8 +127,128 @@ document.addEventListener('click', function(e) {
         assignees: (li.dataset.todoAssignees || '').split(',').filter(Boolean),
         dueDate: li.dataset.dueDate || null,
         recurrence: li.dataset.recurrence || null,
-        editUrl: li.dataset.editUrl || ''
+        editUrl: li.dataset.editUrl || '',
+        attachments: JSON.parse(li.dataset.attachments || '[]')
     }}));
+});
+
+// Full-screen image modal with prev/next navigation
+var _modalImages = [];
+var _modalIndex = 0;
+
+function _modalUpdate() {
+    var entry = _modalImages[_modalIndex];
+    var img = document.getElementById('attachmentModalImage');
+    if (img) { img.src = entry.full; img.alt = entry.alt; }
+    var counter = document.getElementById('attachmentModalCounter');
+    if (counter) counter.textContent = _modalImages.length > 1 ? (_modalIndex + 1) + ' / ' + _modalImages.length : '';
+    var multi = _modalImages.length > 1;
+    var prev = document.getElementById('attachmentModalPrev');
+    var next = document.getElementById('attachmentModalNext');
+    if (prev) prev.style.visibility = multi ? 'visible' : 'hidden';
+    if (next) next.style.visibility = multi ? 'visible' : 'hidden';
+}
+
+function _modalNav(delta) {
+    if (!_modalImages.length) return;
+    _modalIndex = (_modalIndex + delta + _modalImages.length) % _modalImages.length;
+    _modalUpdate();
+}
+
+document.addEventListener('click', function(e) {
+    if (e.target.closest('#attachmentModalPrev')) { _modalNav(-1); return; }
+    if (e.target.closest('#attachmentModalNext')) { _modalNav(1); return; }
+
+    var thumb = e.target.closest('.todo-attachment-thumb');
+    if (!thumb) return;
+    e.stopPropagation();
+    if (!thumb.dataset.fullUrl) return;
+    var preview = thumb.closest('.todo-attachment-preview');
+    var all = preview ? Array.from(preview.querySelectorAll('.todo-attachment-thumb')) : [thumb];
+    _modalImages = all.map(function(t) { return {full: t.dataset.fullUrl, alt: t.alt || ''}; });
+    _modalIndex = all.indexOf(thumb);
+    if (_modalIndex < 0) _modalIndex = 0;
+    _modalUpdate();
+    var modalEl = document.getElementById('attachmentModal');
+    if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+});
+
+document.addEventListener('keydown', function(e) {
+    var modal = document.getElementById('attachmentModal');
+    if (!modal || !modal.classList.contains('show')) return;
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); _modalNav(-1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); _modalNav(1); }
+});
+
+// Drag-and-drop image upload onto todo list items
+document.addEventListener('dragover', function(e) {
+    if (e.target.closest('#todo-form')) return;
+    var item = e.target.closest('.todo-item');
+    if (!item) return;
+    e.preventDefault();
+    item.classList.add('todo-item--drag-over');
+});
+
+document.addEventListener('dragleave', function(e) {
+    var item = e.target.closest('.todo-item');
+    if (!item) return;
+    if (!item.contains(e.relatedTarget)) {
+        item.classList.remove('todo-item--drag-over');
+    }
+});
+
+document.addEventListener('drop', function(e) {
+    if (e.target.closest('#todo-form')) return;
+    var item = e.target.closest('.todo-item');
+    if (!item) return;
+    e.preventDefault();
+    item.classList.remove('todo-item--drag-over');
+
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    var todoId = item.id.replace('todo-', '');
+    if (!todoId) return;
+
+    var formData = new FormData();
+    for (var i = 0; i < files.length; i++) {
+        formData.append('files[]', files[i]);
+    }
+
+    item.classList.add('todo-item--uploading');
+
+    fetch('/todos/' + todoId + '/attachments', {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+    })
+    .then(function(r) {
+        if (!r.ok) return r.text().then(function(msg) { throw new Error(msg || 'Upload failed'); });
+        return r.text();
+    })
+    .then(function(html) {
+        item.classList.remove('todo-item--uploading');
+        var tmp = document.createElement('template');
+        tmp.innerHTML = html.trim();
+        var newItem = tmp.content.firstElementChild;
+        if (newItem) item.replaceWith(newItem);
+    })
+    .catch(function(err) {
+        item.classList.remove('todo-item--uploading');
+        console.error('Attachment upload failed:', err);
+        var alert = document.createElement('div');
+        alert.className = 'alert alert-danger alert-dismissible py-1 px-2 small mt-1 mb-0';
+        alert.setAttribute('role', 'alert');
+        alert.textContent = err.message;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-close btn-sm';
+        btn.setAttribute('data-bs-dismiss', 'alert');
+        btn.setAttribute('aria-label', 'Close');
+        alert.appendChild(btn);
+        item.after(alert);
+        setTimeout(function() { if (alert.parentNode) alert.remove(); }, 6000);
+    });
 });
 
 function initTagInput() {
@@ -153,7 +273,7 @@ function initTagInput() {
 
     document.addEventListener('todoEditStart', function(e) {
         var d = e.detail;
-        ci.enterEditMode(d.id, d.text, d.tags, d.dueDate, d.recurrence, d.editUrl, d.note || '', d.assignees || []);
+        ci.enterEditMode(d.id, d.text, d.tags, d.dueDate, d.recurrence, d.editUrl, d.note || '', d.assignees || [], d.attachments || []);
     });
 
     form.addEventListener('submit', function() {
@@ -163,6 +283,8 @@ function initTagInput() {
 
     form.addEventListener('htmx:configRequest', function(e) {
         if (_pendingText !== null) { e.detail.parameters['text'] = _pendingText; _pendingText = null; }
+        var removed = ci.getRemovedAttachments();
+        if (removed.length) { e.detail.parameters['remove_attachments'] = removed.join(','); }
         if (ci.getEditingId()) { ci.exitEditMode(); ci.clearVolatileState(); }
     });
 
@@ -264,7 +386,8 @@ document.addEventListener('keydown', function(e) {
             assignees: (li.dataset.todoAssignees || '').split(',').filter(Boolean),
             dueDate: li.dataset.dueDate || null,
             recurrence: li.dataset.recurrence || null,
-            editUrl: li.dataset.editUrl || ''
+            editUrl: li.dataset.editUrl || '',
+            attachments: JSON.parse(li.dataset.attachments || '[]')
         }}));
         return;
     }

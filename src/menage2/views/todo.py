@@ -2,6 +2,7 @@ import datetime
 import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from dateutil.relativedelta import relativedelta
 from pyramid.httpexceptions import HTTPSeeOther
@@ -20,6 +21,7 @@ from menage2.models.todo import (
     RecurrenceRule,
     RecurrenceUnit,
     Todo,
+    TodoAttachment,
     TodoStatus,
 )
 from menage2.principals import filter_todos_for_user, get_all_principals
@@ -785,6 +787,28 @@ def edit_todo(request):
     todo.note = parsed.note
     todo.due_date = parsed.due_date
     _apply_recurrence_spec(todo, parsed.recurrence, request.dbsession)
+
+    raw_remove = request.params.get("remove_attachments", "").strip()
+    if raw_remove:
+        uuids_to_remove = [u.strip() for u in raw_remove.split(",") if u.strip()]
+        attachments_dir = Path(
+            request.registry.settings.get("menage.attachments_dir", "")
+        )
+        for uuid_str in uuids_to_remove:
+            att = request.dbsession.execute(
+                select(TodoAttachment).where(
+                    TodoAttachment.todo_id == todo.id,
+                    TodoAttachment.uuid == uuid_str,
+                )
+            ).scalar_one_or_none()
+            if att:
+                ext = Path(att.original_filename).suffix.lower() or ".bin"
+                for suffix in ("", "_thumb"):
+                    path = attachments_dir / (uuid_str + suffix + ext)
+                    if path.exists():
+                        path.unlink()
+                request.dbsession.delete(att)
+
     return HTTPSeeOther(next_url)
 
 

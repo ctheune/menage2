@@ -1,0 +1,73 @@
+<li id="todo-${todo.id}"
+    class="todo-item mb-1 shadow-sm"
+    data-todo-text="${todo.text}"
+    data-todo-note="${todo.note or ''}"
+    data-todo-tags="${python:','.join(sorted(todo.tags))}"
+    data-todo-assignees="${python:','.join(sorted(todo.assignees))}"
+    data-due-date="${todo.due_date.isoformat() if todo.due_date else ''}"
+    tal:attributes="data-recurrence python:_recurrence_label(todo);
+                    data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else '';
+                    data-protocol-run-url python:request.route_url('show_protocol_run', id=todo.protocol_run_id) if todo.protocol_run_id else '';
+                    data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments])"
+    data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
+    data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
+    data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}">
+
+  <div class="todo-content d-flex card-body py-2 px-3 d-flex align-items-baseline gap-2 bg-white">
+    <span class="flex-shrink-0">
+      <input type="checkbox" class="form-check-input todo-checkbox" data-id="${todo.id}" style="margin-top: 0.11em" />
+    </span>
+    <span class="flex-grow-1 text-truncate small">
+      <span>${todo.text}</span>
+      <span class="d-block" tal:condition="todo.due_date or todo.note">
+        <tal:block condition="todo.due_date">
+          <span tal:define="overdue python:todo.due_date < today;
+                            today_due python:todo.due_date == today"
+                tal:attributes="class python: 'todo-due small ' + ('todo-due--overdue' if overdue else ('todo-due--today' if today_due else 'todo-due--future'));
+                                title python: format.date(todo.due_date, format='full')">
+            <tal:block tal:condition="overdue">&#9650; </tal:block>${format.date(todo.due_date, format='medium')}
+          </span>
+        </tal:block>
+        <span tal:condition="todo.note"
+              class="text-muted" style="font-size:0.7rem">${todo.note}</span>
+      </span>
+    </span>
+
+    <a tal:condition="todo.protocol_run_id"
+       tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id)"
+       class="todo-protocol-link flex-shrink-0 small"
+       title="Open protocol run">
+      <i class="bi bi-clipboard-check"></i>
+    </a>
+
+    <span tal:condition="todo.recurrence_id"
+          class="todo-recurrence flex-shrink-0 small"
+          tal:attributes="title python:_recurrence_label(todo)">
+      <span class="todo-recurrence-label">${_recurrence_label(todo)}</span> &#8635;
+    </span>
+
+    <span tal:condition="todo.attachments"
+          class="todo-attachment-icon flex-shrink-0 small"
+          tal:attributes="data-todo-id todo.id;
+                          title python:str(len(todo.attachments)) + ' attachment(s)'">
+      <i class="bi bi-camera"></i>
+      <span class="badge bg-secondary rounded-pill" style="font-size:0.6rem">${python:len(todo.attachments)}</span>
+      <div class="todo-attachment-preview">
+        <tal:block tal:repeat="att todo.attachments">
+          <img class="todo-attachment-thumb"
+               loading="lazy"
+               tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
+                               data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);
+                               alt att.original_filename" />
+        </tal:block>
+      </div>
+    </span>
+
+    <span tal:condition="todo.assignees"
+          class="todo-assignees flex-shrink-0 small text-muted">
+      <tal:block tal:repeat="a python:sorted(todo.assignees)">@${a} </tal:block>
+    </span>
+
+    <button type="button" class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted" title="Edit">&#9998;</button>
+  </div>
+</li>

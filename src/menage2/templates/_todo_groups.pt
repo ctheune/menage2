@@ -37,7 +37,8 @@
         data-due-date="${todo.due_date.isoformat() if todo.due_date else ''}"
         tal:attributes="data-recurrence python:_recurrence_label(todo);
                         data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else '';
-                        data-protocol-run-url python:request.route_url('show_protocol_run', id=todo.protocol_run_id) if todo.protocol_run_id else ''"
+                        data-protocol-run-url python:request.route_url('show_protocol_run', id=todo.protocol_run_id) if todo.protocol_run_id else '';
+                        data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments])"
         data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
         data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
         data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}">
@@ -77,12 +78,29 @@
           <span class="todo-recurrence-label">${_recurrence_label(todo)}</span> ↻
         </span>
 
+        <span tal:condition="todo.attachments"
+              class="todo-attachment-icon flex-shrink-0 small"
+              tal:attributes="data-todo-id todo.id;
+                              title python:str(len(todo.attachments)) + ' attachment(s)'">
+          <i class="bi bi-camera"></i>
+          <span class="badge bg-secondary rounded-pill" style="font-size:0.6rem">${python:len(todo.attachments)}</span>
+          <div class="todo-attachment-preview">
+            <tal:block tal:repeat="att todo.attachments">
+              <img class="todo-attachment-thumb"
+                   loading="lazy"
+                   tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
+                                   data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);
+                                   alt att.original_filename" />
+            </tal:block>
+          </div>
+        </span>
+
         <span tal:condition="todo.assignees"
               class="todo-assignees flex-shrink-0 small text-muted">
           <tal:block tal:repeat="a python:sorted(todo.assignees)">@${a} </tal:block>
         </span>
 
-        <button type="button" class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted" title="Edit">✎</button>
+        <button type="button" class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted" title="Edit">&#9998;</button>
       </div>
     </li>
   </ul>
