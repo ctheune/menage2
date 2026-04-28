@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🛸 Helios</title>
-    <link href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQEAYAAABPYyMiAAAABmJLR0T///////8JWPfcAAAACXBIWXMAAABIAAAASABGyWs+AAAAF0lEQVRIx2NgGAWjYBSMglEwCkbBSAcACBAAAeaR9cIAAAAASUVORK5CYII=" rel="icon" type="image/x-icon" />
+    <title>Happy Valley</title>
+    <link rel="icon" type="image/svg+xml" href="${request.static_url('menage2:static/logo.svg')}" />
     <link rel="apple-touch-icon" href="${request.static_url('menage2:static/applogo.png')}">
-    <meta name="apple-mobile-web-app-title" content="Helios">
+    <meta name="apple-mobile-web-app-title" content="Happy Valley">
     <meta name="apple-mobile-web-app-capable" content="yes">
 
     <link href="${request.static_url('menage2:static/bootstrap.min.css')}" rel="stylesheet">
@@ -47,7 +47,7 @@
   <div class="helios-header">
   <nav class="navbar navbar-expand-md navbar-dark">
     <div class="container-fluid">
-      <a class="navbar-brand" href="${request.route_url('home')}">🛸 Helios</a>
+      <a class="navbar-brand d-flex align-items-center gap-2" href="${request.route_url('home')}"><img src="${request.static_url('menage2:static/logo.svg')}" height="28" alt="Happy Valley" style="border-radius: 6px;">Happy Valley</a>
       <span class="navbar-text d-md-none small">
         <metal:block define-slot="title-mobile"></metal:block>
       </span>
