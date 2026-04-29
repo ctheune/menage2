@@ -1019,33 +1019,35 @@ document.addEventListener('click', function(e) {
 var _helpOverlay = null;
 
 function _kbdSection(title) {
-    return '<p style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;margin:0 0 0.35rem;">' + title + '</p>';
+    return '<p class="text-uppercase fw-semibold text-secondary mb-1 mt-3 small">' + title + '</p>';
 }
 
 function _kbdRow(key, desc) {
-    return '<tr><td style="padding:0.25rem 0.75rem 0.25rem 0;white-space:nowrap;">'
-         + '<kbd style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:0.25rem;padding:0.1rem 0.4rem;font-family:monospace;font-size:0.8rem;">'
-         + key + '</kbd></td>'
-         + '<td style="padding:0.25rem 0;color:#374151;">' + desc + '</td></tr>';
+    return '<tr class="small">'
+         + '<td class="pe-3 text-nowrap align-top pb-1"><kbd>' + key + '</kbd></td>'
+         + '<td class="align-top pb-1 text-body">' + desc + '</td>'
+         + '</tr>';
+}
+
+function _kbdCol(sections) {
+    return '<div class="col">' + sections.join('') + '</div>';
 }
 
 function ensureHelpOverlay() {
     if (_helpOverlay && document.body.contains(_helpOverlay)) return _helpOverlay;
     _helpOverlay = document.createElement('div');
     _helpOverlay.id = 'kbd-help-overlay';
-    _helpOverlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;align-items:center;justify-content:center;';
-    _helpOverlay.innerHTML = [
-        '<div style="background:#fff;border-radius:0.75rem;padding:1.5rem 2rem;max-width:28rem;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2);max-height:90vh;overflow:auto;">',
-        '<h2 style="font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;margin:0 0 1rem;">Keyboard shortcuts</h2>',
-
+    _helpOverlay.className = 'position-fixed top-0 start-0 w-100 h-100 align-items-center justify-content-center';
+    _helpOverlay.style.cssText = 'display:none;background:rgba(0,0,0,0.45);z-index:9999;';
+    var col1 = _kbdCol([
         _kbdSection('Everywhere'),
-        '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;"><tbody>',
+        '<table class="table table-sm table-borderless mb-0"><tbody>',
         _kbdRow('?', 'Show this help'),
         _kbdRow('Esc', 'Cancel / close'),
         '</tbody></table>',
 
         _kbdSection('Todo list'),
-        '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;"><tbody>',
+        '<table class="table table-sm table-borderless mb-0"><tbody>',
         _kbdRow('click', 'Select / deselect item'),
         _kbdRow('e', 'Edit hovered item'),
         _kbdRow('c', 'Mark hovered / selected done'),
@@ -1053,42 +1055,47 @@ function ensureHelpOverlay() {
         _kbdRow('d', 'Set / change due date (hovered)'),
         _kbdRow('f', 'Set / change repetition rule (hovered)'),
         _kbdRow('p', 'Postpone hovered / selected by 1 day'),
-        _kbdRow('Shift+P', 'Postpone\u2026 (chip palette + calendar)'),
-        _kbdRow('r', 'Open the protocol palette \u2014 start a run'),
+        _kbdRow('Shift+P', 'Postpone\u2026 (palette + calendar)'),
+        _kbdRow('r', 'Open protocol palette \u2014 start a run'),
         _kbdRow('o', 'Open protocol run for hovered item'),
         _kbdRow('[', 'Collapse all groups'),
         _kbdRow(']', 'Expand all groups'),
         _kbdRow('u', 'Undo last action'),
-        _kbdRow('click \u21bb', 'Show repetition history for this item'),
+        _kbdRow('click \u21bb', 'Show repetition history'),
         '</tbody></table>',
-
+    ]);
+    var col2 = _kbdCol([
         _kbdSection('Protocol run'),
-        '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;"><tbody>',
+        '<table class="table table-sm table-borderless mb-0"><tbody>',
         _kbdRow('j / \u2193', 'Next item'),
         _kbdRow('k / \u2191', 'Previous item'),
-        _kbdRow('c', 'Mark current done \u2014 nothing to do'),
+        _kbdRow('c', 'Mark current done'),
         _kbdRow('t', 'Send current to the todo list'),
         _kbdRow('e', 'Edit current item before sending'),
         _kbdRow('Esc', 'Back to the todo list'),
-        _kbdRow('swipe \u2192', 'Same as <kbd>c</kbd> (done)'),
-        _kbdRow('swipe \u2190', 'Same as <kbd>t</kbd> (send to todo)'),
+        _kbdRow('swipe \u2192', 'Same as <kbd>c</kbd>'),
+        _kbdRow('swipe \u2190', 'Same as <kbd>t</kbd>'),
         '</tbody></table>',
 
         _kbdSection('Adding / editing a todo'),
-        '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;"><tbody>',
+        '<table class="table table-sm table-borderless mb-0"><tbody>',
         _kbdRow('#tag', 'Attach a tag (single word)'),
-        _kbdRow('^', 'Open the date picker \u2014 commits as a pill'),
-        _kbdRow('*', 'Open the repetition picker \u2014 commits as a pill'),
+        _kbdRow('^', 'Open the date picker'),
+        _kbdRow('*', 'Open the repetition picker'),
         '</tbody></table>',
 
         _kbdSection('Done list'),
-        '<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:0.25rem;"><tbody>',
+        '<table class="table table-sm table-borderless mb-0"><tbody>',
         _kbdRow('click', 'Select / deselect item'),
         _kbdRow('r', 'Restore selected items'),
         '</tbody></table>',
-
-        '</div>'
-    ].join('');
+    ]);
+    _helpOverlay.innerHTML =
+        '<div class="card shadow-lg" style="max-width:42rem;width:90%;max-height:90vh;overflow-y:auto;">'
+        + '<div class="card-body p-4">'
+        + '<h6 class="text-uppercase fw-bold text-secondary small mb-3 mt-0">Keyboard shortcuts</h6>'
+        + '<div class="row g-0">' + col1 + col2 + '</div>'
+        + '</div></div>';
     document.body.appendChild(_helpOverlay);
     _helpOverlay.addEventListener('click', function(e) {
         if (e.target === _helpOverlay) hideHelp();
@@ -1105,11 +1112,12 @@ function hideHelp() {
     if (_helpOverlay) _helpOverlay.style.display = 'none';
 }
 
-// Bound once on document \u2014 never replaced by HTMX. `?` should fire even when
-// the user is mid-typing in the add-todo input: opening help shouldn't depend
-// on what's focused.
 document.addEventListener('keydown', function(e) {
-    if (e.key === '?') { e.preventDefault(); showHelp(); return; }
+    if (e.key === '?') {
+        var tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || (document.activeElement && document.activeElement.isContentEditable)) return;
+        e.preventDefault(); showHelp(); return;
+    }
     if (e.key === 'Escape' && _helpOverlay && _helpOverlay.style.display === 'flex') {
         e.preventDefault();
         hideHelp();
