@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>${base_name}</title>
     <link rel="icon" type="image/svg+xml" href="${request.static_url('menage2:static/logo.svg')}" />
-    <link rel="apple-touch-icon" href="${request.static_url('menage2:static/applogo.png')}">
+    <link rel="apple-touch-icon" href="${request.static_url('menage2:static/logo.png')}">
     <meta name="apple-mobile-web-app-title" tal:attributes="content base_name">
     <meta name="apple-mobile-web-app-capable" content="yes">
 
