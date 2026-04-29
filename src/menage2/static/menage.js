@@ -442,6 +442,15 @@ document.addEventListener('keydown', function(e) {
         return;
     }
 
+    if (key === ']') { e.preventDefault(); setAllGroups(true); return; }
+    if (key === '[') { e.preventDefault(); setAllGroups(false); return; }
+
+    if (key === 'o' && _hoveredTodoItem) {
+        var runUrl = _hoveredTodoItem.dataset.protocolRunUrl;
+        if (runUrl) { e.preventDefault(); window.location.href = runUrl; }
+        return;
+    }
+
     if (key === 'u') {
         var toast = document.getElementById('undo-toast');
         if (!toast) return;
@@ -1046,6 +1055,9 @@ function ensureHelpOverlay() {
         _kbdRow('p', 'Postpone hovered / selected by 1 day'),
         _kbdRow('Shift+P', 'Postpone\u2026 (chip palette + calendar)'),
         _kbdRow('r', 'Open the protocol palette \u2014 start a run'),
+        _kbdRow('o', 'Open protocol run for hovered item'),
+        _kbdRow('[', 'Collapse all groups'),
+        _kbdRow(']', 'Expand all groups'),
         _kbdRow('u', 'Undo last action'),
         _kbdRow('click \u21bb', 'Show repetition history for this item'),
         '</tbody></table>',

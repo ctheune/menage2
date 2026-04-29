@@ -35,32 +35,32 @@ body {
 .tag-group-header {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    padding-top: 0.6rem;
-    padding-bottom: 0.15rem;
-    padding-right: 1rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    gap: 0.4rem;
+    padding: 1.25rem 0.75rem 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: #999;
     cursor: pointer;
     user-select: none;
 }
 
 .tag-group-header[data-open="false"] {
-    color: var(--bs-secondary-color);
-    padding-bottom: 0.6rem;
+    color: #bbb;
+}
+
+.tag-breadcrumb {
+    flex-grow: 1;
 }
 
 .tag-toggle {
     display: inline-block;
     font-size: 0.75rem;
+    color: var(--bs-secondary-color);
     transition: transform 0.15s ease;
     flex-shrink: 0;
 }
 
 .tag-group-header[data-open="false"] .tag-toggle {
-    color: var(--bs-secondary-color);
     transform: rotate(-90deg);
 }
 
@@ -266,20 +266,11 @@ body {
 }
 .todo-due--overdue {
     color: var(--bs-danger);
-    font-weight: 600;
 }
 .todo-due--future {
     color: var(--bs-secondary-color);
 }
 
-/* Scheduled-list day headers */
-.scheduled-day-header {
-    padding: 0.6rem 0 0.25rem;
-    font-size: 0.85rem;
-    color: var(--bs-secondary-color);
-    border-bottom: 1px solid var(--bs-border-color);
-    margin-bottom: 0.35rem;
-}
 
 /* Date picker / postpone palette popover */
 .todo-popover {
@@ -715,14 +706,38 @@ body {
     opacity: 0;
 }
 
+/* Max-width list wrapper — desktop cap, full width on tablets/mobile */
+.todo-list-wrap {
+    max-width: 42.5em;
+    background: #fff;
+    border-radius: 0.5rem 0.5rem 0 0;
+    overflow: hidden;
+    min-height: calc(100vh - 12rem);
+    padding-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+    .todo-list-wrap {
+        max-width: 100%;
+    }
+}
+
+/* Lined-paper list — hairlines around each group of items */
+.todo-group-list {
+    border-top: 1px solid rgba(0, 0, 0, 0.09);
+    margin-bottom: 0.5rem;
+}
+
 /* Todo swipe gestures */
 .todo-item {
     position: relative;
     touch-action: pan-y;
     overflow: hidden;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.09);
 }
 
-.todo-item:hover .todo-content {
+.todo-item:hover .todo-content,
+.todo-item:has(.todo-checkbox:checked) .todo-content {
     background: var(--bs-warning-bg-subtle);
 }
 
@@ -730,6 +745,10 @@ body {
     position: relative;
     z-index: 1;
     gap: 0.5rem;
+}
+
+.todo-title {
+    color: #000;
 }
 
 .todo-item[data-swipe-dir="right"]::before {

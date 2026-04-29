@@ -1,35 +1,20 @@
-<tal:block tal:condition="groups">
-  <div class="d-flex gap-2 align-items-center mb-2">
-    <button onclick="setAllGroups(true)"
-            class="btn btn-link btn-sm p-0 text-secondary">
-      <i class="bi bi-arrows-expand"></i> expand all
-    </button>
-    <span class="text-secondary">·</span>
-    <button onclick="setAllGroups(false)"
-            class="btn btn-link btn-sm p-0 text-secondary">
-      <i class="bi bi-arrows-collapse"></i> collapse all
-    </button>
-  </div>
-</tal:block>
 
 <tal:block tal:repeat="group groups">
-  <div class="tag-group-header"
+  <div tal:condition="group['items']"
+       class="tag-group-header"
        data-tag="${group['full_tag']}"
        data-parent-tag="${group['parent_tag']}"
-       data-open="true"
-       style="padding-left:${group['depth'] * 1.25}rem">
+       data-open="true">
     <span class="tag-toggle">▾</span>
-    <tal:block tal:condition="group['depth'] > 0 and group['name'] != '(untagged)'">└ </tal:block>${group['name']}
-    <span class="tag-count-badge">${group['total_count']}</span>
+    <span class="tag-breadcrumb">${python:' / '.join(group['full_tag'].split(':')) if group['name'] != '(untagged)' else '(untagged)'}</span>
   </div>
 
   <ul tal:condition="group['items']"
       data-parent-tag="${group['full_tag']}"
-      class="border-start border-2 mb-1 list-unstyled"
-      style="margin-left:${group['depth'] * 1.25}rem">
+      class="todo-group-list mb-0 list-unstyled">
     <li tal:repeat="todo group['items']"
         id="todo-${todo.id}"
-        class="todo-item mb-1 shadow-sm"
+        class="todo-item"
         data-todo-text="${todo.text}"
         data-todo-note="${todo.note or ''}"
         data-todo-tags="${python:','.join(sorted(todo.tags))}"
@@ -45,22 +30,20 @@
         data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}">
 
 
-      <div class="todo-content d-flex card-body py-2 px-3 d-flex align-items-baseline gap-2 bg-white" >
+      <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2">
         <span class="flex-shrink-0">
             <input type="checkbox" class="form-check-input todo-checkbox" data-id="${todo.id}" style="margin-top: 0.11em" />
         </span>
+        <a tal:condition="todo.protocol_run_id"
+           tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id)"
+           class="todo-protocol-link flex-shrink-0 small"
+           title="Open protocol run (o)">
+          <i class="bi bi-clipboard-check"></i>
+        </a>
         <span class="flex-grow-1 d-flex align-items-center gap-2 small" style="min-width:0">
           <span class="text-truncate" style="min-width:0">
-            <span>${todo.text}</span>
-            <span class="d-block" tal:condition="todo.due_date or todo.note or todo.links">
-              <tal:block condition="todo.due_date">
-                <span tal:define="overdue python:todo.due_date < today;
-                                  today_due python:todo.due_date == today"
-                      tal:attributes="class python: 'todo-due small ' + ('todo-due--overdue' if overdue else ('todo-due--today' if today_due else 'todo-due--future'));
-                                      title python: format.date(todo.due_date, format='full')">
-                  <tal:block tal:condition="overdue">&#9650; </tal:block>${format.date(todo.due_date, format='medium')}
-                </span>
-              </tal:block>
+            <span class="todo-title">${todo.text}</span>
+            <span class="d-block" tal:condition="todo.note or todo.links">
               <span tal:condition="todo.note"
                     class="todo-note-display text-muted"
                     tal:content="structure render_note_html(todo.note)"></span>
@@ -87,18 +70,18 @@
           </span>
         </span>
 
-
-        <a tal:condition="todo.protocol_run_id"
-           tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id)"
-           class="todo-protocol-link flex-shrink-0 small"
-           title="Open protocol run">
-          <i class="bi bi-clipboard-check"></i>
-        </a>
+        <tal:block tal:condition="python:todo.due_date and todo.due_date != today">
+          <span tal:define="overdue python:todo.due_date < today"
+                tal:attributes="class python: 'todo-due small flex-shrink-0 ' + ('todo-due--overdue' if overdue else 'todo-due--future');
+                                title python: format.date(todo.due_date, format='full')">
+            ${python:date_ago(todo.due_date, today) if overdue else format.date(todo.due_date, format='medium')}
+          </span>
+        </tal:block>
 
         <span tal:condition="todo.recurrence_id"
               class="todo-recurrence flex-shrink-0 small"
               tal:attributes="title python:_recurrence_label(todo)">
-          <span class="todo-recurrence-label">${_recurrence_label(todo)}</span> ↻
+          ↻ <span class="todo-recurrence-label">${_recurrence_label(todo)}</span>
         </span>
 
         <span tal:condition="todo.assignees"

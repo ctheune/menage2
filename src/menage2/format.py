@@ -65,6 +65,22 @@ def format_timedelta(td: timedelta):
     return ":".join(f"{d:02d}" for d in result)
 
 
+def date_ago(d: _dt.date, today: _dt.date) -> str:
+    days = (today - d).days
+    if days == 1:
+        return "yesterday"
+    if days < 7:
+        return f"{days} days ago"
+    weeks = days // 7
+    if weeks < 5:
+        return f"{weeks} week{'s' if weeks != 1 else ''} ago"
+    months = days // 30
+    if months < 12:
+        return f"{months} month{'s' if months != 1 else ''} ago"
+    years = days // 365
+    return f"{years} year{'s' if years != 1 else ''} ago"
+
+
 def humanize_ago(dt: datetime) -> str:
     seconds = int(
         (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()
@@ -125,6 +141,7 @@ def globals_factory(event):
         return label_recurrence(rule_to_spec(todo.recurrence))
 
     event["format_timedelta"] = format_timedelta
+    event["date_ago"] = date_ago
     event["humanize_ago"] = humanize_ago
     event["absolute_with_weekday"] = humanize_ago_with_weekday
     event["_recurrence_label"] = _recurrence_label

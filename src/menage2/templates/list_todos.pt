@@ -23,12 +23,14 @@
     <tal:block tal:replace="structure form_html"/>
 
     <!-- Todo list (markup rendered server-side via _todo_groups.pt) -->
-    <div id="todo-list"
-         data-done-url="${request.route_url('todos_done')}"
-         data-hold-url="${request.route_url('todos_hold')}"
-         data-postpone-url="${request.route_url('todos_postpone')}"
-         data-undo-url="${request.route_url('todo_undo')}">
-      <tal:block tal:replace="structure groups_html"/>
+    <div class="todo-list-wrap">
+      <div id="todo-list"
+           data-done-url="${request.route_url('todos_done')}"
+           data-hold-url="${request.route_url('todos_hold')}"
+           data-postpone-url="${request.route_url('todos_postpone')}"
+           data-undo-url="${request.route_url('todo_undo')}">
+        <tal:block tal:replace="structure groups_html"/>
+      </div>
     </div>
   </div>
 
