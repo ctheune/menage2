@@ -84,11 +84,15 @@
         <span tal:condition="todo.recurrence_id"
               class="todo-recurrence flex-shrink-0 small"
               tal:attributes="title python:_recurrence_label(todo)">
-          ↻ <span class="todo-recurrence-label">${_recurrence_label(todo)}</span>
+          ↻ <span class="todo-recurrence-label d-none d-sm-inline">${_recurrence_label(todo)}</span>
+        </span>
+
+        <span tal:condition="todo.assignees" class="d-inline d-sm-none">
+        @
         </span>
 
         <span tal:condition="todo.assignees"
-              class="todo-assignees flex-shrink-0 small text-muted">
+              class="todo-assignees flex-shrink-0 small text-muted d-none d-sm-inline">
           <tal:block tal:repeat="a python:sorted(todo.assignees)">@${a} </tal:block>
         </span>
 

@@ -3,7 +3,7 @@
   <span metal:fill-slot="title-mobile">TODO</span>
   <div metal:fill-slot="title">TODO</div>
 
-  <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
+  <div metal:fill-slot="content" class="container-fluid px-0 px-md-3 pt-3">
 
     <!-- Filter toggle bar -->
     <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">

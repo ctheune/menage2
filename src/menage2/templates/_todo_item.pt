@@ -72,7 +72,7 @@
     </span>
 
     <span tal:condition="todo.assignees"
-          class="todo-assignees flex-shrink-0 small text-muted">
+          class="todo-assignees flex-shrink-0 small text-muted d-none">
       <tal:block tal:repeat="a python:sorted(todo.assignees)">@${a} </tal:block>
     </span>
 
