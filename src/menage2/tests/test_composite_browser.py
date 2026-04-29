@@ -219,6 +219,104 @@ def test_tilde_opens_note_popover_and_sets_canonical(page):
 
 
 # ---------------------------------------------------------------------------
+# Link picker ([ shortcut)
+# ---------------------------------------------------------------------------
+
+
+def test_bracket_opens_link_picker(page):
+    _seg(page).click()
+    page.keyboard.type("Check docs ")
+    _seg(page).press("[")
+    page.wait_for_selector(".todo-link-popover", timeout=2000)
+    assert page.locator(".todo-link-popover").is_visible()
+
+
+def test_link_pill_url_only(page):
+    _seg(page).click()
+    page.keyboard.type("Visit site ")
+    _seg(page).press("[")
+    page.wait_for_selector(".todo-link-popover", timeout=2000)
+    page.locator(".todo-link-popover input").first.fill("https://example.com")
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#pg-full-ci .todo-link-pill", timeout=2000)
+    assert "[](https://example.com)" in _canonical(page)
+
+
+def test_link_pill_with_label(page):
+    _seg(page).click()
+    page.keyboard.type("See ref ")
+    _seg(page).press("[")
+    page.wait_for_selector(".todo-link-popover", timeout=2000)
+    inputs = page.locator(".todo-link-popover input")
+    inputs.nth(0).fill("https://example.com")
+    inputs.nth(1).fill("Docs")
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#pg-full-ci .todo-link-pill", timeout=2000)
+    pill = page.locator("#pg-full-ci .todo-link-pill").first
+    assert "Docs" in pill.inner_text()
+    assert "[Docs](https://example.com)" in _canonical(page)
+
+
+def test_link_pill_remove(page):
+    _seg(page).click()
+    page.keyboard.type("Remove test ")
+    _seg(page).press("[")
+    page.wait_for_selector(".todo-link-popover", timeout=2000)
+    page.locator(".todo-link-popover input").first.fill("https://example.com")
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#pg-full-ci .todo-link-pill", timeout=2000)
+    page.locator("#pg-full-ci .todo-link-remove").first.click()
+    page.wait_for_function(
+        "document.querySelectorAll('#pg-full-ci .todo-link-pill').length === 0",
+        timeout=2000,
+    )
+    assert page.locator("#pg-full-ci .todo-link-pill").count() == 0
+
+
+def test_link_picker_empty_url_stays_open(page):
+    _seg(page).click()
+    page.keyboard.type("Task ")
+    _seg(page).press("[")
+    page.wait_for_selector(".todo-link-popover", timeout=2000)
+    # Leave URL empty and try to commit — popover should stay open
+    page.keyboard.press("Enter")
+    assert page.locator(".todo-link-popover").is_visible()
+
+
+def test_link_pill_edit_reopens_picker(page):
+    _seg(page).click()
+    page.keyboard.type("Edit link test ")
+    _seg(page).press("[")
+    page.wait_for_selector(".todo-link-popover", timeout=2000)
+    inputs = page.locator(".todo-link-popover input")
+    inputs.nth(0).fill("https://original.com")
+    inputs.nth(1).fill("Original")
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#pg-full-ci .todo-link-pill", timeout=2000)
+    # Click pill body (not the × button)
+    page.locator("#pg-full-ci .todo-link-pill").first.click()
+    page.wait_for_selector(".todo-link-popover", timeout=2000)
+    # Existing URL should be pre-filled
+    assert (
+        page.locator(".todo-link-popover input").first.input_value()
+        == "https://original.com"
+    )
+
+
+def test_link_cancel_closes_picker(page):
+    _seg(page).click()
+    page.keyboard.type("Cancel test ")
+    _seg(page).press("[")
+    page.wait_for_selector(".todo-link-popover", timeout=2000)
+    page.locator(".todo-link-popover .btn-link").click()
+    page.wait_for_function(
+        "document.querySelectorAll('.todo-link-popover').length === 0",
+        timeout=2000,
+    )
+    assert page.locator(".todo-link-pill").count() == 0
+
+
+# ---------------------------------------------------------------------------
 # Keyboard navigation
 # ---------------------------------------------------------------------------
 

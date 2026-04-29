@@ -534,3 +534,57 @@ def test_scheduled_view_edit_does_not_create_duplicate(page):
         page.locator('.todo-item[data-todo-text="no dup scheduled edited"]').count()
         == 1
     )
+
+
+# ---------------------------------------------------------------------------
+# Link badges — end-to-end
+# ---------------------------------------------------------------------------
+
+
+def _add_todo_with_link(page, text: str, url: str, label: str = "") -> None:
+    """Add a todo item using the composite input with a link pill attached."""
+    seg = _todo_seg(page)
+    seg.fill(text + " ")
+    page.locator("#todo-text .todo-text-seg").last.press("[")
+    page.wait_for_selector(".todo-link-popover", timeout=2000)
+    page.locator(".todo-link-popover input").first.fill(url)
+    if label:
+        page.locator(".todo-link-popover input").nth(1).fill(label)
+    page.locator(".todo-link-popover .btn-dark").click()
+    page.wait_for_selector("#todo-text .todo-link-pill", timeout=2000)
+    page.locator("#todo-text .todo-text-seg").last.press("Enter")
+    page.wait_for_load_state("networkidle")
+
+
+def test_add_todo_with_link_shows_badge(page):
+    page.goto("/todos")
+    _add_todo_with_link(page, "Read article", "https://example.com", "Example")
+    item = page.locator('.todo-item[data-todo-text="Read article"]')
+    assert item.count() == 1
+    badge = item.locator(".todo-link-badge")
+    assert badge.count() == 1
+    assert badge.get_attribute("href") == "https://example.com"
+
+
+def test_add_todo_with_link_badge_shows_label(page):
+    page.goto("/todos")
+    _add_todo_with_link(page, "Link label test", "https://example.org", "Org Site")
+    item = page.locator('.todo-item[data-todo-text="Link label test"]')
+    badge = item.locator(".todo-link-badge")
+    assert "Org Site" in badge.inner_text()
+
+
+def test_edit_todo_restores_link_pill(page):
+    page.goto("/todos")
+    _add_todo_with_link(
+        page, "Edit link restore", "https://restore.example.com", "Restore"
+    )
+    page.wait_for_selector('.todo-item[data-todo-text="Edit link restore"]')
+    page.locator(
+        '.todo-item[data-todo-text="Edit link restore"] .todo-edit-btn'
+    ).click()
+    page.wait_for_selector("#todo-tag-input.todo-tag-input--editing", timeout=2000)
+    # Link pill should be restored in composite input
+    pill = page.locator("#todo-text .todo-link-pill")
+    assert pill.count() == 1
+    assert "Restore" in pill.first.inner_text()

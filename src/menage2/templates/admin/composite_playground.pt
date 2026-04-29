@@ -88,7 +88,7 @@
 
   function setupPlayground() {
     initPlayground('pg-full-ci', 'pg-full-hidden', 'pg-full-textarea', 'pg-full-qp', {
-      tags: true, note: true, recurrence: true, dueDate: true, assignees: true,
+      tags: true, note: true, recurrence: true, dueDate: true, assignees: true, links: true,
     });
     initPlayground('pg-item-ci', 'pg-item-hidden', 'pg-item-textarea', 'pg-item-qp', {
       tags: true, note: true, recurrence: false, dueDate: false, assignees: true,

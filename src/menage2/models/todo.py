@@ -20,6 +20,19 @@ class TagSet(TypeDecorator):
         return set(value) if value else set()
 
 
+class LinkList(TypeDecorator):
+    """Ordered PostgreSQL TEXT[] — preserves insertion order, returns list."""
+
+    impl = ARRAY(Text)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        return list(value) if value else []
+
+    def process_result_value(self, value, dialect):
+        return list(value) if value else []
+
+
 class TodoStatus(enum.Enum):
     todo = "todo"
     done = "done"
@@ -80,6 +93,7 @@ class Todo(Base):
     on_hold_at = Column(DateTime(timezone=True))
     due_date = Column(Date)
     note = Column(Text)
+    links = Column(LinkList, nullable=False, server_default="{}")
 
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     assignees = Column(TagSet, nullable=False, server_default="{}")

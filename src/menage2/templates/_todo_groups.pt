@@ -38,7 +38,8 @@
         tal:attributes="data-recurrence python:_recurrence_label(todo);
                         data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else '';
                         data-protocol-run-url python:request.route_url('show_protocol_run', id=todo.protocol_run_id) if todo.protocol_run_id else '';
-                        data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments])"
+                        data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments]);
+                        data-todo-links python:__import__('json').dumps(list(todo.links or []))"
         data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
         data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
         data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}">
@@ -51,7 +52,7 @@
         <span class="flex-grow-1 d-flex align-items-center gap-2 small" style="min-width:0">
           <span class="text-truncate" style="min-width:0">
             <span>${todo.text}</span>
-            <span class="d-block" tal:condition="todo.due_date or todo.note">
+            <span class="d-block" tal:condition="todo.due_date or todo.note or todo.links">
               <tal:block condition="todo.due_date">
                 <span tal:define="overdue python:todo.due_date < today;
                                   today_due python:todo.due_date == today"
@@ -61,7 +62,17 @@
                 </span>
               </tal:block>
               <span tal:condition="todo.note"
-                    class="text-muted" style="font-size:0.7rem">${todo.note}</span>
+                    class="todo-note-display text-muted"
+                    tal:content="structure render_note_html(todo.note)"></span>
+              <tal:block tal:condition="todo.links" tal:repeat="link todo.links">
+                <a tal:define="parsed python:parse_link(link)"
+                   tal:attributes="href python:parsed[1]"
+                   target="_blank" rel="noopener noreferrer"
+                   class="todo-link-badge d-inline-block text-decoration-none me-1">
+                  <i class="bi bi-link-45deg"></i><tal:block
+                    tal:condition="python:parsed[0] != parsed[1]"> ${python:parsed[0]}</tal:block>
+                </a>
+              </tal:block>
             </span>
           </span>
           <span tal:condition="todo.attachments"

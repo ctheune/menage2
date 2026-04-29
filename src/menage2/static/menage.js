@@ -128,7 +128,8 @@ document.addEventListener('click', function(e) {
         dueDate: li.dataset.dueDate || null,
         recurrence: li.dataset.recurrence || null,
         editUrl: li.dataset.editUrl || '',
-        attachments: JSON.parse(li.dataset.attachments || '[]')
+        attachments: JSON.parse(li.dataset.attachments || '[]'),
+        links: JSON.parse(li.dataset.todoLinks || '[]')
     }}));
 });
 
@@ -262,7 +263,7 @@ function initTagInput() {
         hiddenInput: document.getElementById('todo-hidden-text'),
         quickPickEl: document.getElementById('todo-quick-pick'),
         form: form,
-        tags: true, note: true, recurrence: true, dueDate: true, assignees: true,
+        tags: true, note: true, recurrence: true, dueDate: true, assignees: true, links: true,
         sessionKey: 'todo-tags',
         placeholder: 'New todo\u2026',
         principalsUrl: '/todos/principals.json',
@@ -273,7 +274,7 @@ function initTagInput() {
 
     document.addEventListener('todoEditStart', function(e) {
         var d = e.detail;
-        ci.enterEditMode(d.id, d.text, d.tags, d.dueDate, d.recurrence, d.editUrl, d.note || '', d.assignees || [], d.attachments || []);
+        ci.enterEditMode(d.id, d.text, d.tags, d.dueDate, d.recurrence, d.editUrl, d.note || '', d.assignees || [], d.attachments || [], d.links || []);
     });
 
     form.addEventListener('submit', function() {
@@ -387,7 +388,8 @@ document.addEventListener('keydown', function(e) {
             dueDate: li.dataset.dueDate || null,
             recurrence: li.dataset.recurrence || null,
             editUrl: li.dataset.editUrl || '',
-            attachments: JSON.parse(li.dataset.attachments || '[]')
+            attachments: JSON.parse(li.dataset.attachments || '[]'),
+            links: JSON.parse(li.dataset.todoLinks || '[]')
         }}));
         return;
     }
@@ -714,6 +716,53 @@ function openNotePicker(opts) {
         if (e.key === 'Escape') { cancel(); }
     });
     setTimeout(function() { input.focus(); input.select(); }, 0);
+}
+
+// Two-field link popover. opts: {anchorEl, initialLink, onCommit, onCancel}
+function openLinkPicker(opts) {
+    closePopovers();
+    var pop = document.createElement('div');
+    pop.className = 'todo-popover todo-link-popover';
+    pop.style.cssText = 'position:absolute;z-index:1060;background:#fff;border:1px solid #dee2e6;border-radius:.5rem;padding:1rem;box-shadow:0 4px 20px rgba(0,0,0,.15);width:20rem;';
+    var m = (opts.initialLink || '').match(/^\[([^\]]*)\]\(([a-zA-Z][a-zA-Z0-9+\-.]*:\/\/[^)]+)\)$/);
+    var initUrl   = m ? m[2] : '';
+    var initLabel = m ? m[1] : '';
+    var safeUrl   = initUrl.replace(/"/g, '&quot;');
+    var safeLabel = initLabel.replace(/"/g, '&quot;');
+    pop.innerHTML = '<label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:.5rem">URL</label>'
+        + '<input class="form-control form-control-sm mb-2" placeholder="https://… or obsidian://…" value="' + safeUrl + '"/>'
+        + '<label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:.5rem">Label <span style="font-weight:400;color:#6c757d">(optional)</span></label>'
+        + '<input class="form-control form-control-sm" placeholder="Link text…" value="' + safeLabel + '"/>'
+        + '<div class="d-flex gap-2 mt-2 justify-content-end">'
+        + '<button type="button" class="btn btn-sm btn-link text-muted">Cancel</button>'
+        + '<button type="button" class="btn btn-sm btn-dark">Set</button>'
+        + '</div>';
+    anchorPopover(pop, opts.anchorEl);
+    var urlInput   = pop.querySelectorAll('input')[0];
+    var labelInput = pop.querySelectorAll('input')[1];
+    var setBtn     = pop.querySelector('.btn-dark');
+    var cancelBtn  = pop.querySelector('.btn-link');
+    function commit() {
+        var url   = urlInput.value.trim();
+        var label = labelInput.value.trim();
+        if (!url) { urlInput.classList.add('is-invalid'); urlInput.focus(); return; }
+        if (!url.match(/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//)) url = 'http://' + url;
+        closePopovers();
+        if (opts.onCommit) opts.onCommit('[' + label + '](' + url + ')');
+    }
+    function cancel() {
+        closePopovers();
+        if (opts.onCancel) opts.onCancel();
+    }
+    setBtn.addEventListener('click', commit);
+    cancelBtn.addEventListener('click', cancel);
+    [urlInput, labelInput].forEach(function(inp) {
+        inp.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); commit(); }
+            if (e.key === 'Escape') cancel();
+        });
+    });
+    setTimeout(function() { urlInput.focus(); }, 0);
 }
 
 // Anchor a popover element below `anchorEl`. Removes any existing popovers first.

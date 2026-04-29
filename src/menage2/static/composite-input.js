@@ -39,7 +39,8 @@ function _ciParseText(canonical) {
 // CompositeInput(containerEl, opts) — main factory
 //
 // opts: {
-//   tags: bool (default true), note: bool, recurrence: bool, dueDate: bool, assignees: bool,
+//   tags: bool (default true), note: bool, recurrence: bool, dueDate: bool,
+//   assignees: bool, links: bool,
 //   textOuter: Element,     — the contentEditable host div (required)
 //   hiddenInput: Element,   — kept in sync with canonical string
 //   quickPickEl: Element,   — quick-pick chip row
@@ -65,6 +66,7 @@ function CompositeInput(containerEl, opts) {
     var enableRec       = !!opts.recurrence;
     var enableDate      = !!opts.dueDate;
     var enableAssignees = !!opts.assignees;
+    var enableLinks     = !!opts.links;
 
     var textOuter      = opts.textOuter;
     var hiddenInput    = opts.hiddenInput || null;
@@ -87,6 +89,7 @@ function CompositeInput(containerEl, opts) {
     var dateLabel = null;
     var recLabel  = null;
     var noteText  = '';
+    var links     = [];
     var _acMode   = null;
 
     var _savedTags        = null;
@@ -95,6 +98,7 @@ function CompositeInput(containerEl, opts) {
     var _savedNoteText    = null;
     var _savedAssignees   = null;
     var _savedAttachments = null;
+    var _savedLinks       = null;
     var _editingId        = null;
     var _addUrl           = form ? form.getAttribute('hx-post') : null;
 
@@ -288,6 +292,38 @@ function CompositeInput(containerEl, opts) {
         return pill;
     }
 
+    function createLinkPill(linkStr) {
+        var m = linkStr.match(/^\[([^\]]*)\]\(([a-zA-Z][a-zA-Z0-9+\-.]*:\/\/[^)]+)\)$/);
+        var label = m ? (m[1] || m[2]) : linkStr;
+        var pill = document.createElement('span');
+        pill.className = 'todo-link-pill';
+        pill.dataset.pill = 'link';
+        pill.dataset.linkStr = linkStr;
+        pill.title = m ? m[2] : linkStr;
+        pill.innerHTML = '<i class="bi bi-link-45deg"></i> ' + label
+            + ' <button class="todo-link-remove" type="button" tabindex="-1" data-link="'
+            + linkStr.replace(/"/g, '&quot;') + '">\xd7</button>';
+        return pill;
+    }
+
+    function openLinkPillPicker(existingLinkStr) {
+        openLinkPicker({
+            anchorEl: containerEl,
+            initialLink: existingLinkStr || '',
+            onCommit: function(linkStr) {
+                if (existingLinkStr) {
+                    var idx = links.indexOf(existingLinkStr);
+                    if (idx !== -1) links[idx] = linkStr; else links.push(linkStr);
+                } else {
+                    links.push(linkStr);
+                }
+                renderAllPills();
+                focusLastSeg();
+            },
+            onCancel: function() { focusLastSeg(); }
+        });
+    }
+
     function createAttachmentPill(att) {
         var pill = document.createElement('span');
         pill.className = 'todo-attachment-pill';
@@ -322,6 +358,7 @@ function CompositeInput(containerEl, opts) {
             .concat(allAssignees.map(function(a) { return '@' + a; }));
         if (enableDate && dateISO) parts.push('^' + dateISO);
         if (enableRec && recLabel) parts.push('*' + recLabel);
+        if (enableLinks) links.forEach(function(l) { parts.push(l); });
         if (enableNote && noteText) parts.push('~' + noteText);
         return parts.join(' ').trim();
     }
@@ -346,6 +383,7 @@ function CompositeInput(containerEl, opts) {
         if (enableAssignees) assignees.forEach(function(name) { pillList.push(createAssigneePill(name)); });
         if (enableDate && dateISO) pillList.push(createDatePill());
         if (enableRec && recLabel) pillList.push(createRecPill());
+        if (enableLinks) links.forEach(function(l) { pillList.push(createLinkPill(l)); });
         if (enableNote && noteText) pillList.push(createNotePill());
         attachments.forEach(function(att) { pillList.push(createAttachmentPill(att)); });
 
@@ -476,6 +514,21 @@ function CompositeInput(containerEl, opts) {
         if (rmNote) { e.stopPropagation(); clearNote(); focusLastSeg(); return; }
         var notePill = e.target.closest('.todo-note-pill');
         if (notePill) { e.stopPropagation(); openNotePillPicker(); return; }
+        var rmLink = e.target.closest('.todo-link-remove');
+        if (rmLink) {
+            e.stopPropagation();
+            var linkToRemove = rmLink.dataset.link;
+            var li = links.indexOf(linkToRemove);
+            if (li !== -1) links.splice(li, 1);
+            renderAllPills();
+            return;
+        }
+        var linkPill = e.target.closest('.todo-link-pill');
+        if (linkPill && !e.target.closest('.todo-link-remove')) {
+            e.stopPropagation();
+            openLinkPillPicker(linkPill.dataset.linkStr);
+            return;
+        }
         var rmAssignee = e.target.closest('.todo-assignee-remove');
         if (rmAssignee) { e.stopPropagation(); removeAssignee(rmAssignee.dataset.assignee); return; }
         var rmAttachment = e.target.closest('.todo-attachment-remove');
@@ -490,6 +543,7 @@ function CompositeInput(containerEl, opts) {
         if (e.target.closest('.todo-tag-pill')) return;
         if (e.target.closest('.todo-assignee-pill')) return;
         if (e.target.closest('.todo-attachment-pill')) return;
+        if (e.target.closest('.todo-link-pill')) return;
         if (!e.target.classList.contains('todo-text-seg')) focusLastSeg();
     });
 
@@ -720,14 +774,15 @@ function CompositeInput(containerEl, opts) {
             var before = text.slice(0, pos);
             var lastChar = before.slice(-1);
 
-            if ((lastChar === '^' && enableDate) || (lastChar === '*' && enableRec) || (lastChar === '~' && enableNote)) {
+            if ((lastChar === '^' && enableDate) || (lastChar === '*' && enableRec) || (lastChar === '~' && enableNote) || (lastChar === '[' && enableLinks)) {
                 tn.textContent = text.slice(0, pos - 1) + text.slice(pos);
                 range.setStart(tn, pos - 1); range.collapse(true);
                 sel.removeAllRanges(); sel.addRange(range);
                 hideAc();
                 if (lastChar === '^') openDatePillPicker();
                 else if (lastChar === '*') openRecurrencePillPicker();
-                else openNotePillPicker();
+                else if (lastChar === '~') openNotePillPicker();
+                else openLinkPillPicker(null);
                 updateEmptyClass();
                 return;
             }
@@ -785,13 +840,14 @@ function CompositeInput(containerEl, opts) {
 
     // --- Edit mode (used by todo form to switch between add/edit) ---
 
-    function enterEditMode(id, text, tagList, dueDate, recurrence, editUrl, note, assigneeList, attachmentList) {
+    function enterEditMode(id, text, tagList, dueDate, recurrence, editUrl, note, assigneeList, attachmentList, linkList) {
         _savedTags = tags.slice();
         _savedDateISO = dateISO;
         _savedRecLabel = recLabel;
         _savedNoteText = noteText;
         _savedAssignees = assignees.slice();
         _savedAttachments = attachments.slice();
+        _savedLinks = links.slice();
         removedAttachmentUUIDs = [];
         _editingId = id;
         if (enableTags) tags = tagList.slice();
@@ -799,6 +855,7 @@ function CompositeInput(containerEl, opts) {
         if (enableDate) { dateISO = dueDate || null; dateLabel = null; }
         if (enableRec) recLabel = recurrence || null;
         if (enableNote) noteText = note || '';
+        if (enableLinks) links = (linkList || []).slice();
         attachments = (attachmentList || []).slice();
         _placeholder = 'Edit todo…';
         renderAllPills(text || '');
@@ -819,6 +876,7 @@ function CompositeInput(containerEl, opts) {
         attachments = _savedAttachments !== null ? _savedAttachments.slice() : [];
         removedAttachmentUUIDs = [];
         _savedAttachments = null;
+        if (enableLinks) { links = _savedLinks !== null ? _savedLinks.slice() : []; _savedLinks = null; }
         _placeholder = opts.placeholder || 'New todo…';
         renderAllPills('');
         renderQuickPick();
@@ -829,6 +887,7 @@ function CompositeInput(containerEl, opts) {
     function resetState() {
         tags = sessionKey ? JSON.parse(sessionStorage.getItem(sessionKey) || '[]') : [];
         assignees = [];
+        links = [];
         dateISO = null; dateLabel = null; recLabel = null; noteText = '';
         _editingId = null;
     }
@@ -841,6 +900,7 @@ function CompositeInput(containerEl, opts) {
         if (enableNote)      _hintDefs.push({c: '~', t: 'Type ~ for a note'});
         if (enableDate)      _hintDefs.push({c: '^', t: 'Type ^ for a due date'});
         if (enableRec)       _hintDefs.push({c: '*', t: 'Type * for a repeat rule'});
+        if (enableLinks)     _hintDefs.push({c: '[', t: 'Type [ to attach a URL'});
         if (!_hintDefs.length) return;
 
         var _hintEl = document.createElement('span');

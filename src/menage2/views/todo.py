@@ -3,6 +3,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse as _urlparse
 
 from dateutil.relativedelta import relativedelta
 from pyramid.httpexceptions import HTTPSeeOther
@@ -42,6 +43,51 @@ _ASSIGNEE_RE = re.compile(r"@(\S+)")
 _DATE_RE = re.compile(r"\^([^#*^~@]+?)(?=\s*[#*^~@]|$)")
 _RECURRENCE_MARKER_RE = re.compile(r"\*([^#*^~@]+?)(?=\s*[#*^~@]|$)")
 _NOTE_RE = re.compile(r"~([^#*^~@]+?)(?=\s*[#*^~@]|$)")
+# [label](url) — captures any non-whitespace, non-paren URL; scheme validated via urlparse.
+# Note: `[` is intentionally absent from _NOTE_RE's exclusion set so that [...]() inside
+# a note stays in the note text.
+_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
+# Same pattern anchored for parsing a single stored link string.
+_PARSE_LINK_RE = re.compile(r"^\[([^\]]*)\]\(([^)\s]+)\)$")
+# For rendering inline [label](url) inside note text.
+_INLINE_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
+# Schemes blocked from rendering as <a> to prevent XSS.
+_UNSAFE_SCHEMES = frozenset({"javascript", "data", "vbscript"})
+
+
+def _normalize_url(url: str) -> str:
+    """Prepend http:// when url has no scheme (e.g. 'example.org/path' → 'http://example.org/path')."""
+    return url if _urlparse(url).scheme else "http://" + url
+
+
+def render_note_html(note: str) -> str:
+    """Return HTML-safe note text with [label](url) rendered as clickable <a> tags."""
+    import html as _html
+
+    escaped = _html.escape(note)
+
+    def _replace(m: re.Match) -> str:
+        raw_url = _html.unescape(m.group(2))
+        url = _normalize_url(raw_url)
+        scheme = _urlparse(url).scheme.lower()
+        if scheme in _UNSAFE_SCHEMES:
+            return _html.escape(m.group(0))
+        label = _html.unescape(m.group(1)) or url
+        safe_url = _html.escape(url, quote=True)
+        safe_label = _html.escape(label)
+        return f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer">{safe_label}</a>'
+
+    return _INLINE_LINK_RE.sub(_replace, escaped)
+
+
+def parse_link(link_str: str) -> tuple[str, str]:
+    """Return (label, url) from a '[label](url)' string stored in todo.links."""
+    m = _PARSE_LINK_RE.match(link_str)
+    if not m:
+        return (link_str, "")
+    url = _normalize_url(m.group(2))
+    label = m.group(1) or url
+    return (label, url)
 
 
 @dataclass
@@ -52,21 +98,20 @@ class ParsedTodoInput:
     due_date: datetime.date | None = None
     recurrence: RecurrenceSpec | None = None
     note: str = ""
+    links: list[str] = field(default_factory=list)
 
 
 def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodoInput:
-    """Decompose a raw input string into text + #tags + ^due-date + *recurrence + ~note.
+    """Decompose a raw input string into text + #tags + ^due-date + *recurrence + ~note + [links]().
 
-    Each marker captures everything up to the next marker or end-of-string,
-    so multi-word phrases (``^next week``, ``*every wednesday``) work as long
-    as they're terminated by another marker or EOL. If a fragment fails to
-    parse it stays in the text untouched.
+    Extraction order matters:
+    - Note is extracted before links so that inline [...]() within note text
+      stay in the note and are not mistaken for standalone link pills.
+    - Links are extracted after note removal so URL #fragments don't pollute tag extraction.
     """
     if today is None:
         today = datetime.date.today()
 
-    tags = set(_TAG_RE.findall(raw))
-    assignees = set(_ASSIGNEE_RE.findall(raw))
     text = raw
 
     due_date: datetime.date | None = None
@@ -91,6 +136,14 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
         note = m.group(1).strip()
         text = text[: m.start()] + text[m.end() :]
 
+    links = [
+        f"[{lm.group(1)}]({_normalize_url(lm.group(2))})"
+        for lm in _LINK_RE.finditer(text)
+    ]
+    text = _LINK_RE.sub("", text)
+
+    tags = set(_TAG_RE.findall(text))
+    assignees = set(_ASSIGNEE_RE.findall(text))
     text = _TAG_RE.sub("", text)
     text = _ASSIGNEE_RE.sub("", text)
     text = re.sub(r"\s+", " ", text).strip()
@@ -101,6 +154,7 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
         due_date=due_date,
         recurrence=recurrence,
         note=note,
+        links=links,
     )
 
 
@@ -328,6 +382,16 @@ def _active_todos(
     return dbsession.execute(stmt).scalars().all()
 
 
+def _groups_ctx(groups: list, today: datetime.date) -> dict:
+    """Common template context for _todo_groups.pt renders."""
+    return {
+        "groups": groups,
+        "today": today,
+        "render_note_html": render_note_html,
+        "parse_link": parse_link,
+    }
+
+
 @view_config(route_name="home")
 def home(request):
     return HTTPSeeOther(request.route_url("list_todos"))
@@ -348,7 +412,7 @@ def list_todos(request):
     groups = build_tag_tree(todos)
     groups_html = render(
         "menage2:templates/_todo_groups.pt",
-        {"groups": groups, "today": today},
+        _groups_ctx(groups, today),
         request=request,
     )
     return {
@@ -383,6 +447,7 @@ def add_todo(request):
         tags=parsed.tags,
         assignees=parsed.assignees,
         note=parsed.note,
+        links=parsed.links,
         due_date=parsed.due_date,
         owner_id=owner_id,
         status=TodoStatus.todo,
@@ -421,7 +486,7 @@ def todos_done(request):
     todos = _active_todos(request.dbsession, today, user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
-        {"groups": build_tag_tree(todos), "today": _today()},
+        _groups_ctx(build_tag_tree(todos), _today()),
         request=request,
     )
     request.response.content_type = "text/html"
@@ -447,7 +512,7 @@ def todos_hold(request):
     todos = _active_todos(request.dbsession, _today(), user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
-        {"groups": build_tag_tree(todos), "today": _today()},
+        _groups_ctx(build_tag_tree(todos), _today()),
         request=request,
     )
     request.response.content_type = "text/html"
@@ -532,7 +597,7 @@ def todos_postpone(request):
     todos = _active_todos(request.dbsession, today, user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
-        {"groups": build_tag_tree(todos), "today": today},
+        _groups_ctx(build_tag_tree(todos), today),
         request=request,
     )
     request.response.content_type = "text/html"
@@ -594,7 +659,7 @@ def set_recurrence(request):
     todos = _active_todos(request.dbsession, today, user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
-        {"groups": build_tag_tree(todos), "today": today},
+        _groups_ctx(build_tag_tree(todos), today),
         request=request,
     )
     request.response.content_type = "text/html"
@@ -647,7 +712,7 @@ def set_due_date(request):
     todos = _active_todos(request.dbsession, today, user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
-        {"groups": build_tag_tree(todos), "today": today},
+        _groups_ctx(build_tag_tree(todos), today),
         request=request,
     )
     request.response.content_type = "text/html"
@@ -677,7 +742,7 @@ def todo_undo(request):
     todos = _active_todos(request.dbsession, _today(), user=request.identity)
     body = render(
         "menage2:templates/_todo_groups.pt",
-        {"groups": build_tag_tree(todos), "today": _today()},
+        _groups_ctx(build_tag_tree(todos), _today()),
         request=request,
     )
     label = texts[0] if len(texts) == 1 else f"{len(texts)} items"
@@ -708,6 +773,8 @@ def list_todos_hold(request):
     return {
         "todos": todos,
         "filter_mode": filter_mode,
+        "render_note_html": render_note_html,
+        "parse_link": parse_link,
     }
 
 
@@ -762,6 +829,8 @@ def list_todos_scheduled(request):
         "form_html": _render_todo_form(
             request, request.route_url("list_todos_scheduled")
         ),
+        "render_note_html": render_note_html,
+        "parse_link": parse_link,
     }
 
 
@@ -785,6 +854,7 @@ def edit_todo(request):
     todo.tags = parsed.tags
     todo.assignees = parsed.assignees
     todo.note = parsed.note
+    todo.links = parsed.links
     todo.due_date = parsed.due_date
     _apply_recurrence_spec(todo, parsed.recurrence, request.dbsession)
 

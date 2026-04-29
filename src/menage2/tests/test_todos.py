@@ -20,9 +20,11 @@ from menage2.views.todo import (
     list_todos,
     list_todos_done,
     list_todos_scheduled,
+    parse_link,
     parse_recurrence_preview,
     parse_todo_input,
     recurrence_history,
+    render_note_html,
     set_due_date,
     set_recurrence,
     todo_undo,
@@ -134,6 +136,146 @@ def test_parse_todo_input_note_with_tags():
 def test_parse_todo_input_no_note():
     parsed = parse_todo_input("Buy bread #food")
     assert parsed.note == ""
+
+
+# ---------------------------------------------------------------------------
+# Link extraction tests
+# ---------------------------------------------------------------------------
+
+
+def test_parse_todo_input_extracts_single_link():
+    parsed = parse_todo_input("task [My Link](https://a.com)")
+    assert parsed.links == ["[My Link](https://a.com)"]
+    assert parsed.text == "task"
+
+
+def test_parse_todo_input_extracts_multiple_links():
+    parsed = parse_todo_input("task [A](https://a.com) [B](https://b.com)")
+    assert len(parsed.links) == 2
+    assert "[A](https://a.com)" in parsed.links
+    assert "[B](https://b.com)" in parsed.links
+    assert parsed.text == "task"
+
+
+def test_parse_todo_input_inline_note_link_not_extracted():
+    parsed = parse_todo_input("task ~see [docs](https://d.com)")
+    assert parsed.links == []
+    assert parsed.note == "see [docs](https://d.com)"
+
+
+def test_parse_todo_input_standalone_link_and_note_inline_link():
+    parsed = parse_todo_input("task [L](https://l.com) ~note [i](https://i.com)")
+    assert parsed.links == ["[L](https://l.com)"]
+    assert parsed.note == "note [i](https://i.com)"
+
+
+def test_parse_todo_input_url_fragment_not_a_tag():
+    parsed = parse_todo_input("task [X](https://x.com#anchor)")
+    assert parsed.tags == set()
+    assert parsed.links == ["[X](https://x.com#anchor)"]
+
+
+def test_parse_todo_input_link_label_empty():
+    parsed = parse_todo_input("task [](https://a.com)")
+    assert parsed.links == ["[](https://a.com)"]
+    assert parsed.text == "task"
+
+
+def test_parse_todo_input_custom_scheme_link():
+    parsed = parse_todo_input("task [Note](obsidian://open?vault=x)")
+    assert parsed.links == ["[Note](obsidian://open?vault=x)"]
+    assert parsed.text == "task"
+
+
+def test_parse_todo_input_bare_domain_gets_http():
+    parsed = parse_todo_input("task [Site](example.org/path)")
+    assert parsed.links == ["[Site](http://example.org/path)"]
+    assert parsed.text == "task"
+
+
+def test_parse_todo_input_no_links():
+    parsed = parse_todo_input("plain task #foo")
+    assert parsed.links == []
+
+
+# ---------------------------------------------------------------------------
+# render_note_html tests
+# ---------------------------------------------------------------------------
+
+
+def test_render_note_html_plain_text():
+    result = render_note_html("hello world")
+    assert result == "hello world"
+
+
+def test_render_note_html_escapes_html():
+    result = render_note_html("<script>alert(1)</script>")
+    assert "<script>" not in result
+    assert "&lt;script&gt;" in result
+
+
+def test_render_note_html_renders_inline_link():
+    result = render_note_html("see [docs](https://example.com) here")
+    assert '<a href="https://example.com"' in result
+    assert "docs" in result
+    assert 'target="_blank"' in result
+
+
+def test_render_note_html_blocks_javascript_url():
+    result = render_note_html("[evil](javascript:alert(1))")
+    assert "<a" not in result
+
+
+def test_render_note_html_renders_custom_scheme():
+    result = render_note_html("open [note](obsidian://open?vault=x)")
+    assert '<a href="obsidian://open?vault=x"' in result
+    assert "note" in result
+
+
+def test_render_note_html_empty_label_uses_url():
+    result = render_note_html("[](https://example.com)")
+    assert 'href="https://example.com"' in result
+    assert "https://example.com" in result
+
+
+# ---------------------------------------------------------------------------
+# parse_link tests
+# ---------------------------------------------------------------------------
+
+
+def test_parse_link_with_label():
+    label, url = parse_link("[My Link](https://example.com)")
+    assert label == "My Link"
+    assert url == "https://example.com"
+
+
+def test_parse_link_empty_label_falls_back_to_url():
+    label, url = parse_link("[](https://example.com)")
+    assert label == "https://example.com"
+    assert url == "https://example.com"
+
+
+def test_parse_link_invalid_returns_original():
+    label, url = parse_link("not-a-link")
+    assert label == "not-a-link"
+    assert url == ""
+
+
+def test_parse_link_custom_scheme():
+    label, url = parse_link("[My Note](obsidian://open?vault=x)")
+    assert label == "My Note"
+    assert url == "obsidian://open?vault=x"
+
+
+def test_parse_link_bare_domain_gets_http():
+    label, url = parse_link("[Site](example.org/path)")
+    assert label == "Site"
+    assert url == "http://example.org/path"
+
+
+def test_render_note_html_bare_domain_gets_http():
+    result = render_note_html("see [site](example.org) here")
+    assert '<a href="http://example.org"' in result
 
 
 def test_build_tag_tree_single_level():

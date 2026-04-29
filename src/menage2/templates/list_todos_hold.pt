@@ -43,8 +43,20 @@
 
               <span class="flex-grow-1 text-truncate small">
                 <span>${todo.text}</span>
-                <span tal:condition="todo.note"
-                      class="d-block text-muted" style="font-size:0.7rem">${todo.note}</span>
+                <span class="d-block">
+                  <span tal:condition="todo.note"
+                        class="todo-note-display text-muted"
+                        tal:content="structure render_note_html(todo.note)"></span>
+                  <tal:block tal:condition="todo.links" tal:repeat="link todo.links">
+                    <a tal:define="parsed python:parse_link(link)"
+                       tal:attributes="href python:parsed[1]"
+                       target="_blank" rel="noopener noreferrer"
+                       class="todo-link-badge d-inline-block text-decoration-none me-1">
+                      <i class="bi bi-link-45deg"></i><tal:block
+                        tal:condition="python:parsed[0] != parsed[1]"> ${python:parsed[0]}</tal:block>
+                    </a>
+                  </tal:block>
+                </span>
               </span>
 
               <span tal:repeat="tag python:sorted(todo.tags)"
