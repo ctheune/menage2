@@ -20,6 +20,7 @@ from sqlalchemy.orm import sessionmaker
 
 from menage2 import main, models
 from menage2.models.meta import Base
+from menage2.models.team import Team, TeamMember
 from menage2.models.user import User
 
 _ph = PasswordHasher()
@@ -241,6 +242,43 @@ def clean_db(dbengine):
     _truncate()
     yield
     _truncate()
+
+
+@pytest.fixture
+def second_user(clean_db, dbengine):
+    """Insert a second (non-admin) user 'alice' for browser tests that need a peer."""
+    Session = sessionmaker(bind=dbengine)
+    session = Session()
+    user = User(
+        username="alice",
+        real_name="Alice",
+        email="alice@test.local",
+        password_hash=_ph.hash("alicepassword1!"),
+        is_admin=False,
+        is_active=True,
+        created_at=_now(),
+    )
+    session.add(user)
+    session.commit()
+    uid = user.id
+    session.close()
+    return {"id": uid, "username": "alice"}
+
+
+@pytest.fixture
+def team_with_alice(clean_db, dbengine, second_user, browser_admin_user):
+    """Create a team named 'house' with alice as a member."""
+    Session = sessionmaker(bind=dbengine)
+    session = Session()
+    team = Team(name="house", created_at=_now())
+    session.add(team)
+    session.flush()
+    member = TeamMember(team_id=team.id, user_id=second_user["id"], role="assignee")
+    session.add(member)
+    session.commit()
+    tid = team.id
+    session.close()
+    return {"id": tid, "name": "house"}
 
 
 @pytest.fixture

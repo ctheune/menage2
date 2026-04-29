@@ -1,10 +1,8 @@
-"""Browser tests for the @mention / assignee feature."""
+"""Browser tests for the @mention / assignee feature in todo context."""
 
 import pytest
-from sqlalchemy.orm import sessionmaker
 
-from menage2.models.team import Team, TeamMember
-from menage2.models.user import User
+from ._browser_helpers import fill_composite
 
 
 @pytest.fixture(scope="session")
@@ -43,101 +41,21 @@ def login(page, context, browser_admin_user, live_server):
     )
 
 
-def _first_seg(page):
-    return page.locator("#todo-text .todo-text-seg").first
+def _todo_ci(page):
+    return page.locator("#todo-text")
 
 
 # ---------------------------------------------------------------------------
-# Helper to insert a second user and a team directly via DB
+# Assignee display in todo rows (needs a peer user in DB)
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def second_user(clean_db, dbengine):
-    from datetime import datetime, timezone
-
-    from argon2 import PasswordHasher
-
-    _ph = PasswordHasher()
-    Session = sessionmaker(bind=dbengine)
-    session = Session()
-    user = User(
-        username="alice",
-        real_name="Alice",
-        email="alice@test.local",
-        password_hash=_ph.hash("alicepassword1!"),
-        is_admin=False,
-        is_active=True,
-        created_at=datetime.now(timezone.utc),
-    )
-    session.add(user)
-    session.commit()
-    uid = user.id
-    session.close()
-    return {"id": uid, "username": "alice"}
-
-
-@pytest.fixture
-def team_with_alice(clean_db, dbengine, second_user, browser_admin_user):
-    from datetime import datetime, timezone
-
-    Session = sessionmaker(bind=dbengine)
-    session = Session()
-    team = Team(name="house", created_at=datetime.now(timezone.utc))
-    session.add(team)
-    session.flush()
-    member = TeamMember(team_id=team.id, user_id=second_user["id"], role="assignee")
-    session.add(member)
-    session.commit()
-    tid = team.id
-    session.close()
-    return {"id": tid, "name": "house"}
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
-def test_at_mention_autocomplete_shows_users(page, second_user):
-    page.goto("/todos")
-    _first_seg(page).click()
-    page.keyboard.type("Fix bug @")
-    page.keyboard.type("a")
-    page.wait_for_timeout(600)
-    dropdown = page.locator(".todo-tag-autocomplete")
-    assert dropdown.is_visible()
-    assert "alice" in dropdown.inner_text()
-
-
-def test_at_mention_autocomplete_shows_teams(page, team_with_alice):
-    page.goto("/todos")
-    _first_seg(page).click()
-    page.keyboard.type("Clean @")
-    page.keyboard.type("h")
-    page.wait_for_timeout(600)
-    dropdown = page.locator(".todo-tag-autocomplete")
-    assert dropdown.is_visible()
-    assert "house" in dropdown.inner_text()
-
-
-def test_at_mention_space_completes_pill(page, second_user):
-    page.goto("/todos")
-    _first_seg(page).click()
-    page.keyboard.type("Walk dog @alice ")
-    page.wait_for_timeout(200)
-    pill = page.locator(".todo-assignee-pill")
-    assert pill.count() >= 1
-    assert "alice" in pill.first.inner_text()
 
 
 def test_assignee_display_in_todo_row(page, second_user):
     page.goto("/todos")
-    _first_seg(page).click()
-    page.keyboard.type("Feed cat @alice ")
-    page.wait_for_timeout(200)
-    page.keyboard.press("Enter")
+    fill_composite(_todo_ci(page), "Feed cat @alice")
     page.wait_for_load_state("networkidle")
+    # Delegated-out todos are hidden from personal filter; check with filter=all
+    page.goto("/todos?filter=all")
     row = page.locator('.todo-item[data-todo-text="Feed cat"]')
     assert row.count() == 1
     assert "@alice" in row.locator(".todo-assignees").inner_text()
@@ -145,24 +63,17 @@ def test_assignee_display_in_todo_row(page, second_user):
 
 def test_filter_toggle_all_visible(page, second_user):
     page.goto("/todos")
-    _first_seg(page).click()
-    page.keyboard.type("Personal task @alice ")
-    page.wait_for_timeout(200)
-    page.keyboard.press("Enter")
+    fill_composite(_todo_ci(page), "Personal task @alice")
     page.wait_for_load_state("networkidle")
-    assert page.locator('.todo-item[data-todo-text="Personal task"]').count() == 1
     page.goto("/todos?filter=all")
     assert page.locator('.todo-item[data-todo-text="Personal task"]').count() == 1
 
 
 def test_edit_todo_preserves_assignees(page, second_user):
     page.goto("/todos")
-    _first_seg(page).click()
-    page.keyboard.type("Wash car @alice ")
-    page.wait_for_timeout(200)
-    page.keyboard.press("Enter")
+    fill_composite(_todo_ci(page), "Wash car @alice")
     page.wait_for_load_state("networkidle")
-
+    page.goto("/todos?filter=all")
     row = page.locator('.todo-item[data-todo-text="Wash car"]')
     assert row.count() == 1
     row.locator(".todo-edit-btn").click()

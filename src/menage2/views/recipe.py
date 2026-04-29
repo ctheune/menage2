@@ -6,7 +6,6 @@ import peppercorn
 import sqlalchemy.orm
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.view import view_config
-from sqlalchemy.sql import collate
 
 from menage2.models import (
     Ingredient,

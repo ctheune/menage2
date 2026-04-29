@@ -286,11 +286,6 @@ def admin_operations(request):
     permission=PERM_ADMIN,
 )
 def composite_playground(request):
-    includes = request.registry.settings.get("pyramid.includes", "")
-    if "pyramid_debugtoolbar" not in includes:
-        from pyramid.httpexceptions import HTTPNotFound
-
-        raise HTTPNotFound()
     return {}
 
 

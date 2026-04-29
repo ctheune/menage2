@@ -2,6 +2,8 @@
 
 import pytest
 
+from ._browser_helpers import fill_composite
+
 
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args, live_server):
@@ -42,15 +44,12 @@ def _make_protocol_via_ui(page, title, items):
     page.goto("/protocols")
     page.click('button:has-text("New protocol")')
     page.wait_for_url("**/protocols/*/edit")
-    page.fill('input[name="title"]', title)
-    page.click('button:has-text("Save")')
-    page.wait_for_url("**/protocols/*/edit")
+    fill_composite(page.locator("#proto-title-ci"), title)
+    page.wait_for_load_state("networkidle")
     for i, txt in enumerate(items, start=1):
-        page.fill('input[placeholder^="New item"]', txt)
-        page.locator('input[placeholder^="New item"]').press("Enter")
-        # Wait for the redirected /edit page to render the new item card.
+        fill_composite(page.locator(".proto-new-item-ci"), txt)
         page.wait_for_function(
-            f"document.querySelectorAll('li.card .form-control-sm').length >= {i}",
+            f"document.querySelectorAll(\"li[id^='item-']\").length >= {i}",
             timeout=5000,
         )
 
