@@ -135,7 +135,9 @@ def test_linked_todo_badge_opens_run(page):
     badge = page.locator(".todo-protocol-link")
     assert badge.count() == 1
     badge.first.click()
-    page.wait_for_url("**/protocols/run/*")
+    # Badge now opens the panel inline instead of navigating
+    page.wait_for_selector("#protocol-run", timeout=5000)
+    assert page.url.endswith("/todos")
 
 
 def test_completing_linked_todo_closes_run(page):

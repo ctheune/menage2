@@ -42,6 +42,7 @@ body {
     color: #999;
     cursor: pointer;
     user-select: none;
+    background-color: #fff;
 }
 
 .tag-group-header[data-open="false"] {
@@ -382,10 +383,6 @@ body {
 .protocol-run-item.status-sent_to_todo {
     opacity: 0.55;
 }
-.protocol-run-item.is-current {
-    outline: 2px solid var(--bs-primary);
-    outline-offset: 1px;
-}
 .protocol-run-item-marker {
     width: 1.4em;
     text-align: center;
@@ -430,9 +427,7 @@ body {
     font-size: 0.95rem;
     z-index: 0;
 }
-.protocol-run-item .card-body {
-    position: relative;
-    z-index: 1;
+.protocol-run-item .todo-content {
     background: var(--bs-body-bg);
 }
 
@@ -709,7 +704,14 @@ body {
 /* Max-width list wrapper — desktop cap, full width on tablets/mobile */
 .todo-list-wrap {
     max-width: 42.5em;
-    background: #fff;
+    background-color: #fff;
+    background-image: repeating-linear-gradient(
+        to bottom,
+        transparent,
+        transparent calc(2rem - 1px),
+        rgba(0, 0, 0, 0.09) calc(2rem - 1px),
+        rgba(0, 0, 0, 0.09) 2rem
+    );
     border-radius: 0.5rem 0.5rem 0 0;
     overflow: hidden;
     min-height: calc(100vh - 12rem);
@@ -722,7 +724,77 @@ body {
     }
 }
 
-/* Lined-paper list — hairlines around each group of items */
+/* === Run panel layout ===================================================== */
+
+/* Desktop (≥lg): todo list and run panel sit side by side */
+@media (min-width: 992px) {
+    .todo-stage {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-start;
+    }
+    .todo-pane {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+    .run-pane {
+        flex: 1 1 0;
+        min-width: 0;
+        position: sticky;
+        top: 1rem;
+        max-height: calc(100vh - 5rem);
+        overflow-y: auto;
+    }
+}
+
+/* Mobile (<lg): run panel slides up as a fixed bottom sheet */
+@media (max-width: 991px) {
+    .run-pane:not(.d-none) {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 500;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+    .run-pane .todo-list-wrap {
+        border-radius: 0.75rem 0.75rem 0 0 !important;
+        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
+        min-height: 0 !important;
+    }
+}
+
+/* Run panel header */
+.run-panel-header {
+    background-color: #fff;
+}
+
+/* Backdrop injected on mobile when panel is open */
+#run-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 499;
+}
+
+/* Empty-list state: lines come from the parent, just center the message */
+.todo-list-empty {
+    min-height: calc(100vh - 12rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.todo-list-empty > span {
+    background: #fff;
+    padding: 0 0.75rem;
+    color: #999;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+/* === Lined-paper list — hairlines around each group of items === */
 .todo-group-list {
     border-top: 1px solid rgba(0, 0, 0, 0.09);
     margin-bottom: 0.5rem;
@@ -745,6 +817,7 @@ body {
     position: relative;
     z-index: 1;
     gap: 0.5rem;
+    background-color: #fff;
 }
 
 .todo-title {

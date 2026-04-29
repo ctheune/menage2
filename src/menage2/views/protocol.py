@@ -405,6 +405,28 @@ def show_protocol_run(request):
     }
 
 
+@view_config(route_name="show_protocol_run_panel", request_method="GET")
+def show_protocol_run_panel(request):
+    run = _get_or_404(request, ProtocolRun)
+    if run.opened_at is None:
+        _snapshot_run_items(run, request.dbsession)
+    items = sorted(run.items, key=lambda i: i.position)
+    items_html = _render_run_partial(request, run, items)
+    body = render(
+        "menage2:templates/protocols/_run_panel.pt",
+        {
+            "run": run,
+            "protocol": run.protocol,
+            "items_html": items_html,
+            "todos_url": request.route_url("list_todos"),
+        },
+        request=request,
+    )
+    request.response.content_type = "text/html"
+    request.response.text = body
+    return request.response
+
+
 def _maybe_close_run(run, dbsession, now):
     """Close the run + auto-complete its todo when every item is resolved."""
     items = sorted(run.items, key=lambda i: i.position)

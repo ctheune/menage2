@@ -23,6 +23,7 @@
         tal:attributes="data-recurrence python:_recurrence_label(todo);
                         data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else '';
                         data-protocol-run-url python:request.route_url('show_protocol_run', id=todo.protocol_run_id) if todo.protocol_run_id else '';
+                        data-protocol-panel-url python:request.route_url('show_protocol_run_panel', id=todo.protocol_run_id) if todo.protocol_run_id else '';
                         data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments]);
                         data-todo-links python:__import__('json').dumps(list(todo.links or []))"
         data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
@@ -35,8 +36,10 @@
             <input type="checkbox" class="form-check-input todo-checkbox" data-id="${todo.id}" style="margin-top: 0.11em" />
         </span>
         <a tal:condition="todo.protocol_run_id"
-           tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id)"
+           tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id);
+                           data-panel-url python:request.route_url('show_protocol_run_panel', id=todo.protocol_run_id)"
            class="todo-protocol-link flex-shrink-0 small"
+           hx-boost="false"
            title="Open protocol run (o)">
           <i class="bi bi-clipboard-check"></i>
         </a>
@@ -95,4 +98,4 @@
   </ul>
 </tal:block>
 
-<p tal:condition="not groups" class="text-muted fst-italic">No todos yet.</p>
+<div tal:condition="not groups" class="todo-list-empty"><span>Nothing to do!</span></div>

@@ -4,7 +4,7 @@
     Zutaten
   </div>
 
-  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
+  <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
     <ul id="ingredients" class="list-group">
       <li tal:repeat="ingredient ingredients" class="list-group-item d-flex align-items-center gap-2">
         <span class="flex-grow-1">${ingredient.description}</span>

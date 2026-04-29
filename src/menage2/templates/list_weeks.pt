@@ -15,7 +15,7 @@
     </button>
   </span>
 
-  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
+  <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
     <p tal:condition="not weeks" class="text-muted fst-italic">
       Noch keine Wochenpläne vorhanden.
       <input type="button"

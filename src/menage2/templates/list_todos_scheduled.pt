@@ -3,7 +3,7 @@
   <span metal:fill-slot="title-mobile">Scheduled</span>
   <div metal:fill-slot="title">Scheduled todos</div>
 
-  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
+  <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
 
     <!-- Filter toggle bar -->
     <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
@@ -27,6 +27,8 @@
       Nothing scheduled. Add a date to a todo with <code>^date</code> or press <kbd>d</kbd>.
     </p>
 
+    <div class="todo-stage">
+    <div class="todo-pane">
     <div tal:condition="groups" class="todo-list-wrap">
       <tal:block tal:repeat="group groups">
         <div class="tag-group-header"
@@ -61,8 +63,10 @@
               </span>
 
               <a tal:condition="todo.protocol_run_id"
-                 tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id)"
+                 tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id);
+                                 data-panel-url python:request.route_url('show_protocol_run_panel', id=todo.protocol_run_id)"
                  class="todo-protocol-link flex-shrink-0 small"
+                 hx-boost="false"
                  title="Open protocol run (o)">
                 <i class="bi bi-clipboard-check"></i>
               </a>
@@ -106,6 +110,13 @@
         </ul>
       </tal:block>
     </div>
+    </div><!-- /.todo-pane -->
+
+    <!-- Protocol run panel -->
+    <div class="run-pane d-none" id="run-pane">
+      <div class="todo-list-wrap run-panel-wrap" id="run-panel"></div>
+    </div>
+    </div><!-- /.todo-stage -->
 
   </div>
 </div>

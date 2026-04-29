@@ -13,7 +13,7 @@
     <input type="submit" form="edit-recipe" value="Speichern" class="btn btn-sm btn-secondary"/>
   </span>
 
-  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
+  <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
 
     <form hx-post="${request.route_url('edit_recipe', id=recipe.id)}"
           autocomplete="off"

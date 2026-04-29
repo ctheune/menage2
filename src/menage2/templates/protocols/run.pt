@@ -3,20 +3,22 @@
   <span metal:fill-slot="title-mobile">${protocol.title}</span>
   <div metal:fill-slot="title">${protocol.title}</div>
 
-  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
+  <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
 
-    <div class="mb-3 d-flex align-items-center gap-3">
-      <a href="${request.route_url('list_todos')}" class="link-secondary">← Back to Todos</a>
-      <span class="text-muted">·</span>
-      <a href="${request.route_url('edit_protocol', id=protocol.id)}" class="link-secondary">
+    <div class="mb-2 d-flex align-items-center gap-3">
+      <a href="${request.route_url('list_todos')}" class="link-secondary small">← Back to Todos</a>
+      <span class="text-muted small">·</span>
+      <a href="${request.route_url('edit_protocol', id=protocol.id)}" class="link-secondary small">
         Edit protocol
       </a>
     </div>
 
-    <div id="protocol-run"
-         data-run-id="${run.id}"
-         data-todo-route="${request.route_url('list_todos')}">
-      <tal:block tal:replace="structure items_html"/>
+    <div class="todo-list-wrap">
+      <div id="protocol-run"
+           data-run-id="${run.id}"
+           data-todo-route="${request.route_url('list_todos')}">
+        <tal:block tal:replace="structure items_html"/>
+      </div>
     </div>
 
   </div>

@@ -446,8 +446,8 @@ document.addEventListener('keydown', function(e) {
     if (key === '[') { e.preventDefault(); setAllGroups(false); return; }
 
     if (key === 'o' && _hoveredTodoItem) {
-        var runUrl = _hoveredTodoItem.dataset.protocolRunUrl;
-        if (runUrl) { e.preventDefault(); window.location.href = runUrl; }
+        var panelUrl = _hoveredTodoItem.dataset.protocolPanelUrl;
+        if (panelUrl) { e.preventDefault(); openRunPanel(panelUrl); }
         return;
     }
 
@@ -1124,6 +1124,64 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
+// --- Inline run panel (open / close) ----------------------------------------
+
+function openRunPanel(panelUrl) {
+    var pane = document.getElementById('run-pane');
+    var panel = document.getElementById('run-panel');
+    if (!pane || !panel) return;
+    fetch(panelUrl)
+        .then(function(r) { return r.text(); })
+        .then(function(html) {
+            panel.innerHTML = html;
+            pane.classList.remove('d-none');
+            htmx.process(panel);
+            _runCurrentIdx = 0;
+            _runHighlight();
+            if (window.innerWidth < 992) {
+                var bd = document.createElement('div');
+                bd.id = 'run-panel-backdrop';
+                bd.addEventListener('click', closeRunPanel);
+                document.body.appendChild(bd);
+            }
+        });
+}
+
+function closeRunPanel() {
+    var pane = document.getElementById('run-pane');
+    var panel = document.getElementById('run-panel');
+    if (pane) pane.classList.add('d-none');
+    if (panel) panel.innerHTML = '';
+    var bd = document.getElementById('run-panel-backdrop');
+    if (bd) bd.parentNode.removeChild(bd);
+}
+
+// Intercept protocol-run link clicks to open inline panel instead of navigating.
+document.addEventListener('click', function(e) {
+    var link = e.target.closest('.todo-protocol-link[data-panel-url]');
+    if (!link) return;
+    e.preventDefault();
+    openRunPanel(link.dataset.panelUrl);
+});
+
+// Refresh todo list after every run-panel action; auto-close when all resolved.
+document.body.addEventListener('htmx:afterSwap', function(e) {
+    var target = e.detail && e.detail.target;
+    if (!target || target.id !== 'protocol-run') return;
+    var list = document.getElementById('todo-list');
+    var groupsUrl = list && list.dataset.groupsUrl;
+    if (!target.querySelector('.protocol-run-item')) {
+        setTimeout(function() {
+            closeRunPanel();
+            if (groupsUrl && list) {
+                htmx.ajax('GET', groupsUrl, {target: list, swap: 'innerHTML'});
+            }
+        }, 900);
+    } else if (groupsUrl && list) {
+        htmx.ajax('GET', groupsUrl, {target: list, swap: 'innerHTML'});
+    }
+});
+
 // --- Protocol run page interactions ----------------------------------------
 //
 // Run-item actions (done / send-to-todo / edit) are dispatched via delegation
@@ -1210,8 +1268,13 @@ document.addEventListener('keydown', function(e) {
     else if (e.key === 'e') { e.preventDefault(); _runFire('edit'); }
     else if (e.key === 'Escape') {
         e.preventDefault();
-        var run = document.getElementById('protocol-run');
-        if (run && run.dataset.todoRoute) location.href = run.dataset.todoRoute;
+        var pane = document.getElementById('run-pane');
+        if (pane && !pane.classList.contains('d-none')) {
+            closeRunPanel();
+        } else {
+            var run = document.getElementById('protocol-run');
+            if (run && run.dataset.todoRoute) location.href = run.dataset.todoRoute;
+        }
     }
 });
 
@@ -1220,7 +1283,7 @@ var _runSwipeState = new WeakMap();
 document.addEventListener('touchstart', function(e) {
     var item = e.target.closest('.protocol-run-item');
     if (!item) return;
-    var inner = item.querySelector('.card-body');
+    var inner = item.querySelector('.todo-content');
     if (!inner) return;
     inner.style.transition = 'none';
     _runSwipeState.set(item, {startX: e.touches[0].clientX, dx: 0});
@@ -1230,7 +1293,7 @@ document.addEventListener('touchmove', function(e) {
     if (!item) return;
     var s = _runSwipeState.get(item);
     if (!s) return;
-    var inner = item.querySelector('.card-body');
+    var inner = item.querySelector('.todo-content');
     if (!inner) return;
     s.dx = e.touches[0].clientX - s.startX;
     inner.style.transform = 'translateX(' + Math.max(-150, Math.min(150, s.dx)) + 'px)';
@@ -1242,7 +1305,7 @@ document.addEventListener('touchend', function(e) {
     var s = _runSwipeState.get(item);
     if (!s) return;
     _runSwipeState.delete(item);
-    var inner = item.querySelector('.card-body');
+    var inner = item.querySelector('.todo-content');
     if (!inner) return;
     inner.style.transition = 'transform 0.2s ease';
     var dx = s.dx;

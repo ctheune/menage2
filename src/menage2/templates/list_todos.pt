@@ -3,7 +3,7 @@
   <span metal:fill-slot="title-mobile">TODO</span>
   <div metal:fill-slot="title">TODO</div>
 
-  <div metal:fill-slot="content" class="container-fluid px-3 py-3">
+  <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
 
     <!-- Filter toggle bar -->
     <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
@@ -22,16 +22,27 @@
     <!-- Add / edit todo form (shared across views; rendered server-side) -->
     <tal:block tal:replace="structure form_html"/>
 
-    <!-- Todo list (markup rendered server-side via _todo_groups.pt) -->
-    <div class="todo-list-wrap">
-      <div id="todo-list"
-           data-done-url="${request.route_url('todos_done')}"
-           data-hold-url="${request.route_url('todos_hold')}"
-           data-postpone-url="${request.route_url('todos_postpone')}"
-           data-undo-url="${request.route_url('todo_undo')}">
-        <tal:block tal:replace="structure groups_html"/>
+    <div class="todo-stage">
+      <!-- Todo list -->
+      <div class="todo-pane">
+        <div class="todo-list-wrap">
+          <div id="todo-list"
+               data-done-url="${request.route_url('todos_done')}"
+               data-hold-url="${request.route_url('todos_hold')}"
+               data-postpone-url="${request.route_url('todos_postpone')}"
+               data-undo-url="${request.route_url('todo_undo')}"
+               data-groups-url="${request.route_url('list_todo_groups')}?filter=${filter_mode}">
+            <tal:block tal:replace="structure groups_html"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Protocol run panel (hidden until a run is opened) -->
+      <div class="run-pane d-none" id="run-pane">
+        <div class="todo-list-wrap run-panel-wrap" id="run-panel"></div>
       </div>
     </div>
+
   </div>
 
 </div>

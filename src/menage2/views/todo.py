@@ -400,6 +400,26 @@ def home(request):
 _VALID_FILTER_MODES = {"all", "personal", "delegated_out", "delegated_in"}
 
 
+@view_config(route_name="list_todo_groups", request_method="GET")
+def list_todo_groups(request):
+    today = _today()
+    filter_mode = request.params.get("filter", "personal")
+    if filter_mode not in _VALID_FILTER_MODES:
+        filter_mode = "personal"
+    spawn_due_every_if_needed(request.dbsession, today, _now_utc())
+    user = request.identity
+    todos = _active_todos(request.dbsession, today, user=user, filter_mode=filter_mode)
+    groups = build_tag_tree(todos)
+    body = render(
+        "menage2:templates/_todo_groups.pt",
+        _groups_ctx(groups, today),
+        request=request,
+    )
+    request.response.content_type = "text/html"
+    request.response.text = body
+    return request.response
+
+
 @view_config(route_name="list_todos", renderer="menage2:templates/list_todos.pt")
 def list_todos(request):
     today = _today()
