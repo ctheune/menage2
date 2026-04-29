@@ -3,11 +3,15 @@
   <span metal:fill-slot="title">Die Rezepte</span>
 
   <span metal:fill-slot="actions">
-    <input type="button"
+    <button
+        type="submit"
+        class="btn btn-sm btn-dark text-nowrap"
         value="Neues Rezept"
         hx-put="${request.route_url('add_recipe')}"
-        hx-target="body"
-        class="btn btn-sm btn-outline-secondary" />
+        hx-target="body">
+        <i class="bi bi-fork-knife"></i>
+        New recipe
+    </button>
   </span>
 
   <div metal:fill-slot="content" class="container-fluid px-3 py-3">

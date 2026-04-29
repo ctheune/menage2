@@ -13,14 +13,14 @@
   <span metal:fill-slot="actions">
     <form method="post" action="${request.route_url('start_protocol_run', id=protocol.id)}"
           class="d-inline m-0">
-      <button type="submit" class="btn btn-sm btn-primary">Start a run now</button>
+      <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-play-fill"></i>  Start a run now</button>
     </form>
     <tal:block tal:condition="is_owner">
       <form method="post" action="${request.route_url('archive_protocol', id=protocol.id)}"
             class="d-inline m-0"
             onsubmit="return confirm('Archive this protocol?')">
-        <button type="submit" class="btn btn-sm btn-outline-danger">Archive</button>
       </form>
+        <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-archive"></i> Archive</button>
     </tal:block>
   </span>
 

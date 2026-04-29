@@ -7,8 +7,8 @@
     <form tal:condition="todos"
           method="post" action="${request.route_url('todos_activate_all_on_hold')}"
           class="d-inline m-0">
-      <button type="submit" class="btn btn-sm btn-secondary">
-        <i class="bi bi-play-fill"></i> Activate all
+      <button type="submit" class="btn btn-sm btn-dark text-nowrap">
+        <i class="bi bi-arrow-clockwise"></i> Activate all
       </button>
     </form>
   </span>

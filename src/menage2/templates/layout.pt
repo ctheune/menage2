@@ -82,11 +82,11 @@
         <ul class="navbar-nav ms-auto align-items-center gap-2">
           <tal:block tal:condition="request.identity is not None">
             <li class="nav-item">
-              <a class="btn btn-sm btn-outline-light" href="${request.route_url('account')}">${request.identity.username}</a>
+              <a class="btn btn-sm btn-outline-light" href="${request.route_url('account')}"><i class="bi bi-person"></i>  ${request.identity.username}</a>
             </li>
             <li class="nav-item">
               <form method="post" action="${request.route_url('logout')}" class="m-0">
-                <button type="submit" class="btn btn-sm btn-outline-light">Log off</button>
+                <button type="submit" class="btn btn-sm btn-outline-light"><i class="bi bi-door-open"></i> Log off</button>
               </form>
             </li>
           </tal:block>

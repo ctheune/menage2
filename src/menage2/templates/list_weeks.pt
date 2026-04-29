@@ -3,12 +3,16 @@
   <span metal:fill-slot="title">Wochenpläne</span>
 
   <span metal:fill-slot="actions">
-    <input type="button"
+    <button
+        type="submit"
+        class="btn btn-sm btn-dark text-nowrap"
         value="Neue Woche"
         hx-target="body"
         hx-push-url="true"
-        hx-put="${request.route_url('add_week')}"
-        class="btn btn-sm btn-outline-secondary" />
+        hx-put="${request.route_url('add_week')}">
+        <i class="bi bi-calendar-week"></i>
+        New week
+    </button>
   </span>
 
   <div metal:fill-slot="content" class="container-fluid px-3 py-3">
