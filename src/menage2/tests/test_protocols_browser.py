@@ -40,8 +40,10 @@ def login(page, context, browser_admin_user, live_server):
 
 def _make_protocol_via_ui(page, title, items):
     page.goto("/protocols")
-    page.fill('input[name="title"]', title)
     page.click('button:has-text("New protocol")')
+    page.wait_for_url("**/protocols/*/edit")
+    page.fill('input[name="title"]', title)
+    page.click('button:has-text("Save")')
     page.wait_for_url("**/protocols/*/edit")
     for i, txt in enumerate(items, start=1):
         page.fill('input[placeholder^="New item"]', txt)
