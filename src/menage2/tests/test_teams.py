@@ -10,11 +10,11 @@ from menage2.models.team import Team, TeamMember
 from menage2.models.todo import Todo, TodoStatus
 from menage2.models.user import User
 from menage2.principals import (
-    filter_protocols_for_user,
-    filter_todos_for_user,
     get_all_principals,
     get_user_team_memberships,
     is_protocol_editor,
+    protocol_visible_to_user,
+    todo_matches_filter,
 )
 from menage2.views.todo import parse_todo_input
 
@@ -192,16 +192,18 @@ def test_add_todo_sets_owner_id(authenticated_testapp, admin_user, dbsession):
 
 
 # ---------------------------------------------------------------------------
-# Visibility helpers — unit-level (no HTTP)
+# Visibility helpers — pure-Python predicate tests (no HTTP, no extra DB round-trips)
 # ---------------------------------------------------------------------------
+
+
+def _m(dbsession, user):
+    """Shorthand: load team memberships for user."""
+    return get_user_team_memberships(dbsession, user)
 
 
 def test_visibility_all_includes_owned(dbsession, admin_user):
     t = _todo(dbsession, "Mine", owner_id=admin_user.id)
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, admin_user, dbsession, "all")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(t, admin_user, _m(dbsession, admin_user), "all")
 
 
 def test_visibility_all_includes_direct_assignee(dbsession, admin_user, regular_user):
@@ -211,20 +213,14 @@ def test_visibility_all_includes_direct_assignee(dbsession, admin_user, regular_
         owner_id=admin_user.id,
         assignees={regular_user.username},
     )
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, regular_user, dbsession, "all")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(t, regular_user, _m(dbsession, regular_user), "all")
 
 
 def test_visibility_all_excludes_other_users_unassigned(
     dbsession, admin_user, regular_user
 ):
     t = _todo(dbsession, "Not mine", owner_id=admin_user.id)
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, regular_user, dbsession, "all")
-    rows = dbsession.execute(result).scalars().all()
-    assert not any(r.id == t.id for r in rows)
+    assert not todo_matches_filter(t, regular_user, _m(dbsession, regular_user), "all")
 
 
 def test_visibility_personal_excludes_delegated_out_without_self(
@@ -237,10 +233,7 @@ def test_visibility_personal_excludes_delegated_out_without_self(
         owner_id=admin_user.id,
         assignees={regular_user.username},
     )
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, admin_user, dbsession, "personal")
-    rows = dbsession.execute(result).scalars().all()
-    assert not any(r.id == t.id for r in rows)
+    assert not todo_matches_filter(t, admin_user, _m(dbsession, admin_user), "personal")
 
 
 def test_visibility_personal_includes_owned_self_assigned(
@@ -253,32 +246,22 @@ def test_visibility_personal_includes_owned_self_assigned(
         owner_id=admin_user.id,
         assignees={admin_user.username, regular_user.username},
     )
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, admin_user, dbsession, "personal")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(t, admin_user, _m(dbsession, admin_user), "personal")
 
 
 def test_visibility_all_includes_delegated_out(dbsession, admin_user, regular_user):
-    # "all" mode still shows owned todos that are delegated out.
     t = _todo(
         dbsession,
         "Delegated out all",
         owner_id=admin_user.id,
         assignees={regular_user.username},
     )
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, admin_user, dbsession, "all")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(t, admin_user, _m(dbsession, admin_user), "all")
 
 
 def test_visibility_personal_includes_own_unassigned(dbsession, admin_user):
     t = _todo(dbsession, "Personal", owner_id=admin_user.id)
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, admin_user, dbsession, "personal")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(t, admin_user, _m(dbsession, admin_user), "personal")
 
 
 def test_visibility_personal_includes_team_assignee(
@@ -292,10 +275,7 @@ def test_visibility_personal_includes_team_assignee(
     t = _todo(
         dbsession, "Haushalt task", owner_id=admin_user.id, assignees={"haushalt"}
     )
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, regular_user, dbsession, "personal")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(t, regular_user, _m(dbsession, regular_user), "personal")
 
 
 def test_visibility_delegated_out(dbsession, admin_user, regular_user):
@@ -305,10 +285,9 @@ def test_visibility_delegated_out(dbsession, admin_user, regular_user):
         owner_id=admin_user.id,
         assignees={regular_user.username},
     )
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, admin_user, dbsession, "delegated_out")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(
+        t, admin_user, _m(dbsession, admin_user), "delegated_out"
+    )
 
 
 def test_visibility_delegated_in_includes_direct_assignee(
@@ -320,10 +299,9 @@ def test_visibility_delegated_in_includes_direct_assignee(
         owner_id=admin_user.id,
         assignees={regular_user.username},
     )
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, regular_user, dbsession, "delegated_in")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(
+        t, regular_user, _m(dbsession, regular_user), "delegated_in"
+    )
 
 
 def test_visibility_team_assignee_role_in_all(dbsession, admin_user, regular_user):
@@ -333,10 +311,7 @@ def test_visibility_team_assignee_role_in_all(dbsession, admin_user, regular_use
     dbsession.add(TeamMember(team_id=team.id, user_id=regular_user.id, role="assignee"))
     dbsession.flush()
     t = _todo(dbsession, "Team task", owner_id=admin_user.id, assignees={"myteam"})
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, regular_user, dbsession, "all")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(t, regular_user, _m(dbsession, regular_user), "all")
 
 
 def test_visibility_supervisor_team_included_in_all(
@@ -352,10 +327,7 @@ def test_visibility_supervisor_team_included_in_all(
     t = _todo(
         dbsession, "Supervisor task", owner_id=admin_user.id, assignees={"supervisors"}
     )
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, regular_user, dbsession, "all")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(t, regular_user, _m(dbsession, regular_user), "all")
 
 
 def test_visibility_supervisor_team_excluded_from_delegated_in(
@@ -369,10 +341,9 @@ def test_visibility_supervisor_team_excluded_from_delegated_in(
     )
     dbsession.flush()
     t = _todo(dbsession, "Watch task", owner_id=admin_user.id, assignees={"watchers"})
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, regular_user, dbsession, "delegated_in")
-    rows = dbsession.execute(result).scalars().all()
-    assert not any(r.id == t.id for r in rows)
+    assert not todo_matches_filter(
+        t, regular_user, _m(dbsession, regular_user), "delegated_in"
+    )
 
 
 def test_visibility_delegated_out_excludes_direct_assignee_owner(dbsession, admin_user):
@@ -382,10 +353,9 @@ def test_visibility_delegated_out_excludes_direct_assignee_owner(dbsession, admi
         owner_id=admin_user.id,
         assignees={admin_user.username},
     )
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, admin_user, dbsession, "delegated_out")
-    rows = dbsession.execute(result).scalars().all()
-    assert not any(r.id == t.id for r in rows)
+    assert not todo_matches_filter(
+        t, admin_user, _m(dbsession, admin_user), "delegated_out"
+    )
 
 
 def test_visibility_delegated_out_excludes_assignee_role_team_owner(
@@ -397,10 +367,9 @@ def test_visibility_delegated_out_excludes_assignee_role_team_owner(
     dbsession.add(TeamMember(team_id=team.id, user_id=admin_user.id, role="assignee"))
     dbsession.flush()
     t = _todo(dbsession, "Self via team", owner_id=admin_user.id, assignees={"myteam"})
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, admin_user, dbsession, "delegated_out")
-    rows = dbsession.execute(result).scalars().all()
-    assert not any(r.id == t.id for r in rows)
+    assert not todo_matches_filter(
+        t, admin_user, _m(dbsession, admin_user), "delegated_out"
+    )
 
 
 def test_visibility_delegated_out_supervisor_non_owner(
@@ -414,10 +383,9 @@ def test_visibility_delegated_out_supervisor_non_owner(
     )
     dbsession.flush()
     t = _todo(dbsession, "Team task", owner_id=admin_user.id, assignees={"supervised"})
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, regular_user, dbsession, "delegated_out")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(
+        t, regular_user, _m(dbsession, regular_user), "delegated_out"
+    )
 
 
 def test_visibility_delegated_in_includes_assignee_role_team(
@@ -429,10 +397,9 @@ def test_visibility_delegated_in_includes_assignee_role_team(
     dbsession.add(TeamMember(team_id=team.id, user_id=regular_user.id, role="assignee"))
     dbsession.flush()
     t = _todo(dbsession, "Team work", owner_id=admin_user.id, assignees={"doers"})
-    stmt = select(Todo).where(Todo.id == t.id)
-    result = filter_todos_for_user(stmt, regular_user, dbsession, "delegated_in")
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == t.id for r in rows)
+    assert todo_matches_filter(
+        t, regular_user, _m(dbsession, regular_user), "delegated_in"
+    )
 
 
 def test_get_user_team_memberships(dbsession, regular_user):
@@ -605,10 +572,7 @@ def test_filter_protocols_owner_visible(dbsession, admin_user):
     p = Protocol(title="Mine", owner_id=admin_user.id, created_at=_now())
     dbsession.add(p)
     dbsession.flush()
-    stmt = select(Protocol).where(Protocol.id == p.id)
-    result = filter_protocols_for_user(stmt, admin_user, dbsession)
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == p.id for r in rows)
+    assert protocol_visible_to_user(p, admin_user, _m(dbsession, admin_user))
 
 
 def test_filter_protocols_direct_assignee_visible(dbsession, admin_user, regular_user):
@@ -622,10 +586,7 @@ def test_filter_protocols_direct_assignee_visible(dbsession, admin_user, regular
     )
     dbsession.add(p)
     dbsession.flush()
-    stmt = select(Protocol).where(Protocol.id == p.id)
-    result = filter_protocols_for_user(stmt, regular_user, dbsession)
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == p.id for r in rows)
+    assert protocol_visible_to_user(p, regular_user, _m(dbsession, regular_user))
 
 
 def test_filter_protocols_supervisor_team_visible(dbsession, admin_user, regular_user):
@@ -645,26 +606,16 @@ def test_filter_protocols_supervisor_team_visible(dbsession, admin_user, regular
     )
     dbsession.add(p)
     dbsession.flush()
-    stmt = select(Protocol).where(Protocol.id == p.id)
-    result = filter_protocols_for_user(stmt, regular_user, dbsession)
-    rows = dbsession.execute(result).scalars().all()
-    assert any(r.id == p.id for r in rows)
+    assert protocol_visible_to_user(p, regular_user, _m(dbsession, regular_user))
 
 
 def test_filter_protocols_non_member_invisible(dbsession, admin_user, regular_user):
     from menage2.models.protocol import Protocol
 
-    p = Protocol(
-        title="Private",
-        owner_id=admin_user.id,
-        created_at=_now(),
-    )
+    p = Protocol(title="Private", owner_id=admin_user.id, created_at=_now())
     dbsession.add(p)
     dbsession.flush()
-    stmt = select(Protocol).where(Protocol.id == p.id)
-    result = filter_protocols_for_user(stmt, regular_user, dbsession)
-    rows = dbsession.execute(result).scalars().all()
-    assert not any(r.id == p.id for r in rows)
+    assert not protocol_visible_to_user(p, regular_user, _m(dbsession, regular_user))
 
 
 # ---------------------------------------------------------------------------
@@ -678,7 +629,7 @@ def test_is_protocol_editor_owner(dbsession, admin_user):
     p = Protocol(title="P", owner_id=admin_user.id, created_at=_now())
     dbsession.add(p)
     dbsession.flush()
-    assert is_protocol_editor(admin_user, p, dbsession) is True
+    assert is_protocol_editor(admin_user, p, _m(dbsession, admin_user)) is True
 
 
 def test_is_protocol_editor_supervisor(dbsession, admin_user, regular_user):
@@ -695,7 +646,7 @@ def test_is_protocol_editor_supervisor(dbsession, admin_user, regular_user):
     )
     dbsession.add(p)
     dbsession.flush()
-    assert is_protocol_editor(regular_user, p, dbsession) is True
+    assert is_protocol_editor(regular_user, p, _m(dbsession, regular_user)) is True
 
 
 def test_is_protocol_editor_assignee_role_not_editor(
@@ -712,4 +663,4 @@ def test_is_protocol_editor_assignee_role_not_editor(
     )
     dbsession.add(p)
     dbsession.flush()
-    assert is_protocol_editor(regular_user, p, dbsession) is False
+    assert is_protocol_editor(regular_user, p, _m(dbsession, regular_user)) is False

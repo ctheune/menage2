@@ -22,8 +22,9 @@ from menage2.models.protocol import (
 )
 from menage2.models.todo import Todo, TodoStatus
 from menage2.principals import (
-    filter_protocols_for_user,
+    get_user_team_memberships,
     is_protocol_editor,
+    protocol_visible_to_user,
 )
 from menage2.recurrence import (
     ensure_protocol_has_run,
@@ -59,7 +60,11 @@ def _get_or_404(request, model, id_param="id"):
 
 
 def _is_protocol_editor(request, protocol):
-    return is_protocol_editor(request.identity, protocol, request.dbsession)
+    user = request.identity
+    if user is None:
+        return False
+    memberships = get_user_team_memberships(request.dbsession, user)
+    return is_protocol_editor(user, protocol, memberships)
 
 
 def _require_editor(request, protocol):
@@ -77,31 +82,34 @@ def _require_editor(request, protocol):
 )
 def list_protocols(request):
     user = request.identity
-    active = (
+    memberships = get_user_team_memberships(request.dbsession, user) if user else {}
+    all_active = (
         request.dbsession.execute(
-            filter_protocols_for_user(
-                select(Protocol)
-                .where(Protocol.archived_at.is_(None))
-                .order_by(Protocol.title),
-                user,
-                request.dbsession,
-            )
+            select(Protocol)
+            .where(Protocol.archived_at.is_(None))
+            .order_by(Protocol.title)
         )
         .scalars()
         .all()
     )
-    archived = (
+    all_archived = (
         request.dbsession.execute(
-            filter_protocols_for_user(
-                select(Protocol)
-                .where(Protocol.archived_at.is_not(None))
-                .order_by(Protocol.title),
-                user,
-                request.dbsession,
-            )
+            select(Protocol)
+            .where(Protocol.archived_at.is_not(None))
+            .order_by(Protocol.title)
         )
         .scalars()
         .all()
+    )
+    active = (
+        [p for p in all_active if protocol_visible_to_user(p, user, memberships)]
+        if user
+        else all_active
+    )
+    archived = (
+        [p for p in all_archived if protocol_visible_to_user(p, user, memberships)]
+        if user
+        else all_archived
     )
     return {
         "active": active,

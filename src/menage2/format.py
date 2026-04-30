@@ -156,7 +156,7 @@ def globals_factory(event):
         and hasattr(request, "dbsession")
     ):
         from menage2.models.todo import Todo, TodoStatus
-        from menage2.principals import filter_todos_for_user
+        from menage2.principals import get_user_team_memberships, todo_matches_filter
 
         today = _dt.date.today()
         user = request.identity
@@ -165,38 +165,43 @@ def globals_factory(event):
             filter_mode = "personal"
         db = request.dbsession
         db.flush()
+        memberships = get_user_team_memberships(db, user)
 
-        stmt_active = filter_todos_for_user(
-            select(func.count())
-            .select_from(Todo)
-            .where(
-                Todo.status == TodoStatus.todo,
-                or_(Todo.due_date.is_(None), Todo.due_date <= today),
-            ),
-            user,
-            db,
-            filter_mode,
+        def _count(todos):
+            return sum(
+                1
+                for t in todos
+                if todo_matches_filter(t, user, memberships, filter_mode)
+            )
+
+        todos_active = (
+            db.execute(
+                select(Todo).where(
+                    Todo.status == TodoStatus.todo,
+                    or_(Todo.due_date.is_(None), Todo.due_date <= today),
+                )
+            )
+            .scalars()
+            .all()
         )
-        stmt_hold = filter_todos_for_user(
-            select(func.count())
-            .select_from(Todo)
-            .where(Todo.status == TodoStatus.on_hold),
-            user,
-            db,
-            filter_mode,
+        todos_hold = (
+            db.execute(select(Todo).where(Todo.status == TodoStatus.on_hold))
+            .scalars()
+            .all()
         )
-        stmt_sched = filter_todos_for_user(
-            select(func.count())
-            .select_from(Todo)
-            .where(Todo.status == TodoStatus.todo, Todo.due_date > today),
-            user,
-            db,
-            filter_mode,
+        todos_sched = (
+            db.execute(
+                select(Todo).where(
+                    Todo.status == TodoStatus.todo, Todo.due_date > today
+                )
+            )
+            .scalars()
+            .all()
         )
         nav_task_counts = {
-            "active": db.execute(stmt_active).scalar(),
-            "hold": db.execute(stmt_hold).scalar(),
-            "scheduled": db.execute(stmt_sched).scalar(),
+            "active": _count(todos_active),
+            "hold": _count(todos_hold),
+            "scheduled": _count(todos_sched),
         }
 
     event["nav_task_counts"] = nav_task_counts

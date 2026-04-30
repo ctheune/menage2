@@ -25,7 +25,11 @@ from menage2.models.todo import (
     TodoAttachment,
     TodoStatus,
 )
-from menage2.principals import filter_todos_for_user, get_all_principals
+from menage2.principals import (
+    get_all_principals,
+    get_user_team_memberships,
+    todo_matches_filter,
+)
 from menage2.recurrence import (
     chain_history,
     rule_to_spec,
@@ -295,34 +299,35 @@ def _undo_trigger(
     )
 
 
-def _on_hold_count(request, user, filter_mode: str) -> int:
+def _count_todos(request, user, filter_mode: str, *where_clauses) -> int:
     request.dbsession.flush()
-    stmt = (
-        select(func.count()).select_from(Todo).where(Todo.status == TodoStatus.on_hold)
+    todos = (
+        request.dbsession.execute(select(Todo).where(*where_clauses)).scalars().all()
     )
-    if user is not None:
-        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
-    return request.dbsession.execute(stmt).scalar()
+    if user is None:
+        return len(todos)
+    memberships = get_user_team_memberships(request.dbsession, user)
+    return sum(
+        1 for t in todos if todo_matches_filter(t, user, memberships, filter_mode)
+    )
+
+
+def _on_hold_count(request, user, filter_mode: str) -> int:
+    return _count_todos(request, user, filter_mode, Todo.status == TodoStatus.on_hold)
 
 
 def _scheduled_count(request, today: datetime.date, user, filter_mode: str) -> int:
-    request.dbsession.flush()
-    stmt = (
-        select(func.count())
-        .select_from(Todo)
-        .where(Todo.status == TodoStatus.todo, Todo.due_date > today)
+    return _count_todos(
+        request,
+        user,
+        filter_mode,
+        Todo.status == TodoStatus.todo,
+        Todo.due_date > today,
     )
-    if user is not None:
-        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
-    return request.dbsession.execute(stmt).scalar()
 
 
 def _done_count(request, user, filter_mode: str) -> int:
-    request.dbsession.flush()
-    stmt = select(func.count()).select_from(Todo).where(Todo.status == TodoStatus.done)
-    if user is not None:
-        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
-    return request.dbsession.execute(stmt).scalar()
+    return _count_todos(request, user, filter_mode, Todo.status == TodoStatus.done)
 
 
 def _on_hold_section_oob(request, filter_mode: str = "personal") -> str:
@@ -369,17 +374,22 @@ def _active_todos(
     dbsession, today: datetime.date, user=None, filter_mode: str = "personal"
 ) -> list[Todo]:
     """Items shown in the main list: status=todo and due today/earlier (or undated)."""
-    stmt = (
-        select(Todo)
-        .where(
-            Todo.status == TodoStatus.todo,
-            or_(Todo.due_date.is_(None), Todo.due_date <= today),
+    todos = (
+        dbsession.execute(
+            select(Todo)
+            .where(
+                Todo.status == TodoStatus.todo,
+                or_(Todo.due_date.is_(None), Todo.due_date <= today),
+            )
+            .order_by(nulls_last(asc(Todo.due_date)), asc(Todo.created_at))
         )
-        .order_by(nulls_last(asc(Todo.due_date)), asc(Todo.created_at))
+        .scalars()
+        .all()
     )
-    if user is not None:
-        stmt = filter_todos_for_user(stmt, user, dbsession, filter_mode)
-    return dbsession.execute(stmt).scalars().all()
+    if user is None:
+        return todos
+    memberships = get_user_team_memberships(dbsession, user)
+    return [t for t in todos if todo_matches_filter(t, user, memberships, filter_mode)]
 
 
 def _groups_ctx(groups: list, today: datetime.date) -> dict:
@@ -782,14 +792,20 @@ def list_todos_hold(request):
     if filter_mode not in _VALID_FILTER_MODES:
         filter_mode = "personal"
     user = request.identity
-    stmt = (
-        select(Todo)
-        .where(Todo.status == TodoStatus.on_hold)
-        .order_by(asc(Todo.created_at))
+    todos = (
+        request.dbsession.execute(
+            select(Todo)
+            .where(Todo.status == TodoStatus.on_hold)
+            .order_by(asc(Todo.created_at))
+        )
+        .scalars()
+        .all()
     )
     if user is not None:
-        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
-    todos = request.dbsession.execute(stmt).scalars().all()
+        memberships = get_user_team_memberships(request.dbsession, user)
+        todos = [
+            t for t in todos if todo_matches_filter(t, user, memberships, filter_mode)
+        ]
     return {
         "todos": todos,
         "filter_mode": filter_mode,
@@ -806,12 +822,20 @@ def list_todos_done(request):
     if filter_mode not in _VALID_FILTER_MODES:
         filter_mode = "personal"
     user = request.identity
-    stmt = (
-        select(Todo).where(Todo.status == TodoStatus.done).order_by(Todo.done_at.desc())
+    todos = (
+        request.dbsession.execute(
+            select(Todo)
+            .where(Todo.status == TodoStatus.done)
+            .order_by(Todo.done_at.desc())
+        )
+        .scalars()
+        .all()
     )
     if user is not None:
-        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
-    todos = request.dbsession.execute(stmt).scalars().all()
+        memberships = get_user_team_memberships(request.dbsession, user)
+        todos = [
+            t for t in todos if todo_matches_filter(t, user, memberships, filter_mode)
+        ]
     return {"todos": todos, "filter_mode": filter_mode}
 
 
@@ -826,14 +850,20 @@ def list_todos_scheduled(request):
         filter_mode = "personal"
     spawn_due_every_if_needed(request.dbsession, today, _now_utc())
     user = request.identity
-    stmt = (
-        select(Todo)
-        .where(Todo.status == TodoStatus.todo, Todo.due_date > today)
-        .order_by(asc(Todo.due_date), asc(Todo.created_at))
+    todos = (
+        request.dbsession.execute(
+            select(Todo)
+            .where(Todo.status == TodoStatus.todo, Todo.due_date > today)
+            .order_by(asc(Todo.due_date), asc(Todo.created_at))
+        )
+        .scalars()
+        .all()
     )
     if user is not None:
-        stmt = filter_todos_for_user(stmt, user, request.dbsession, filter_mode)
-    todos = request.dbsession.execute(stmt).scalars().all()
+        memberships = get_user_team_memberships(request.dbsession, user)
+        todos = [
+            t for t in todos if todo_matches_filter(t, user, memberships, filter_mode)
+        ]
     # Group by date for a calendar-style header.
     groups: list[dict] = []
     current_date: datetime.date | None = None

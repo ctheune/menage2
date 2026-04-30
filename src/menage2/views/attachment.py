@@ -11,7 +11,7 @@ from pyramid.view import view_config
 from sqlalchemy import select
 
 from menage2.models.todo import Todo, TodoAttachment
-from menage2.principals import filter_todos_for_user
+from menage2.principals import get_user_team_memberships, todo_matches_filter
 
 log = logging.getLogger(__name__)
 
@@ -39,10 +39,11 @@ def _get_authorized_todo(request, todo_id):
     user = request.identity
     if user is None:
         raise HTTPNotFound()
-    stmt = select(Todo).where(Todo.id == todo_id)
-    stmt = filter_todos_for_user(stmt, user, request.dbsession, "all")
-    todo = request.dbsession.execute(stmt).scalar_one_or_none()
+    todo = request.dbsession.get(Todo, todo_id)
     if todo is None:
+        raise HTTPNotFound()
+    memberships = get_user_team_memberships(request.dbsession, user)
+    if not todo_matches_filter(todo, user, memberships, "all"):
         raise HTTPNotFound()
     return todo
 
