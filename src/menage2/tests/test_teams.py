@@ -10,9 +10,11 @@ from menage2.models.team import Team, TeamMember
 from menage2.models.todo import Todo, TodoStatus
 from menage2.models.user import User
 from menage2.principals import (
+    filter_protocols_for_user,
     filter_todos_for_user,
     get_all_principals,
     get_user_team_memberships,
+    is_protocol_editor,
 )
 from menage2.views.todo import parse_todo_input
 
@@ -337,7 +339,7 @@ def test_visibility_team_assignee_role_in_all(dbsession, admin_user, regular_use
     assert any(r.id == t.id for r in rows)
 
 
-def test_visibility_supervisor_team_excluded_from_all(
+def test_visibility_supervisor_team_included_in_all(
     dbsession, admin_user, regular_user
 ):
     team = Team(name="supervisors", created_at=_now())
@@ -353,10 +355,10 @@ def test_visibility_supervisor_team_excluded_from_all(
     stmt = select(Todo).where(Todo.id == t.id)
     result = filter_todos_for_user(stmt, regular_user, dbsession, "all")
     rows = dbsession.execute(result).scalars().all()
-    assert not any(r.id == t.id for r in rows)
+    assert any(r.id == t.id for r in rows)
 
 
-def test_visibility_supervisor_team_in_delegated_in(
+def test_visibility_supervisor_team_excluded_from_delegated_in(
     dbsession, admin_user, regular_user
 ):
     team = Team(name="watchers", created_at=_now())
@@ -367,6 +369,66 @@ def test_visibility_supervisor_team_in_delegated_in(
     )
     dbsession.flush()
     t = _todo(dbsession, "Watch task", owner_id=admin_user.id, assignees={"watchers"})
+    stmt = select(Todo).where(Todo.id == t.id)
+    result = filter_todos_for_user(stmt, regular_user, dbsession, "delegated_in")
+    rows = dbsession.execute(result).scalars().all()
+    assert not any(r.id == t.id for r in rows)
+
+
+def test_visibility_delegated_out_excludes_direct_assignee_owner(dbsession, admin_user):
+    t = _todo(
+        dbsession,
+        "Self-delegated",
+        owner_id=admin_user.id,
+        assignees={admin_user.username},
+    )
+    stmt = select(Todo).where(Todo.id == t.id)
+    result = filter_todos_for_user(stmt, admin_user, dbsession, "delegated_out")
+    rows = dbsession.execute(result).scalars().all()
+    assert not any(r.id == t.id for r in rows)
+
+
+def test_visibility_delegated_out_excludes_assignee_role_team_owner(
+    dbsession, admin_user
+):
+    team = Team(name="myteam", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    dbsession.add(TeamMember(team_id=team.id, user_id=admin_user.id, role="assignee"))
+    dbsession.flush()
+    t = _todo(dbsession, "Self via team", owner_id=admin_user.id, assignees={"myteam"})
+    stmt = select(Todo).where(Todo.id == t.id)
+    result = filter_todos_for_user(stmt, admin_user, dbsession, "delegated_out")
+    rows = dbsession.execute(result).scalars().all()
+    assert not any(r.id == t.id for r in rows)
+
+
+def test_visibility_delegated_out_supervisor_non_owner(
+    dbsession, admin_user, regular_user
+):
+    team = Team(name="supervised", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    dbsession.add(
+        TeamMember(team_id=team.id, user_id=regular_user.id, role="supervisor")
+    )
+    dbsession.flush()
+    t = _todo(dbsession, "Team task", owner_id=admin_user.id, assignees={"supervised"})
+    stmt = select(Todo).where(Todo.id == t.id)
+    result = filter_todos_for_user(stmt, regular_user, dbsession, "delegated_out")
+    rows = dbsession.execute(result).scalars().all()
+    assert any(r.id == t.id for r in rows)
+
+
+def test_visibility_delegated_in_includes_assignee_role_team(
+    dbsession, admin_user, regular_user
+):
+    team = Team(name="doers", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    dbsession.add(TeamMember(team_id=team.id, user_id=regular_user.id, role="assignee"))
+    dbsession.flush()
+    t = _todo(dbsession, "Team work", owner_id=admin_user.id, assignees={"doers"})
     stmt = select(Todo).where(Todo.id == t.id)
     result = filter_todos_for_user(stmt, regular_user, dbsession, "delegated_in")
     rows = dbsession.execute(result).scalars().all()
@@ -461,3 +523,193 @@ def test_protocol_assignee_can_start_run(
     dbsession.flush()
     res = user_testapp.post(f"/protocols/{p.id}/start", status=303)
     assert "/protocols/run/" in res.location
+
+
+# ---------------------------------------------------------------------------
+# Protocol editor: supervisor can edit, assignee-role cannot
+# ---------------------------------------------------------------------------
+
+
+def test_protocol_supervisor_can_edit(
+    user_testapp, dbsession, admin_user, regular_user
+):
+    """Supervisor-role team members may edit the protocol."""
+    from menage2.models.protocol import ProtocolItem
+
+    team = Team(name="supervisors", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    dbsession.add(
+        TeamMember(team_id=team.id, user_id=regular_user.id, role="supervisor")
+    )
+    p = Protocol(
+        title="Supervised protocol",
+        owner_id=admin_user.id,
+        assignees={"supervisors"},
+        created_at=_now(),
+    )
+    dbsession.add(p)
+    dbsession.flush()
+    item = ProtocolItem(protocol_id=p.id, position=1, text="Step one")
+    dbsession.add(item)
+    dbsession.flush()
+
+    user_testapp.get(f"/protocols/{p.id}/edit", status=200)
+    user_testapp.post(f"/protocols/{p.id}/archive", status=303)
+    p.archived_at = None
+    dbsession.flush()
+    user_testapp.post(f"/protocols/{p.id}/items", {"text": "New step"}, status=303)
+    user_testapp.post(
+        f"/protocols/{p.id}/items/{item.id}", {"text": "Changed"}, status=303
+    )
+
+
+def test_protocol_assignee_role_cannot_edit(
+    user_testapp, dbsession, admin_user, regular_user
+):
+    """Assignee-role team members may NOT edit the protocol."""
+    from menage2.models.protocol import ProtocolItem
+
+    team = Team(name="doers", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    dbsession.add(TeamMember(team_id=team.id, user_id=regular_user.id, role="assignee"))
+    p = Protocol(
+        title="Doers protocol",
+        owner_id=admin_user.id,
+        assignees={"doers"},
+        created_at=_now(),
+    )
+    dbsession.add(p)
+    dbsession.flush()
+    item = ProtocolItem(protocol_id=p.id, position=1, text="A step")
+    dbsession.add(item)
+    dbsession.flush()
+
+    user_testapp.get(f"/protocols/{p.id}/edit", status=200)
+    user_testapp.post(f"/protocols/{p.id}/archive", status=403)
+    user_testapp.post(f"/protocols/{p.id}/items", {"text": "injected"}, status=403)
+    user_testapp.post(
+        f"/protocols/{p.id}/items/{item.id}", {"text": "changed"}, status=403
+    )
+
+
+# ---------------------------------------------------------------------------
+# filter_protocols_for_user unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_filter_protocols_owner_visible(dbsession, admin_user):
+    from menage2.models.protocol import Protocol
+
+    p = Protocol(title="Mine", owner_id=admin_user.id, created_at=_now())
+    dbsession.add(p)
+    dbsession.flush()
+    stmt = select(Protocol).where(Protocol.id == p.id)
+    result = filter_protocols_for_user(stmt, admin_user, dbsession)
+    rows = dbsession.execute(result).scalars().all()
+    assert any(r.id == p.id for r in rows)
+
+
+def test_filter_protocols_direct_assignee_visible(dbsession, admin_user, regular_user):
+    from menage2.models.protocol import Protocol
+
+    p = Protocol(
+        title="Assigned",
+        owner_id=admin_user.id,
+        assignees={regular_user.username},
+        created_at=_now(),
+    )
+    dbsession.add(p)
+    dbsession.flush()
+    stmt = select(Protocol).where(Protocol.id == p.id)
+    result = filter_protocols_for_user(stmt, regular_user, dbsession)
+    rows = dbsession.execute(result).scalars().all()
+    assert any(r.id == p.id for r in rows)
+
+
+def test_filter_protocols_supervisor_team_visible(dbsession, admin_user, regular_user):
+    from menage2.models.protocol import Protocol
+
+    team = Team(name="oversight", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    dbsession.add(
+        TeamMember(team_id=team.id, user_id=regular_user.id, role="supervisor")
+    )
+    p = Protocol(
+        title="Overseen",
+        owner_id=admin_user.id,
+        assignees={"oversight"},
+        created_at=_now(),
+    )
+    dbsession.add(p)
+    dbsession.flush()
+    stmt = select(Protocol).where(Protocol.id == p.id)
+    result = filter_protocols_for_user(stmt, regular_user, dbsession)
+    rows = dbsession.execute(result).scalars().all()
+    assert any(r.id == p.id for r in rows)
+
+
+def test_filter_protocols_non_member_invisible(dbsession, admin_user, regular_user):
+    from menage2.models.protocol import Protocol
+
+    p = Protocol(
+        title="Private",
+        owner_id=admin_user.id,
+        created_at=_now(),
+    )
+    dbsession.add(p)
+    dbsession.flush()
+    stmt = select(Protocol).where(Protocol.id == p.id)
+    result = filter_protocols_for_user(stmt, regular_user, dbsession)
+    rows = dbsession.execute(result).scalars().all()
+    assert not any(r.id == p.id for r in rows)
+
+
+# ---------------------------------------------------------------------------
+# is_protocol_editor unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_is_protocol_editor_owner(dbsession, admin_user):
+    from menage2.models.protocol import Protocol
+
+    p = Protocol(title="P", owner_id=admin_user.id, created_at=_now())
+    dbsession.add(p)
+    dbsession.flush()
+    assert is_protocol_editor(admin_user, p, dbsession) is True
+
+
+def test_is_protocol_editor_supervisor(dbsession, admin_user, regular_user):
+    from menage2.models.protocol import Protocol
+
+    team = Team(name="mgrs", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    dbsession.add(
+        TeamMember(team_id=team.id, user_id=regular_user.id, role="supervisor")
+    )
+    p = Protocol(
+        title="P", owner_id=admin_user.id, assignees={"mgrs"}, created_at=_now()
+    )
+    dbsession.add(p)
+    dbsession.flush()
+    assert is_protocol_editor(regular_user, p, dbsession) is True
+
+
+def test_is_protocol_editor_assignee_role_not_editor(
+    dbsession, admin_user, regular_user
+):
+    from menage2.models.protocol import Protocol
+
+    team = Team(name="workers", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    dbsession.add(TeamMember(team_id=team.id, user_id=regular_user.id, role="assignee"))
+    p = Protocol(
+        title="P", owner_id=admin_user.id, assignees={"workers"}, created_at=_now()
+    )
+    dbsession.add(p)
+    dbsession.flush()
+    assert is_protocol_editor(regular_user, p, dbsession) is False

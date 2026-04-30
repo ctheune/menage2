@@ -1,4 +1,4 @@
-"""Principal resolution and todo visibility helpers.
+"""Principal resolution and todo/protocol visibility helpers.
 
 A *principal* is any named entity that can be addressed with @name in a todo:
 either a User (by username) or a Team (by name).  Both share a unique
@@ -15,9 +15,10 @@ Filter modes
 ------------
   "personal" — unowned (legacy), owned-and-not-delegated-away (or self is assignee),
                direct assignee, or assignee-role team member
-  "all"      — owner, direct assignee, or assignee-role team member
-  "delegated_out"  — owner_id == me AND assignees != {}
-  "delegated_in"   — (direct assignee OR any team member) AND owner_id != me
+  "all"      — owner, unowned, direct assignee, or any team member (assignee OR supervisor)
+  "delegated_out"  — (owner AND has assignees AND NOT self-assignee AND NOT assignee-role team)
+                     OR (NOT owner AND supervisor-role team member of an assigned team)
+  "delegated_in"   — (direct assignee OR assignee-role team member) AND NOT owner
 
 NOTE: Team expansion is done inline (one array-containment clause per team the
 user belongs to).  Household teams are tiny so this is fine; avoids a join.
@@ -58,8 +59,13 @@ def get_user_team_memberships(dbsession, user) -> dict[str, str]:
 
 
 def _assignees_contains(name: str):
-    """SQLAlchemy clause: assignees array contains the given name."""
+    """SQLAlchemy clause: Todo.assignees array contains the given name."""
     return Todo.assignees.contains(cast([name], ARRAY(Text)))
+
+
+def _proto_assignees_contains(model, name: str):
+    """SQLAlchemy clause: model.assignees array contains the given name."""
+    return model.assignees.contains(cast([name], ARRAY(Text)))
 
 
 def filter_todos_for_user(stmt, user, dbsession, filter_mode: str = "personal"):
@@ -73,16 +79,23 @@ def filter_todos_for_user(stmt, user, dbsession, filter_mode: str = "personal"):
     """
     memberships = get_user_team_memberships(dbsession, user)
 
-    # Clauses for every team the user belongs to (any role) — used for basic visibility.
+    # Clauses for every team the user belongs to (any role).
     team_assignee_clauses = [
         _assignees_contains(team_name) for team_name in memberships
     ]
 
-    # Clauses only for assignee-role teams — shown in "all" mode active list.
+    # Clauses only for assignee-role teams.
     assignee_role_team_clauses = [
         _assignees_contains(team_name)
         for team_name, role in memberships.items()
         if role == "assignee"
+    ]
+
+    # Clauses only for supervisor-role teams.
+    supervisor_role_team_clauses = [
+        _assignees_contains(team_name)
+        for team_name, role in memberships.items()
+        if role == "supervisor"
     ]
 
     is_owner = Todo.owner_id == user.id
@@ -91,11 +104,21 @@ def filter_todos_for_user(stmt, user, dbsession, filter_mode: str = "personal"):
     has_assignees = Todo.assignees != cast([], ARRAY(Text))
 
     if filter_mode == "delegated_out":
-        return stmt.where(is_owner, has_assignees)
+        # Case 1: I own it and delegated it, but I'm not also an executor.
+        # Build NOT-self-assignee: exclude direct assignee and assignee-role team membership.
+        not_self_assignee = ~is_direct_assignee
+        for team_clause in assignee_role_team_clauses:
+            not_self_assignee = not_self_assignee & ~team_clause
+        delegated_out_owner = is_owner & has_assignees & not_self_assignee
+        # Case 2: I'm not the owner but I'm a supervisor of an assigned team.
+        if supervisor_role_team_clauses:
+            delegated_out_supervisor = ~is_owner & or_(*supervisor_role_team_clauses)
+            return stmt.where(or_(delegated_out_owner, delegated_out_supervisor))
+        return stmt.where(delegated_out_owner)
 
     if filter_mode == "delegated_in":
-        # Items delegated TO this user (not owned by them).
-        delegated_in_clauses = [is_direct_assignee] + team_assignee_clauses
+        # Items assigned to me (directly or as assignee-role team) that I don't own.
+        delegated_in_clauses = [is_direct_assignee] + assignee_role_team_clauses
         return stmt.where(
             ~is_owner,
             or_(*delegated_in_clauses) if delegated_in_clauses else is_direct_assignee,
@@ -112,10 +135,54 @@ def filter_todos_for_user(stmt, user, dbsession, filter_mode: str = "personal"):
         ] + assignee_role_team_clauses
         return stmt.where(or_(*personal_clauses))
 
-    # "all" — all items the user is responsible for, including delegated out.
+    # "all" — all items the user can see: owner, unowned, direct assignee, any team member.
     responsible_clauses = [
         is_owner,
         is_unowned,
         is_direct_assignee,
-    ] + assignee_role_team_clauses
+    ] + team_assignee_clauses
     return stmt.where(or_(*responsible_clauses))
+
+
+def filter_protocols_for_user(stmt, user, dbsession):
+    """Wrap a SELECT(Protocol) statement with per-user visibility clauses.
+
+    A protocol is visible if the user is the owner, a direct assignee, or a
+    member (any role) of an assigned team.
+    """
+    from sqlalchemy import Text, cast, or_
+    from sqlalchemy.dialects.postgresql import ARRAY
+
+    from .models.protocol import Protocol
+
+    if user is None:
+        return stmt
+
+    memberships = get_user_team_memberships(dbsession, user)
+
+    def _contains(name: str):
+        return Protocol.assignees.contains(cast([name], ARRAY(Text)))
+
+    visible_clauses = [
+        Protocol.owner_id == user.id,
+        Protocol.owner_id.is_(None),
+        _contains(user.username),
+    ] + [_contains(team_name) for team_name in memberships]
+
+    return stmt.where(or_(*visible_clauses))
+
+
+def is_protocol_editor(user, protocol, dbsession) -> bool:
+    """Return True if user may edit the protocol.
+
+    Editors are: the owner, or a supervisor-role member of any assigned team.
+    """
+    if user is None:
+        return False
+    if user.id == protocol.owner_id:
+        return True
+    memberships = get_user_team_memberships(dbsession, user)
+    for team_name, role in memberships.items():
+        if role == "supervisor" and team_name in protocol.assignees:
+            return True
+    return False

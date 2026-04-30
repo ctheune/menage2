@@ -15,7 +15,7 @@
           class="d-inline m-0">
       <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-play-fill"></i>  Start a run now</button>
     </form>
-    <tal:block tal:condition="is_owner">
+    <tal:block tal:condition="is_editor">
       <form method="post" action="${request.route_url('archive_protocol', id=protocol.id)}"
             class="d-inline m-0"
             onsubmit="return confirm('Archive this protocol?')">
@@ -27,7 +27,7 @@
   <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
 
     <!-- Title / tags / recurrence / note / assignees form — owner only -->
-    <tal:block tal:condition="is_owner">
+    <tal:block tal:condition="is_editor">
       <form method="post" action="${request.route_url('edit_protocol', id=protocol.id)}"
             class="card mb-3" id="proto-title-form">
         <div class="card-body">
@@ -47,7 +47,7 @@
     <!-- Items -->
     <h5 class="mt-4 mb-2">Items</h5>
     <p tal:condition="not protocol.items" class="text-muted fst-italic">
-      No items yet<tal:block tal:condition="is_owner">. Add the first one below</tal:block>.
+      No items yet<tal:block tal:condition="is_editor">. Add the first one below</tal:block>.
     </p>
     <ul class="list-unstyled" tal:condition="protocol.items">
       <tal:block tal:repeat="item python:sorted(protocol.items, key=lambda i: i.position)">
@@ -56,7 +56,7 @@
     </ul>
 
     <!-- Add item form — owner only -->
-    <tal:block tal:condition="is_owner">
+    <tal:block tal:condition="is_editor">
       <form method="post" action="${request.route_url('add_protocol_item', id=protocol.id)}"
             class="mt-3" id="proto-new-item-form"
             data-protocol-id="${protocol.id}">

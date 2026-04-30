@@ -5,7 +5,7 @@
     ">
 <li id="item-${item.id}">
     <!-- Editable form — owner only -->
-    <tal:block tal:condition="is_owner">
+    <tal:block tal:condition="is_editor">
       <form class="proto-item-form"
             hx-post="${request.route_url('update_protocol_item_partial', id=protocol.id, item_id=item.id)}"
             hx-target="#item-${item.id}"
@@ -31,7 +31,7 @@
     </tal:block>
 
     <!-- Read-only view — non-owners -->
-    <tal:block tal:condition="not is_owner">
+    <tal:block tal:condition="not is_editor">
       <div class="d-flex align-items-center gap-2 py-1">
         <span class="flex-grow-1">${item.text}</span>
         <tal:block tal:repeat="t python:sorted(item.tags)">
