@@ -30,6 +30,12 @@ To avoid encoding issues, always encode unicode characters outside ascii as hex 
 
 # Frameworks
 
+## SQLAlchemy
+
+* avoid id comparisons, compare object equality if the column is a mapped reference:
+
+  don't do "user.id == protocol.owner_id" -> do "user == protocol.owner" instead
+
 ## Hyperscript instead of Javascript
 
 * implement client-side interactivity purely with hyperscript
