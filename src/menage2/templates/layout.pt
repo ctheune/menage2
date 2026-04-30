@@ -98,7 +98,7 @@
     </div>
   </nav>
 
-  <div class="d-none d-md-block helios-subnav">
+  <div tal:attributes="class python:'helios-subnav' + ('' if in_section else ' d-none d-md-block')">
     <div class="px-3 py-1 d-flex align-items-center justify-content-between">
 
       <!-- Section sub-navigation -->

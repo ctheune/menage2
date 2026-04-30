@@ -1428,6 +1428,27 @@ body {
     color: #fff;
 }
 
+/* Mobile subnav: horizontal scroll strip */
+@media (max-width: 767.98px) {
+    .helios-subnav .px-3 {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        justify-content: flex-start !important;
+        gap: 0.5rem;
+    }
+    .helios-subnav .px-3::-webkit-scrollbar {
+        display: none;
+    }
+    .helios-subnav .nav-tabs {
+        flex-wrap: nowrap;
+    }
+    .helios-subnav .nav-tabs .nav-link {
+        white-space: nowrap;
+    }
+}
+
 /* --- Attachment icon & hover preview strip --- */
 .todo-attachment-thumbs {
     display: flex;
