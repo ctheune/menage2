@@ -1,10 +1,13 @@
 import datetime
+import logging
 
 import arrow
 import arrow.locales
 import requests
 from cachecontrol import CacheControl
 from cachecontrol.caches.file_cache import FileCache
+
+log = logging.getLogger(__name__)
 
 session = requests.session()
 session = CacheControl(session, cache=FileCache(".web_cache"))
@@ -37,10 +40,24 @@ def get_departures(station_specs):
     for station, direction in station_specs:
         station = stations[station]
         direction = stations[direction]
-        result = session.get(
-            f"https://v6.db.transport.rest/stops/{station}/departures?results=10&bus=false&direction={direction}&duration=30"
-        )
-        for candidate in result.json()["departures"]:
+        try:
+            result = session.get(
+                f"https://v6.db.transport.rest/stops/{station}/departures?results=10&bus=false&direction={direction}&duration=30"
+            )
+            data = result.json()
+        except (
+            requests.exceptions.JSONDecodeError,
+            requests.exceptions.RequestException,
+        ) as exc:
+            log.warning("Failed to fetch departures for %s: %s", station, exc)
+            continue
+        except KeyError as exc:
+            log.warning(
+                "Unexpected response format for departures %s: %s", station, exc
+            )
+            continue
+
+        for candidate in data.get("departures", []):
             when = arrow.get(candidate["when"])
             if when - arrow.now() < datetime.timedelta(minutes=3):
                 continue
@@ -61,10 +78,29 @@ def get_journeys(station_specs):
     for origin, destination in station_specs:
         origin = stations[origin]
         destination = stations[destination]
-        result = session.get(
-            f"https://v6.db.transport.rest/journeys?from={origin}&to={destination}&results=5&departure=in+5+minutes"
-        )
-        for candidate in result.json()["journeys"]:
+        try:
+            result = session.get(
+                f"https://v6.db.transport.rest/journeys?from={origin}&to={destination}&results=5&departure=in+5+minutes"
+            )
+            data = result.json()
+        except (
+            requests.exceptions.JSONDecodeError,
+            requests.exceptions.RequestException,
+        ) as exc:
+            log.warning(
+                "Failed to fetch journeys for %s to %s: %s", origin, destination, exc
+            )
+            continue
+        except KeyError as exc:
+            log.warning(
+                "Unexpected response format for journeys %s to %s: %s",
+                origin,
+                destination,
+                exc,
+            )
+            continue
+
+        for candidate in data.get("journeys", []):
             when = arrow.get(candidate["legs"][0]["departure"])
             if when - arrow.now() < datetime.timedelta(minutes=3):
                 continue
