@@ -585,17 +585,15 @@ function CompositeInput(containerEl, opts) {
   function renderQuickPick() {
     if (!quickPickEl || !enableTags) return;
     quickPickEl.innerHTML = "";
+    delete _ciJsonCache[quickPickUrl];
     _ciFetchJSON(quickPickUrl, function (available) {
       var chips = available.filter(function (t) {
         return tags.indexOf(t) === -1;
       });
-      if (!chips.length) {
-        quickPickEl.style.display = "none";
-        return;
-      }
       chips.forEach(function (tag) {
         var chip = document.createElement("button");
         chip.type = "button";
+        chip.tabIndex = -1;
         chip.className = "todo-quick-pick-chip";
         chip.textContent = "#" + tag;
         chip.addEventListener("click", function () {
@@ -604,30 +602,25 @@ function CompositeInput(containerEl, opts) {
         });
         quickPickEl.appendChild(chip);
       });
-      quickPickEl.style.display = "";
     });
   }
 
-  function showQuickPick() {
-    if (quickPickEl && quickPickEl.children.length > 0)
-      quickPickEl.style.display = "";
-  }
-  function hideQuickPick() {
-    if (quickPickEl) quickPickEl.style.display = "none";
-  }
-
-  if (quickPickEl) hideQuickPick();
   textOuter.addEventListener("focusin", function (e) {
-    if (e.target.classList.contains("todo-text-seg")) {
-      renderQuickPick();
-      showQuickPick();
-    }
+    if (e.target.classList.contains("todo-text-seg")) renderQuickPick();
   });
-  textOuter.addEventListener("focusout", function () {
-    setTimeout(function () {
-      if (!textOuter.contains(document.activeElement)) hideQuickPick();
-    }, 150);
-  });
+
+  if (quickPickEl) {
+    // Clicking a non-focusable element outside the form keeps the contenteditable
+    // focused (no focusout fires), so :focus-within never clears.  Force a blur so
+    // the CSS rule sees the focus leave and hides the chips.
+    var _qpForm = containerEl.closest("form");
+    document.addEventListener("mousedown", function (e) {
+      var active = document.activeElement;
+      if (!active || !containerEl.contains(active)) return;
+      var inScope = _qpForm ? _qpForm.contains(e.target) : containerEl.contains(e.target);
+      if (!inScope) active.blur();
+    });
+  }
 
   // --- State mutators ---
 
@@ -1377,7 +1370,6 @@ function CompositeInput(containerEl, opts) {
 
   // --- Initial render ---
   renderAllPills(_initialText);
-  if (quickPickEl) renderQuickPick();
 
   function clearVolatileState() {
     assignees = [];

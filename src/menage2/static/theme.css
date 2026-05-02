@@ -167,6 +167,13 @@ body {
     opacity: 1;
 }
 
+#todo-quick-pick {
+    display: none;
+}
+#todo-form:focus-within #todo-quick-pick:not(:empty) {
+    display: flex;
+}
+
 .todo-quick-pick-chip {
     background: var(--bs-secondary-bg);
     color: var(--bs-secondary-color);

@@ -588,3 +588,52 @@ def test_edit_todo_restores_link_pill(page):
     pill = page.locator("#todo-text .todo-link-pill")
     assert pill.count() == 1
     assert "Restore" in pill.first.inner_text()
+
+
+# ---------------------------------------------------------------------------
+# Quick-pick chip visibility
+# ---------------------------------------------------------------------------
+
+
+def _quick_pick(page):
+    return page.locator("#todo-quick-pick")
+
+
+def _seed_and_show_chips(page):
+    """Add a tagged todo so top-tags has data, focus the composite, wait for chips."""
+    page.goto("/todos")
+    _add_todo(page, "seed task #groceries")
+    # Explicitly click the seg: if auto-focus already ran, this is a no-op for
+    # focusin; either way renderQuickPick will have been called with a fresh fetch.
+    _todo_seg(page).click()
+    page.wait_for_selector("#todo-quick-pick button", timeout=5000)
+
+
+def test_quickpick_shows_on_focus(page, browser_admin_user):
+    _seed_and_show_chips(page)
+    assert _quick_pick(page).is_visible()
+
+
+def test_quickpick_hides_on_tab(page, browser_admin_user):
+    """Tab moves focus outside the form — chips must disappear."""
+    _seed_and_show_chips(page)
+    page.keyboard.press("Tab")
+    page.wait_for_timeout(50)
+    assert not _quick_pick(page).is_visible()
+
+
+def test_quickpick_hides_on_click_elsewhere(page, browser_admin_user):
+    """Clicking a non-focusable element outside the form must hide chips."""
+    _seed_and_show_chips(page)
+    # Click somewhere in the body below the form (the todo-list area).
+    page.mouse.click(200, 500)
+    page.wait_for_timeout(50)
+    assert not _quick_pick(page).is_visible()
+
+
+def test_quickpick_hides_on_url_bar_blur(page, browser_admin_user):
+    """Blurring the document active element (as when clicking the URL bar) hides chips."""
+    _seed_and_show_chips(page)
+    page.evaluate("document.activeElement?.blur()")
+    page.wait_for_timeout(50)
+    assert not _quick_pick(page).is_visible()

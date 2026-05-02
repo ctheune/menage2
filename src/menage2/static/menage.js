@@ -262,6 +262,7 @@ function initTagInput() {
         textOuter: document.getElementById('todo-text'),
         hiddenInput: document.getElementById('todo-hidden-text'),
         quickPickEl: document.getElementById('todo-quick-pick'),
+        quickPickUrl: '/todos/top-tags.json',
         form: form,
         tags: true, note: true, recurrence: true, dueDate: true, assignees: true, links: true,
         sessionKey: 'todo-tags',
@@ -279,7 +280,7 @@ function initTagInput() {
 
     form.addEventListener('submit', function() {
         _pendingText = ci.buildCompositeText();
-        if (!ci.getEditingId()) ci.clearVolatileState();
+        if (!ci.getEditingId()) { ci.clearVolatileState(); sessionStorage.setItem('todo-add-focus', '1'); }
     }, true);
 
     form.addEventListener('htmx:configRequest', function(e) {
@@ -293,7 +294,10 @@ function initTagInput() {
         ci.restoreFromRaw(e.detail.input || '');
     }, true);
 
-    setTimeout(function() { ci.focusFirst(); }, 0);
+    if (sessionStorage.getItem('todo-add-focus')) {
+        sessionStorage.removeItem('todo-add-focus');
+        setTimeout(function() { ci.focusFirst(); }, 0);
+    }
 }
 
 // Show error toast when todo text is empty (only tags entered)
