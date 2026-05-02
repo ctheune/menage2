@@ -234,10 +234,27 @@ body {
 .ci-shortcut-hint .ci-shortcut-key:hover {
     opacity: 1;
 }
-/* When composite+hint live inside an input-group, remove the composite's right radius */
+/* When composite+hint live inside an input-group, remove the composite's right radius
+   and move the focus ring to the group so it encloses both elements */
 .input-group .todo-tag-input {
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
+}
+.input-group .todo-tag-input:focus-within {
+    box-shadow: none;
+}
+.input-group:has(.todo-tag-input:focus-within) {
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
+    border-radius: var(--bs-border-radius);
+}
+.input-group:has(.todo-tag-input:focus-within) .ci-shortcut-hint {
+    border-color: var(--bs-primary);
+}
+.input-group:has(.todo-tag-input--editing:focus-within) {
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-warning-rgb), 0.25);
+}
+.input-group:has(.todo-tag-input--editing:focus-within) .ci-shortcut-hint {
+    border-color: var(--bs-warning);
 }
 
 .todo-ac-item:hover,
@@ -271,7 +288,6 @@ body {
 .todo-due--future {
     color: var(--bs-secondary-color);
 }
-
 
 /* Date picker / postpone palette popover */
 .todo-popover {
@@ -663,7 +679,9 @@ body {
     white-space: nowrap;
     vertical-align: middle;
 }
-.todo-link-badge:hover { text-decoration: underline !important; }
+.todo-link-badge:hover {
+    text-decoration: underline !important;
+}
 
 /* Link pill in composite input (editing) */
 .todo-link-pill {

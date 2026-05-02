@@ -1,12 +1,14 @@
 <div metal:use-macro="load: layout.pt">
-
   <span metal:fill-slot="title-mobile">On Hold</span>
   <div metal:fill-slot="title">On Hold</div>
 
   <span metal:fill-slot="actions">
-    <form tal:condition="todos"
-          method="post" action="${request.route_url('todos_activate_all_on_hold')}"
-          class="d-inline m-0">
+    <form
+      tal:condition="todos"
+      method="post"
+      action="${request.route_url('todos_activate_all_on_hold')}"
+      class="d-inline m-0"
+    >
       <button type="submit" class="btn btn-sm btn-dark text-nowrap">
         <i class="bi bi-arrow-clockwise"></i> Activate all
       </button>
@@ -14,67 +16,95 @@
   </span>
 
   <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
-
     <!-- Filter toggle bar -->
     <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
-      <span class="text-muted small me-1">Show:</span>
-      <tal:block tal:define="modes python:[('personal','My Tasks'),('delegated_out','Delegated out'),('delegated_in','Delegated in'),('all','All')]">
+      <tal:block
+        tal:define="modes python:[('personal','My Tasks'),('delegated_out','Delegated out'),('delegated_in','Delegated in'),('all','All')]"
+      >
         <tal:block tal:repeat="mode modes">
-          <a tal:define="mkey python:mode[0]; mlabel python:mode[1]"
-             href="${request.route_url('list_todos_hold')}?filter=${mkey}"
-             tal:attributes="class python:'btn btn-sm rounded-pill ' + ('btn-dark' if filter_mode == mkey else 'btn-outline-secondary')">
+          <a
+            tal:define="mkey python:mode[0]; mlabel python:mode[1]"
+            href="${request.route_url('list_todos_hold')}?filter=${mkey}"
+            tal:attributes="class python:'btn btn-sm rounded-pill ' + ('btn-dark' if filter_mode == mkey else 'btn-outline-secondary')"
+          >
             ${mlabel}
           </a>
         </tal:block>
       </tal:block>
     </div>
 
-    <div id="hold-list"
-         data-batch-activate-url="${request.route_url('todos_activate_batch')}">
-
+    <div
+      id="hold-list"
+      data-batch-activate-url="${request.route_url('todos_activate_batch')}"
+    >
       <tal:block tal:condition="todos">
         <ul class="list-unstyled">
-          <li tal:repeat="todo todos"
-              id="todo-${todo.id}"
-              class="todo-item mb-1 shadow-sm">
-
-            <div class="todo-content d-flex align-items-center py-2 px-3 bg-white rounded gap-3">
-              <input type="checkbox" class="form-check-input todo-checkbox flex-shrink-0" data-id="${todo.id}" />
+          <li
+            tal:repeat="todo todos"
+            id="todo-${todo.id}"
+            class="todo-item mb-1 shadow-sm"
+          >
+            <div
+              class="todo-content d-flex align-items-center py-2 px-3 bg-white rounded gap-3"
+            >
+              <input
+                type="checkbox"
+                class="form-check-input todo-checkbox flex-shrink-0"
+                data-id="${todo.id}"
+              />
 
               <span class="flex-grow-1 text-truncate small">
                 <span>${todo.text}</span>
                 <span class="d-block">
-                  <span tal:condition="todo.note"
-                        class="todo-note-display text-muted"
-                        tal:content="structure render_note_html(todo.note)"></span>
-                  <tal:block tal:condition="todo.links" tal:repeat="link todo.links">
-                    <a tal:define="parsed python:parse_link(link)"
-                       tal:attributes="href python:parsed[1]"
-                       target="_blank" rel="noopener noreferrer"
-                       class="todo-link-badge d-inline-block text-decoration-none me-1">
-                      <i class="bi bi-link-45deg"></i><tal:block
-                        tal:condition="python:parsed[0] != parsed[1]"> ${python:parsed[0]}</tal:block>
+                  <span
+                    tal:condition="todo.note"
+                    class="todo-note-display text-muted"
+                    tal:content="structure render_note_html(todo.note)"
+                  ></span>
+                  <tal:block
+                    tal:condition="todo.links"
+                    tal:repeat="link todo.links"
+                  >
+                    <a
+                      tal:define="parsed python:parse_link(link)"
+                      tal:attributes="href python:parsed[1]"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="todo-link-badge d-inline-block text-decoration-none me-1"
+                    >
+                      <i class="bi bi-link-45deg"></i
+                      ><tal:block tal:condition="python:parsed[0] != parsed[1]">
+                        ${python:parsed[0]}</tal:block
+                      >
                     </a>
                   </tal:block>
                 </span>
               </span>
 
-              <span tal:repeat="tag python:sorted(todo.tags)"
-                    class="badge bg-secondary rounded-pill flex-shrink-0">
+              <span
+                tal:repeat="tag python:sorted(todo.tags)"
+                class="badge bg-secondary rounded-pill flex-shrink-0"
+              >
                 #${tag}
               </span>
 
-              <span tal:condition="todo.assignees"
-                    class="flex-shrink-0 small text-muted">
-                <tal:block tal:repeat="a python:sorted(todo.assignees)">@${a} </tal:block>
+              <span
+                tal:condition="todo.assignees"
+                class="flex-shrink-0 small text-muted"
+              >
+                <tal:block tal:repeat="a python:sorted(todo.assignees)"
+                  >@${a}
+                </tal:block>
               </span>
 
-              <button hx-post="${request.route_url('todos_activate_batch')}"
-                      hx-vals='{"todo_ids": "${todo.id}"}'
-                      hx-target="#hold-list"
-                      hx-swap="innerHTML"
-                      class="btn btn-link btn-sm p-0 text-muted flex-shrink-0"
-                      title="Activate">
+              <button
+                hx-post="${request.route_url('todos_activate_batch')}"
+                hx-vals='{"todo_ids": "${todo.id}"}'
+                hx-target="#hold-list"
+                hx-swap="innerHTML"
+                class="btn btn-link btn-sm p-0 text-muted flex-shrink-0"
+                title="Activate"
+              >
                 <i class="bi bi-play-fill"></i>
               </button>
             </div>
@@ -82,9 +112,9 @@
         </ul>
       </tal:block>
 
-      <p tal:condition="not todos" class="text-muted fst-italic">Nothing on hold.</p>
-
+      <p tal:condition="not todos" class="text-muted fst-italic">
+        Nothing on hold.
+      </p>
     </div>
   </div>
-
 </div>

@@ -1,18 +1,19 @@
 <div metal:use-macro="load: layout.pt">
-
   <span metal:fill-slot="title-mobile">Scheduled</span>
   <div metal:fill-slot="title">Scheduled todos</div>
 
   <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
-
     <!-- Filter toggle bar -->
     <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
-      <span class="text-muted small me-1">Show:</span>
-      <tal:block tal:define="modes python:[('personal','My Tasks'),('delegated_out','Delegated out'),('delegated_in','Delegated in'),('all','All')]">
+      <tal:block
+        tal:define="modes python:[('personal','My Tasks'),('delegated_out','Delegated out'),('delegated_in','Delegated in'),('all','All')]"
+      >
         <tal:block tal:repeat="mode modes">
-          <a tal:define="mkey python:mode[0]; mlabel python:mode[1]"
-             href="${request.route_url('list_todos_scheduled')}?filter=${mkey}"
-             tal:attributes="class python:'btn btn-sm rounded-pill ' + ('btn-dark' if filter_mode == mkey else 'btn-outline-secondary')">
+          <a
+            tal:define="mkey python:mode[0]; mlabel python:mode[1]"
+            href="${request.route_url('list_todos_scheduled')}?filter=${mkey}"
+            tal:attributes="class python:'btn btn-sm rounded-pill ' + ('btn-dark' if filter_mode == mkey else 'btn-outline-secondary')"
+          >
             ${mlabel}
           </a>
         </tal:block>
@@ -21,102 +22,158 @@
 
     <!-- Same composite-input form as the main view; the hidden `next` keeps
          the user on this page after a submit/edit. -->
-    <tal:block tal:replace="structure form_html"/>
+    <tal:block tal:replace="structure form_html" />
 
     <p tal:condition="not groups" class="text-muted fst-italic">
-      Nothing scheduled. Add a date to a todo with <code>^date</code> or press <kbd>d</kbd>.
+      Nothing scheduled. Add a date to a todo with <code>^date</code> or press
+      <kbd>d</kbd>.
     </p>
 
     <div class="todo-stage">
-    <div class="todo-pane">
-    <div tal:condition="groups" class="todo-list-wrap">
-      <tal:block tal:repeat="group groups">
-        <div class="tag-group-header"
-             tal:define="delta python:(group['date'] - today).days">
-          <tal:block tal:condition="delta == 1">tomorrow</tal:block>
-          <tal:block tal:condition="0 &lt; delta &lt; 7">${format.date(group['date'], format='EEEE')}</tal:block>
-          <tal:block tal:condition="delta >= 7">${format.date(group['date'], format='EEEE, d MMM')}</tal:block>
-          <span class="fw-normal ms-2">${format.date(group['date'], format='medium')}</span>
-        </div>
+      <div class="todo-pane">
+        <div tal:condition="groups" class="todo-list-wrap">
+          <tal:block tal:repeat="group groups">
+            <div
+              class="tag-group-header"
+              tal:define="delta python:(group['date'] - today).days"
+            >
+              <tal:block tal:condition="delta == 1">tomorrow</tal:block>
+              <tal:block tal:condition="0 &lt; delta &lt; 7"
+                >${format.date(group['date'], format='EEEE')}</tal:block
+              >
+              <tal:block tal:condition="delta >= 7"
+                >${format.date(group['date'], format='EEEE, d MMM')}</tal:block
+              >
+              <span class="fw-normal ms-2"
+                >${format.date(group['date'], format='medium')}</span
+              >
+            </div>
 
-        <ul class="todo-group-list mb-0 list-unstyled">
-          <li tal:repeat="todo group['items']"
-              id="todo-${todo.id}"
-              class="todo-item"
-              data-todo-text="${todo.text}"
-              data-todo-note="${todo.note or ''}"
-              data-todo-tags="${python:','.join(sorted(todo.tags))}"
-              data-todo-assignees="${python:','.join(sorted(todo.assignees))}"
-              data-due-date="${todo.due_date.isoformat()}"
-              tal:attributes="data-recurrence python:_recurrence_label(todo);
+            <ul class="todo-group-list mb-0 list-unstyled">
+              <li
+                tal:repeat="todo group['items']"
+                id="todo-${todo.id}"
+                class="todo-item"
+                data-todo-text="${todo.text}"
+                data-todo-note="${todo.note or ''}"
+                data-todo-tags="${python:','.join(sorted(todo.tags))}"
+                data-todo-assignees="${python:','.join(sorted(todo.assignees))}"
+                data-due-date="${todo.due_date.isoformat()}"
+                tal:attributes="data-recurrence python:_recurrence_label(todo);
                               data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else '';
                               data-protocol-run-url python:request.route_url('show_protocol_run', id=todo.protocol_run_id) if todo.protocol_run_id else '';
                               data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments]);
                               data-todo-links python:__import__('json').dumps(list(todo.links or []))"
-              data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
-              data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
-              data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}">
+                data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
+                data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
+                data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}"
+              >
+                <div
+                  class="todo-content d-flex align-items-baseline gap-2 py-1 px-3"
+                >
+                  <span class="flex-shrink-0">
+                    <input
+                      type="checkbox"
+                      class="form-check-input todo-checkbox"
+                      data-id="${todo.id}"
+                      style="margin-top: 0.11em"
+                    />
+                  </span>
 
-            <div class="todo-content d-flex align-items-baseline gap-2 py-1 px-3">
-              <span class="flex-shrink-0">
-                <input type="checkbox" class="form-check-input todo-checkbox" data-id="${todo.id}" style="margin-top: 0.11em" />
-              </span>
-
-              <a tal:condition="todo.protocol_run_id"
-                 tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id);
+                  <a
+                    tal:condition="todo.protocol_run_id"
+                    tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id);
                                  data-panel-url python:request.route_url('show_protocol_run_panel', id=todo.protocol_run_id)"
-                 class="todo-protocol-link flex-shrink-0 small"
-                 hx-boost="false"
-                 title="Open protocol run (o)">
-                <i class="bi bi-clipboard-check"></i>
-              </a>
+                    class="todo-protocol-link flex-shrink-0 small"
+                    hx-boost="false"
+                    title="Open protocol run (o)"
+                  >
+                    <i class="bi bi-clipboard-check"></i>
+                  </a>
 
-              <span class="flex-grow-1 d-flex align-items-center gap-2 small" style="min-width:0">
-                <span class="text-truncate" style="min-width:0">
-                  <span class="todo-title">${todo.text}</span>
-                  <span tal:repeat="tag python:sorted(todo.tags)"
-                        class="badge bg-secondary rounded-pill ms-1">#${tag}</span>
-                  <span class="d-block" tal:condition="todo.note or todo.links">
-                    <span tal:condition="todo.note"
+                  <span
+                    class="flex-grow-1 d-flex align-items-center gap-2 small"
+                    style="min-width: 0"
+                  >
+                    <span class="text-truncate" style="min-width: 0">
+                      <span class="todo-title">${todo.text}</span>
+                      <span
+                        tal:repeat="tag python:sorted(todo.tags)"
+                        class="badge bg-secondary rounded-pill ms-1"
+                        >#${tag}</span
+                      >
+                      <span
+                        class="d-block"
+                        tal:condition="todo.note or todo.links"
+                      >
+                        <span
+                          tal:condition="todo.note"
                           class="todo-note-display text-muted"
-                          tal:content="structure render_note_html(todo.note)"></span>
-                    <tal:block tal:condition="todo.links" tal:repeat="link todo.links">
-                      <a tal:define="parsed python:parse_link(link)"
-                         tal:attributes="href python:parsed[1]"
-                         target="_blank" rel="noopener noreferrer"
-                         class="todo-link-badge d-inline-block text-decoration-none me-1">
-                        <i class="bi bi-link-45deg"></i><tal:block
-                          tal:condition="python:parsed[0] != parsed[1]"> ${python:parsed[0]}</tal:block>
-                      </a>
+                          tal:content="structure render_note_html(todo.note)"
+                        ></span>
+                        <tal:block
+                          tal:condition="todo.links"
+                          tal:repeat="link todo.links"
+                        >
+                          <a
+                            tal:define="parsed python:parse_link(link)"
+                            tal:attributes="href python:parsed[1]"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="todo-link-badge d-inline-block text-decoration-none me-1"
+                          >
+                            <i class="bi bi-link-45deg"></i
+                            ><tal:block
+                              tal:condition="python:parsed[0] != parsed[1]"
+                            >
+                              ${python:parsed[0]}</tal:block
+                            >
+                          </a>
+                        </tal:block>
+                      </span>
+                    </span>
+                  </span>
+
+                  <span
+                    tal:condition="todo.assignees"
+                    class="todo-assignees flex-shrink-0 small text-muted"
+                  >
+                    <tal:block tal:repeat="a python:sorted(todo.assignees)"
+                      >@${a}
                     </tal:block>
                   </span>
-                </span>
-              </span>
 
-              <span tal:condition="todo.assignees"
-                    class="todo-assignees flex-shrink-0 small text-muted">
-                <tal:block tal:repeat="a python:sorted(todo.assignees)">@${a} </tal:block>
-              </span>
-
-              <span tal:condition="todo.recurrence_id"
+                  <span
+                    tal:condition="todo.recurrence_id"
                     class="todo-recurrence flex-shrink-0 small"
-                    tal:attributes="title python:_recurrence_label(todo)">
-                &#8635; <span class="todo-recurrence-label">${_recurrence_label(todo)}</span>
-              </span>
+                    tal:attributes="title python:_recurrence_label(todo)"
+                  >
+                    &#8635;
+                    <span class="todo-recurrence-label"
+                      >${_recurrence_label(todo)}</span
+                    >
+                  </span>
 
-              <button type="button" class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted" title="Edit">&#9998;</button>
-            </div>
-          </li>
-        </ul>
-      </tal:block>
+                  <button
+                    type="button"
+                    class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted"
+                    title="Edit"
+                  >
+                    &#9998;
+                  </button>
+                </div>
+              </li>
+            </ul>
+          </tal:block>
+        </div>
+      </div>
+      <!-- /.todo-pane -->
+
+      <!-- Protocol run panel -->
+      <div class="run-pane d-none" id="run-pane">
+        <div class="todo-list-wrap run-panel-wrap" id="run-panel"></div>
+      </div>
     </div>
-    </div><!-- /.todo-pane -->
-
-    <!-- Protocol run panel -->
-    <div class="run-pane d-none" id="run-pane">
-      <div class="todo-list-wrap run-panel-wrap" id="run-panel"></div>
-    </div>
-    </div><!-- /.todo-stage -->
-
+    <!-- /.todo-stage -->
   </div>
 </div>

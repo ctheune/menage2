@@ -292,6 +292,8 @@ function initTagInput() {
     document.body.addEventListener('showAddTodoError', function(e) {
         ci.restoreFromRaw(e.detail.input || '');
     }, true);
+
+    setTimeout(function() { ci.focusFirst(); }, 0);
 }
 
 // Show error toast when todo text is empty (only tags entered)

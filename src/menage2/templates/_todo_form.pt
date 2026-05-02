@@ -3,9 +3,11 @@
         hx-post="${request.route_url('add_todo')}"
         hx-target="body"
         class="mb-2">
-    <div class="todo-tag-input" id="todo-tag-input">
-      <div id="todo-text"
-           style="flex:1;min-width:6rem;cursor:text;word-break:break-word;min-height:1.5em;"></div>
+    <div class="input-group">
+      <div class="todo-tag-input flex-grow-1" id="todo-tag-input">
+        <div id="todo-text"
+             style="flex:1;min-width:6rem;cursor:text;word-break:break-word;min-height:1.5em;"></div>
+      </div>
     </div>
     <input type="hidden" name="text" id="todo-hidden-text" />
     <input type="hidden" name="next" value="${next_url}" />
