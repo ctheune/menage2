@@ -350,41 +350,30 @@ document.body.addEventListener('showUndoConfirm', function(e) {
     _undoTimer = setTimeout(function() { toast.remove(); }, 2500);
 });
 
-var _hoveredTodoItem = null;
-document.addEventListener('mouseover', function(e) {
-    _hoveredTodoItem = e.target.closest('.todo-item') || _hoveredTodoItem;
-});
-document.addEventListener('mouseleave', function(e) {
-    if (e.target.closest && e.target.closest('.todo-item') === _hoveredTodoItem) _hoveredTodoItem = null;
-}, true);
+function _firstCheckedItem() {
+    var box = document.querySelector('input.todo-checkbox:checked');
+    return box ? box.closest('.todo-item') : null;
+}
 
 document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.contentEditable === 'true') return;
 
-    // 'r' key: restore checked items on the done list, or hovered item as fallback
     if (e.key === 'r') {
         var doneList = document.getElementById('done-list');
         if (!doneList) return;
         var boxes = Array.from(document.querySelectorAll('input.todo-checkbox:checked'));
-        var ids;
-        if (boxes.length > 0) {
-            ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
-        } else if (_hoveredTodoItem) {
-            var hovered = _hoveredTodoItem.querySelector('.todo-checkbox');
-            if (!hovered) return;
-            ids = hovered.dataset.id;
-        } else {
-            return;
-        }
+        if (boxes.length === 0) return;
+        var ids = boxes.map(function(b) { return b.dataset.id; }).join(',');
         e.preventDefault();
         htmx.ajax('POST', doneList.dataset.batchActivateUrl,
                   {target: doneList, swap: 'innerHTML', values: {todo_ids: ids}});
         return;
     }
 
-    if (e.key === 'e' && _hoveredTodoItem) {
+    if (e.key === 'e') {
+        var li = _firstCheckedItem();
+        if (!li) return;
         e.preventDefault();
-        var li = _hoveredTodoItem;
         document.dispatchEvent(new CustomEvent('todoEditStart', {detail: {
             id: li.id.replace('todo-', ''),
             text: li.dataset.todoText || '',
@@ -410,10 +399,6 @@ document.addEventListener('keydown', function(e) {
         if (boxes.length > 0) {
             return boxes.map(function(b) { return b.dataset.id; }).join(',');
         }
-        if (_hoveredTodoItem) {
-            var hovered = _hoveredTodoItem.querySelector('.todo-checkbox');
-            return hovered ? hovered.dataset.id : null;
-        }
         return null;
     }
 
@@ -431,28 +416,36 @@ document.addEventListener('keydown', function(e) {
     if (key === 'P' && e.shiftKey) {
         var ids2 = _targetIds();
         if (!ids2) return;
+        var anchorEl = _firstCheckedItem();
+        if (!anchorEl) return;
         e.preventDefault();
-        openPostponePicker(_hoveredTodoItem, ids2);
+        openPostponePicker(anchorEl, ids2);
         return;
     }
 
-    if (key === 'd' && _hoveredTodoItem) {
+    if (key === 'd') {
+        var item = _firstCheckedItem();
+        if (!item) return;
         e.preventDefault();
-        openSetDuePicker(_hoveredTodoItem);
+        openSetDuePicker(item);
         return;
     }
 
-    if (key === 'f' && _hoveredTodoItem) {
+    if (key === 'f') {
+        var item = _firstCheckedItem();
+        if (!item) return;
         e.preventDefault();
-        openSetRecurrencePicker(_hoveredTodoItem);
+        openSetRecurrencePicker(item);
         return;
     }
 
     if (key === ']') { e.preventDefault(); setAllGroups(true); return; }
     if (key === '[') { e.preventDefault(); setAllGroups(false); return; }
 
-    if (key === 'o' && _hoveredTodoItem) {
-        var panelUrl = _hoveredTodoItem.dataset.protocolPanelUrl;
+    if (key === 'o') {
+        var item = _firstCheckedItem();
+        if (!item) return;
+        var panelUrl = item.dataset.protocolPanelUrl;
         if (panelUrl) { e.preventDefault(); openRunPanel(panelUrl); }
         return;
     }

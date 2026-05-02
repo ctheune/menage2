@@ -56,9 +56,9 @@ def _add_todo(page, text: str) -> None:
     page.wait_for_load_state("networkidle")
 
 
-def _hover_and_blur(page, selector: str) -> None:
-    """Hover an item and drop focus so document keydown fires."""
-    page.hover(selector)
+def _select_item(page, selector: str) -> None:
+    """Check an item's checkbox so keyboard shortcuts target it."""
+    page.locator(selector).locator(".todo-checkbox").click()
     page.evaluate(
         "document.activeElement && document.activeElement.blur && document.activeElement.blur()"
     )
@@ -169,7 +169,7 @@ def test_d_key_opens_date_picker(page):
     page.goto("/todos")
     _add_todo(page, "Date picker subject")
     page.wait_for_selector('.todo-item[data-todo-text="Date picker subject"]')
-    _hover_and_blur(page, '.todo-item[data-todo-text="Date picker subject"]')
+    _select_item(page, '.todo-item[data-todo-text="Date picker subject"]')
     page.keyboard.press("d")
     page.wait_for_selector(".todo-popover[data-role='date-picker']", timeout=2000)
     assert page.locator(".todo-popover[data-role='date-picker']").is_visible()
@@ -179,7 +179,7 @@ def test_p_key_postpones_one_day(page):
     page.goto("/todos")
     _add_todo(page, "Postpone target")
     page.wait_for_selector('.todo-item[data-todo-text="Postpone target"]')
-    _hover_and_blur(page, '.todo-item[data-todo-text="Postpone target"]')
+    _select_item(page, '.todo-item[data-todo-text="Postpone target"]')
     page.keyboard.press("p")
     page.wait_for_function(
         "document.querySelectorAll('.todo-item[data-todo-text=\\\"Postpone target\\\"]').length === 0",
@@ -193,7 +193,7 @@ def test_shift_p_opens_postpone_palette(page):
     page.goto("/todos")
     _add_todo(page, "Palette target")
     page.wait_for_selector('.todo-item[data-todo-text="Palette target"]')
-    _hover_and_blur(page, '.todo-item[data-todo-text="Palette target"]')
+    _select_item(page, '.todo-item[data-todo-text="Palette target"]')
     page.keyboard.press("Shift+P")
     page.wait_for_selector(".todo-popover[data-role='postpone-palette']", timeout=2000)
     assert page.locator("text=+1 week").is_visible()
@@ -203,7 +203,7 @@ def test_h_key_puts_item_on_hold(page):
     page.goto("/todos")
     _add_todo(page, "Hold target")
     page.wait_for_selector('.todo-item[data-todo-text="Hold target"]')
-    _hover_and_blur(page, '.todo-item[data-todo-text="Hold target"]')
+    _select_item(page, '.todo-item[data-todo-text="Hold target"]')
     page.keyboard.press("h")
     page.wait_for_function(
         "document.querySelectorAll('.todo-item[data-todo-text=\\\"Hold target\\\"]').length === 0",
@@ -217,7 +217,7 @@ def test_picker_custom_input_has_live_preview(page):
     page.goto("/todos")
     _add_todo(page, "preview probe")
     page.wait_for_selector('.todo-item[data-todo-text="preview probe"]')
-    _hover_and_blur(page, '.todo-item[data-todo-text="preview probe"]')
+    _select_item(page, '.todo-item[data-todo-text="preview probe"]')
     page.keyboard.press("d")
     page.wait_for_selector(".todo-popover[data-role='date-picker'] input", timeout=2000)
     page.fill(".todo-popover input", "tomorrow")
@@ -329,11 +329,11 @@ def test_star_creates_recurring_todo(page):
     assert item.locator(".todo-recurrence").count() == 1
 
 
-def test_f_key_opens_recurrence_picker_for_hovered(page):
+def test_f_key_opens_recurrence_picker_for_selected(page):
     page.goto("/todos")
     _add_todo(page, "F-key target")
     page.wait_for_selector('.todo-item[data-todo-text="F-key target"]')
-    _hover_and_blur(page, '.todo-item[data-todo-text="F-key target"]')
+    _select_item(page, '.todo-item[data-todo-text="F-key target"]')
     page.keyboard.press("f")
     page.wait_for_selector(".todo-popover[data-role='recurrence-picker']", timeout=2000)
     assert page.locator(".todo-popover[data-role='recurrence-picker']").is_visible()
@@ -378,7 +378,7 @@ def test_e_key_opens_edit_with_rec_pill(page):
     page.wait_for_selector(".todo-rec-pill")
     page.keyboard.press("Enter")
     page.wait_for_load_state("networkidle")
-    _hover_and_blur(page, '.todo-item[data-todo-text="ekey rec"]')
+    _select_item(page, '.todo-item[data-todo-text="ekey rec"]')
     page.keyboard.press("e")
     page.wait_for_selector(".todo-rec-pill", timeout=2000)
     assert "every week" in page.locator(".todo-rec-pill").first.inner_text()
@@ -387,7 +387,7 @@ def test_e_key_opens_edit_with_rec_pill(page):
 def test_recurrence_picker_custom_input_preview(page):
     page.goto("/todos")
     _add_todo(page, "preview rec")
-    _hover_and_blur(page, '.todo-item[data-todo-text="preview rec"]')
+    _select_item(page, '.todo-item[data-todo-text="preview rec"]')
     page.keyboard.press("f")
     page.wait_for_selector(
         ".todo-popover[data-role='recurrence-picker'] input", timeout=2000

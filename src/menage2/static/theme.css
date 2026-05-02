@@ -272,11 +272,7 @@ body {
 
 /* Edit button visibility */
 .todo-edit-btn {
-    opacity: 0;
     transition: opacity 0.15s;
-}
-.todo-item:hover .todo-edit-btn {
-    opacity: 1;
 }
 
 /* Due date chip — low contrast by default, accent when due */
