@@ -53,9 +53,9 @@
         </div>
       </div>
 
-      <!-- Protocol run panel (hidden until a run is opened) -->
-      <div class="run-pane d-none" id="run-pane">
-        <div class="todo-list-wrap run-panel-wrap" id="run-panel"></div>
+      <!-- Details pane (hidden until an item is selected or a run is opened) -->
+      <div class="details-pane d-none" id="details-pane">
+        <div class="todo-list-wrap run-panel-wrap" id="details-panel"></div>
       </div>
     </div>
   </div>

@@ -10,6 +10,7 @@ from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.renderers import render
 from pyramid.view import view_config
 from sqlalchemy import asc, func, nulls_last, or_, select
+from sqlalchemy.orm import joinedload
 
 from menage2.dateparse import (
     RecurrenceSpec,
@@ -377,6 +378,7 @@ def _active_todos(
     todos = (
         dbsession.execute(
             select(Todo)
+            .options(joinedload(Todo.protocol_run))
             .where(
                 Todo.status == TodoStatus.todo,
                 or_(Todo.due_date.is_(None), Todo.due_date <= today),
@@ -697,6 +699,28 @@ def set_recurrence(request):
     return request.response
 
 
+@view_config(route_name="set_tags", request_method="POST")
+def set_tags(request):
+    """Set the tags on a single todo. Empty string clears all tags."""
+    todo_id = int(request.matchdict["id"])
+    raw = request.params.get("tags", "").strip()
+    todo = request.dbsession.get(Todo, todo_id)
+    if not todo:
+        request.response.status_int = 404
+        return request.response
+    todo.tags = {t for t in raw.split(",") if t.strip()}
+    today = _today()
+    todos = _active_todos(request.dbsession, today, user=request.identity)
+    body = render(
+        "menage2:templates/_todo_groups.pt",
+        _groups_ctx(build_tag_tree(todos), today),
+        request=request,
+    )
+    request.response.content_type = "text/html"
+    request.response.text = body + _scheduled_section_oob(request)
+    return request.response
+
+
 @view_config(
     route_name="recurrence_history",
     request_method="GET",
@@ -929,6 +953,17 @@ def edit_todo(request):
                         path.unlink()
                 request.dbsession.delete(att)
 
+    if request.headers.get("HX-Request") == "true":
+        today = _today()
+        todos = _active_todos(request.dbsession, today, user=request.identity)
+        body = render(
+            "menage2:templates/_todo_groups.pt",
+            _groups_ctx(build_tag_tree(todos), today),
+            request=request,
+        )
+        request.response.content_type = "text/html"
+        request.response.text = body + _scheduled_section_oob(request)
+        return request.response
     return HTTPSeeOther(next_url)
 
 

@@ -154,13 +154,6 @@
                     >
                   </span>
 
-                  <button
-                    type="button"
-                    class="todo-edit-btn flex-shrink-0 btn btn-link btn-sm p-0 text-muted"
-                    title="Edit"
-                  >
-                    &#9998;
-                  </button>
                 </div>
               </li>
             </ul>
@@ -169,9 +162,9 @@
       </div>
       <!-- /.todo-pane -->
 
-      <!-- Protocol run panel -->
-      <div class="run-pane d-none" id="run-pane">
-        <div class="todo-list-wrap run-panel-wrap" id="run-panel"></div>
+      <!-- Details pane -->
+      <div class="details-pane d-none" id="details-pane">
+        <div class="todo-list-wrap run-panel-wrap" id="details-panel"></div>
       </div>
     </div>
     <!-- /.todo-stage -->

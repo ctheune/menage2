@@ -146,13 +146,14 @@ def test_completing_linked_todo_closes_run(page):
     page.click('button:has-text("Start a run now")')
     page.wait_for_url("**/protocols/run/*")
     page.goto("/todos")
-    item = page.locator('.todo-item[data-todo-text="ClosingProto"]')
+    _item_sel = '.todo-item[data-todo-text="ClosingProto"]'
+    item = page.locator(_item_sel)
     assert item.count() == 1
-    _hover_target = '.todo-item[data-todo-text="ClosingProto"]'
-    page.hover(_hover_target)
+    # Click item to select it (checks the checkbox), then press c to mark done
+    item.click()
     page.evaluate("document.activeElement && document.activeElement.blur()")
     page.keyboard.press("c")
     page.wait_for_function(
-        f"document.querySelectorAll('{_hover_target}').length === 0",
+        f"document.querySelectorAll('{_item_sel}').length === 0",
         timeout=3000,
     )

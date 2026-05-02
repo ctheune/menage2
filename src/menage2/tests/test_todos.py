@@ -27,6 +27,7 @@ from menage2.views.todo import (
     render_note_html,
     set_due_date,
     set_recurrence,
+    set_tags,
     todo_undo,
     todos_activate_all_on_hold,
     todos_activate_batch,
@@ -900,6 +901,22 @@ def test_edit_todo_workflow(authenticated_testapp, dbsession):
     assert todo.tags == {"work"}
 
 
+def test_edit_todo_htmx_updates_text(authenticated_testapp, dbsession):
+    todo = _todo("Original htmx")
+    dbsession.add(todo)
+    dbsession.flush()
+    res = authenticated_testapp.post(
+        f"/todos/{todo.id}/edit",
+        {"text": "Updated htmx"},
+        headers={"HX-Request": "true"},
+        status=200,
+    )
+    assert "Updated htmx" in res.text
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.text == "Updated htmx"
+
+
 # ---------------------------------------------------------------------------
 # Recurrence — parse_todo_input + add/edit/done flows
 # ---------------------------------------------------------------------------
@@ -1156,3 +1173,54 @@ def test_list_todos_runs_daily_sweep_creating_future_instance(app_request, dbses
         .all()
     )
     assert len(actives) >= 1
+
+
+# ---------------------------------------------------------------------------
+# set_tags tests
+# ---------------------------------------------------------------------------
+
+
+def test_set_tags_updates_tags(app_request, dbsession):
+    todo = _todo("Buy groceries", tags={"old"})
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["tags"] = "shopping,food"
+    set_tags(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.tags == {"shopping", "food"}
+
+
+def test_set_tags_clears_all_tags(app_request, dbsession):
+    todo = _todo("Clean up", tags={"chore", "home"})
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["tags"] = ""
+    set_tags(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.tags == set()
+
+
+def test_set_tags_returns_html(app_request, dbsession):
+    todo = _todo("Write tests")
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.POST["tags"] = "dev"
+    response = set_tags(app_request)
+    assert response.content_type == "text/html"
+    assert b"<" in response.body
+
+
+def test_set_tags_unknown_id_returns_404(app_request):
+    app_request.matchdict = {"id": "99999"}
+    app_request.method = "POST"
+    app_request.POST["tags"] = "test"
+    response = set_tags(app_request)
+    assert response.status_int == 404

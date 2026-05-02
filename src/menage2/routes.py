@@ -100,6 +100,7 @@ def includeme(config):
     config.add_route("set_due_date", "/todos/{id}/due-date")
     config.add_route("parse_date_preview", "/todos/parse-date")
     config.add_route("set_recurrence", "/todos/{id}/recurrence")
+    config.add_route("set_tags", "/todos/{id}/tags")
     config.add_route("parse_recurrence_preview", "/todos/parse-recurrence")
     config.add_route("recurrence_history", "/todos/{id}/history")
     config.add_route("todo_attachment_upload", "/todos/{id}/attachments")

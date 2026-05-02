@@ -407,6 +407,7 @@ def show_protocol_run_panel(request):
         _snapshot_run_items(run, request.dbsession)
     items = _sorted_run_items(run)
     items_html = _render_run_partial(request, run, items)
+    inline = request.params.get("inline") == "1"
     body = render(
         "menage2:templates/protocols/_run_panel.pt",
         {
@@ -414,6 +415,7 @@ def show_protocol_run_panel(request):
             "protocol": run.protocol,
             "items_html": items_html,
             "todos_url": request.route_url("list_todos"),
+            "inline": inline,
         },
         request=request,
     )

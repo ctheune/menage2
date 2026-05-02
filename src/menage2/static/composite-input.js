@@ -77,7 +77,7 @@ function _ciParseText(canonical) {
 //   sessionKey: string,     — if set, tags persist in sessionStorage across HTMX reloads
 // }
 //
-// Returns: {enterEditMode, exitEditMode, buildCompositeText, getPlainText, resetState}
+// Returns: {buildCompositeText, getPlainText, resetState, clearVolatileState, restoreFromRaw, getTags, getAssignees, focusLast, focusFirst, getRemovedAttachments}
 // ---------------------------------------------------------------------------
 
 function CompositeInput(containerEl, opts) {
@@ -124,16 +124,6 @@ function CompositeInput(containerEl, opts) {
   var noteText = "";
   var links = [];
   var _acMode = null;
-
-  var _savedTags = null;
-  var _savedDateISO = null;
-  var _savedRecLabel = null;
-  var _savedNoteText = null;
-  var _savedAssignees = null;
-  var _savedAttachments = null;
-  var _savedLinks = null;
-  var _editingId = null;
-  var _addUrl = form ? form.getAttribute("hx-post") : null;
 
   var attachments = []; // [{uuid, filename, thumbUrl}]
   var removedAttachmentUUIDs = [];
@@ -1068,7 +1058,6 @@ function CompositeInput(containerEl, opts) {
     }
 
     if (e.key === "Escape") {
-      if (_editingId) exitEditMode();
       activeSeg.blur();
       return;
     }
@@ -1240,96 +1229,6 @@ function CompositeInput(containerEl, opts) {
     e.target.dispatchEvent(new Event("input", { bubbles: true }));
   });
 
-  // --- Edit mode (used by todo form to switch between add/edit) ---
-
-  function enterEditMode(
-    id,
-    text,
-    tagList,
-    dueDate,
-    recurrence,
-    editUrl,
-    note,
-    assigneeList,
-    attachmentList,
-    linkList,
-  ) {
-    _savedTags = tags.slice();
-    _savedDateISO = dateISO;
-    _savedRecLabel = recLabel;
-    _savedNoteText = noteText;
-    _savedAssignees = assignees.slice();
-    _savedAttachments = attachments.slice();
-    _savedLinks = links.slice();
-    removedAttachmentUUIDs = [];
-    _editingId = id;
-    if (enableTags) tags = tagList.slice();
-    if (enableAssignees) assignees = (assigneeList || []).slice();
-    if (enableDate) {
-      dateISO = dueDate || null;
-      dateLabel = null;
-    }
-    if (enableRec) recLabel = recurrence || null;
-    if (enableNote) noteText = note || "";
-    if (enableLinks) links = (linkList || []).slice();
-    attachments = (attachmentList || []).slice();
-    _placeholder = "Edit todo…";
-    renderAllPills(text || "");
-    if (form && editUrl) {
-      form.setAttribute("hx-post", editUrl);
-      if (window.htmx) htmx.process(form);
-    }
-    containerEl.classList.add("todo-tag-input--editing");
-    var firstSeg = getFirstSeg();
-    if (firstSeg) {
-      firstSeg.focus();
-      setTimeout(function () {
-        placeCursorAtEnd(firstSeg);
-      }, 0);
-    }
-    renderQuickPick();
-  }
-
-  function exitEditMode() {
-    _editingId = null;
-    if (enableTags) {
-      tags = _savedTags !== null ? _savedTags : [];
-      _savedTags = null;
-    }
-    if (enableAssignees) {
-      assignees = _savedAssignees !== null ? _savedAssignees : [];
-      _savedAssignees = null;
-    }
-    if (enableDate) {
-      dateISO = _savedDateISO;
-      dateLabel = null;
-      _savedDateISO = null;
-    }
-    if (enableRec) {
-      recLabel = _savedRecLabel;
-      _savedRecLabel = null;
-    }
-    if (enableNote) {
-      noteText = _savedNoteText !== null ? _savedNoteText : "";
-      _savedNoteText = null;
-    }
-    attachments = _savedAttachments !== null ? _savedAttachments.slice() : [];
-    removedAttachmentUUIDs = [];
-    _savedAttachments = null;
-    if (enableLinks) {
-      links = _savedLinks !== null ? _savedLinks.slice() : [];
-      _savedLinks = null;
-    }
-    _placeholder = opts.placeholder || "New todo…";
-    renderAllPills("");
-    renderQuickPick();
-    if (form && _addUrl) {
-      form.setAttribute("hx-post", _addUrl);
-      if (window.htmx) htmx.process(form);
-    }
-    containerEl.classList.remove("todo-tag-input--editing");
-  }
-
   function resetState() {
     tags = sessionKey
       ? JSON.parse(sessionStorage.getItem(sessionKey) || "[]")
@@ -1398,16 +1297,11 @@ function CompositeInput(containerEl, opts) {
   }
 
   return {
-    enterEditMode: enterEditMode,
-    exitEditMode: exitEditMode,
     buildCompositeText: buildCompositeText,
     getPlainText: getPlainText,
     resetState: resetState,
     clearVolatileState: clearVolatileState,
     restoreFromRaw: restoreFromRaw,
-    getEditingId: function () {
-      return _editingId;
-    },
     getTags: function () {
       return tags;
     },

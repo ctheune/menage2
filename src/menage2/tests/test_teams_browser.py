@@ -76,8 +76,10 @@ def test_edit_todo_preserves_assignees(page, second_user):
     page.goto("/todos?filter=all")
     row = page.locator('.todo-item[data-todo-text="Wash car"]')
     assert row.count() == 1
-    row.locator(".todo-edit-btn").click()
-    page.wait_for_timeout(300)
-    pills = page.locator(".todo-assignee-pill")
-    assert pills.count() >= 1
-    assert "alice" in pills.first.inner_text()
+    # Click the row to select it — details pane shows all fields including assignees
+    row.click()
+    page.wait_for_selector("#details-panel .details-field--assignees", timeout=2000)
+    assignees_field = page.locator(
+        "#details-panel .details-field--assignees .details-field-value"
+    )
+    assert "alice" in assignees_field.inner_text()

@@ -1,12 +1,14 @@
-<div class="run-panel-header d-flex align-items-center px-3 pt-3 pb-2">
-  <span class="fw-semibold">${protocol.title}</span>
-  <button type="button"
-          class="btn btn-sm text-secondary p-0 ms-auto"
-          onclick="closeRunPanel()"
-          title="Close (Esc)">
-    <i class="bi bi-x-lg"></i>
-  </button>
-</div>
+<tal:block tal:condition="not inline">
+  <div class="run-panel-header d-flex align-items-center px-3 pt-3 pb-2">
+    <span class="fw-semibold">${protocol.title}</span>
+    <button type="button"
+            class="btn btn-sm text-secondary p-0 ms-auto"
+            onclick="closeDetailsPane()"
+            title="Close (Esc)">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+</tal:block>
 <div id="protocol-run"
      data-run-id="${run.id}"
      data-todo-route="${todos_url}">

@@ -271,9 +271,6 @@ body {
 }
 
 /* Edit button visibility */
-.todo-edit-btn {
-    transition: opacity 0.15s;
-}
 
 /* Due date chip — low contrast by default, accent when due */
 .todo-due {
@@ -745,9 +742,9 @@ body {
     }
 }
 
-/* === Run panel layout ===================================================== */
+/* === Details pane layout ================================================== */
 
-/* Desktop (≥lg): todo list and run panel sit side by side */
+/* Desktop (≥lg): todo list and details pane sit side by side */
 @media (min-width: 992px) {
     .todo-stage {
         display: flex;
@@ -758,7 +755,7 @@ body {
         flex: 1 1 0;
         min-width: 0;
     }
-    .run-pane {
+    .details-pane {
         flex: 1 1 0;
         min-width: 0;
         position: sticky;
@@ -768,9 +765,9 @@ body {
     }
 }
 
-/* Mobile (<lg): run panel slides up as a fixed bottom sheet */
+/* Mobile (<lg): details pane slides up as a fixed bottom sheet */
 @media (max-width: 991px) {
-    .run-pane:not(.d-none) {
+    .details-pane:not(.d-none) {
         position: fixed;
         bottom: 0;
         left: 0;
@@ -779,11 +776,53 @@ body {
         max-height: 60vh;
         overflow-y: auto;
     }
-    .run-pane .todo-list-wrap {
+    .details-pane .todo-list-wrap {
         border-radius: 0.75rem 0.75rem 0 0 !important;
         box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
         min-height: 0 !important;
     }
+}
+
+/* Details pane: field rows */
+.details-field-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 0.25rem;
+}
+
+.details-field-row:hover {
+    background: var(--bs-secondary-bg);
+}
+
+.details-field-label {
+    color: var(--bs-secondary-color);
+    min-width: 5rem;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.details-field-value {
+    flex-grow: 1;
+    word-break: break-word;
+}
+
+.details-tag-pill {
+    display: inline-block;
+    background: var(--bs-secondary-bg);
+    color: var(--bs-secondary-color);
+    border-radius: 9999px;
+    padding: 0 0.45rem;
+    font-size: 0.75rem;
+    margin-right: 0.2rem;
+}
+
+.details-run-section {
+    margin-top: 0.75rem;
+    border-top: 1px solid var(--bs-border-color);
 }
 
 /* Remove lined background from the run panel (inherited from todo-list-wrap) */

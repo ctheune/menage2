@@ -12,6 +12,5 @@
     <input type="hidden" name="text" id="todo-hidden-text" />
     <input type="hidden" name="next" value="${next_url}" />
     <input type="hidden" name="remove_attachments" id="todo-remove-attachments" value="" />
-    <div id="todo-quick-pick" class="flex-wrap gap-1 mt-2"></div>
   </form>
 </tal:block>

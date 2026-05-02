@@ -106,31 +106,11 @@ function initTodoSwipe() {} // kept for htmx.onLoad call below; delegation handl
 document.addEventListener('click', function(e) {
     var item = e.target.closest('.todo-item');
     if (!item) return;
-    if (e.target.closest('.todo-edit-btn')) return;
     var checkbox = item.querySelector('.todo-checkbox');
     if (!checkbox || e.target === checkbox) return;
+    if (e.target.closest('a') || e.target.closest('button') || e.target.closest('img')) return;
     checkbox.checked = !checkbox.checked;
-});
-
-// Delegated handler for the edit pencil button \u2014 fires todoEditStart event
-document.addEventListener('click', function(e) {
-    var btn = e.target.closest('.todo-edit-btn');
-    if (!btn) return;
-    e.stopPropagation();
-    var li = btn.closest('li[id^="todo-"]');
-    if (!li) return;
-    document.dispatchEvent(new CustomEvent('todoEditStart', {detail: {
-        id: li.id.replace('todo-', ''),
-        text: li.dataset.todoText || '',
-        note: li.dataset.todoNote || '',
-        tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
-        assignees: (li.dataset.todoAssignees || '').split(',').filter(Boolean),
-        dueDate: li.dataset.dueDate || null,
-        recurrence: li.dataset.recurrence || null,
-        editUrl: li.dataset.editUrl || '',
-        attachments: JSON.parse(li.dataset.attachments || '[]'),
-        links: JSON.parse(li.dataset.todoLinks || '[]')
-    }}));
+    checkbox.dispatchEvent(new Event('change', {bubbles: true}));
 });
 
 // Full-screen image modal with prev/next navigation
@@ -273,21 +253,16 @@ function initTagInput() {
 
     var _pendingText = null;
 
-    document.addEventListener('todoEditStart', function(e) {
-        var d = e.detail;
-        ci.enterEditMode(d.id, d.text, d.tags, d.dueDate, d.recurrence, d.editUrl, d.note || '', d.assignees || [], d.attachments || [], d.links || []);
-    });
-
     form.addEventListener('submit', function() {
         _pendingText = ci.buildCompositeText();
-        if (!ci.getEditingId()) { ci.clearVolatileState(); sessionStorage.setItem('todo-add-focus', '1'); }
+        ci.clearVolatileState();
+        sessionStorage.setItem('todo-add-focus', '1');
     }, true);
 
     form.addEventListener('htmx:configRequest', function(e) {
         if (_pendingText !== null) { e.detail.parameters['text'] = _pendingText; _pendingText = null; }
         var removed = ci.getRemovedAttachments();
         if (removed.length) { e.detail.parameters['remove_attachments'] = removed.join(','); }
-        if (ci.getEditingId()) { ci.exitEditMode(); ci.clearVolatileState(); }
     });
 
     document.body.addEventListener('showAddTodoError', function(e) {
@@ -358,6 +333,21 @@ function _firstCheckedItem() {
 document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.contentEditable === 'true') return;
 
+    if (e.key === 'Escape') {
+        if (document.querySelector('.todo-popover')) {
+            e.preventDefault();
+            closePopovers();
+            return;
+        }
+        var pane = document.getElementById('details-pane');
+        if (pane && !pane.classList.contains('d-none') && !document.getElementById('protocol-run')) {
+            e.preventDefault();
+            document.querySelectorAll('input.todo-checkbox:checked').forEach(function(cb) { cb.checked = false; });
+            closeDetailsPane();
+            return;
+        }
+    }
+
     if (e.key === 'r') {
         var doneList = document.getElementById('done-list');
         if (!doneList) return;
@@ -374,18 +364,7 @@ document.addEventListener('keydown', function(e) {
         var li = _firstCheckedItem();
         if (!li) return;
         e.preventDefault();
-        document.dispatchEvent(new CustomEvent('todoEditStart', {detail: {
-            id: li.id.replace('todo-', ''),
-            text: li.dataset.todoText || '',
-            note: li.dataset.todoNote || '',
-            tags: (li.dataset.todoTags || '').split(',').filter(Boolean),
-            assignees: (li.dataset.todoAssignees || '').split(',').filter(Boolean),
-            dueDate: li.dataset.dueDate || null,
-            recurrence: li.dataset.recurrence || null,
-            editUrl: li.dataset.editUrl || '',
-            attachments: JSON.parse(li.dataset.attachments || '[]'),
-            links: JSON.parse(li.dataset.todoLinks || '[]')
-        }}));
+        _detailsTitleEdit(li);
         return;
     }
 
@@ -427,7 +406,8 @@ document.addEventListener('keydown', function(e) {
         var item = _firstCheckedItem();
         if (!item) return;
         e.preventDefault();
-        openSetDuePicker(item);
+        var dAnchor = document.querySelector('#details-panel .details-field--due') || item;
+        openSetDuePicker(item, dAnchor);
         return;
     }
 
@@ -435,20 +415,58 @@ document.addEventListener('keydown', function(e) {
         var item = _firstCheckedItem();
         if (!item) return;
         e.preventDefault();
-        openSetRecurrencePicker(item);
+        var fAnchor = document.querySelector('#details-panel .details-field--rec') || item;
+        openSetRecurrencePicker(item, fAnchor);
+        return;
+    }
+
+    if (key === 's') {
+        var item = _firstCheckedItem();
+        if (!item) return;
+        e.preventDefault();
+        var sAnchor = document.querySelector('#details-panel .details-field--tags') || item;
+        openTagsPicker(item, sAnchor);
+        return;
+    }
+
+    if (key === '~') {
+        var item = _firstCheckedItem();
+        if (!item) return;
+        e.preventDefault();
+        var nAnchor = document.querySelector('#details-panel .details-field--note') || item;
+        openNotePicker({
+            anchorEl: nAnchor,
+            initialNote: item.dataset.todoNote || '',
+            title: 'Note',
+            onCommit: function(val) { _postEdit(item, {note: val}); }
+        });
+        return;
+    }
+
+    if (key === '@') {
+        var item = _firstCheckedItem();
+        if (!item) return;
+        e.preventDefault();
+        var aAnchor = document.querySelector('#details-panel .details-field--assignees') || item;
+        openAssigneesPicker(item, aAnchor);
+        return;
+    }
+
+    if (key === 'l') {
+        var item = _firstCheckedItem();
+        if (!item) return;
+        e.preventDefault();
+        var lAnchor = document.querySelector('#details-panel .details-field--links') || item;
+        var lLinks = JSON.parse(item.dataset.todoLinks || '[]');
+        openLinkPicker({
+            anchorEl: lAnchor,
+            onCommit: function(newLink) { _postEdit(item, {links: lLinks.concat([newLink])}); }
+        });
         return;
     }
 
     if (key === ']') { e.preventDefault(); setAllGroups(true); return; }
     if (key === '[') { e.preventDefault(); setAllGroups(false); return; }
-
-    if (key === 'o') {
-        var item = _firstCheckedItem();
-        if (!item) return;
-        var panelUrl = item.dataset.protocolPanelUrl;
-        if (panelUrl) { e.preventDefault(); openRunPanel(panelUrl); }
-        return;
-    }
 
     if (key === 'u') {
         var toast = document.getElementById('undo-toast');
@@ -798,12 +816,12 @@ document.addEventListener('mousedown', function(e) {
 
 // --- Helpers wrapping openPicker for specific contexts ---
 
-function openSetDuePicker(itemEl) {
+function openSetDuePicker(itemEl, anchorEl) {
     var url = itemEl.dataset.setDueUrl;
     if (!url) return;
     var list = document.getElementById('todo-list');
     openPicker({
-        anchorEl: itemEl,
+        anchorEl: anchorEl || itemEl,
         initialISO: itemEl.dataset.dueDate || null,
         title: 'Due date',
         onCommit: function(iso) {
@@ -958,12 +976,12 @@ function openRecurrencePicker(opts) {
     return pop;
 }
 
-function openSetRecurrencePicker(itemEl) {
+function openSetRecurrencePicker(itemEl, anchorEl) {
     var url = itemEl.dataset.setRecUrl;
     if (!url) return;
     var list = document.getElementById('todo-list');
     openRecurrencePicker({
-        anchorEl: itemEl,
+        anchorEl: anchorEl || itemEl,
         initialLabel: itemEl.dataset.recurrence || null,
         title: 'Repeat',
         onCommit: function(label) {
@@ -972,6 +990,174 @@ function openSetRecurrencePicker(itemEl) {
                 swap: list ? 'innerHTML' : 'none',
                 values: {recurrence: label || ''}
             });
+        }
+    });
+}
+
+// --- Generic item picker (shared by tags + assignees) ------------------------
+
+function _openItemsPicker(opts) {
+    // opts.anchorEl, opts.title, opts.items[], opts.placeholder,
+    // opts.prefix, opts.suggestUrl, opts.suggestTransform, opts.onCommit
+    closePopovers();
+    var itemSet = (opts.items || []).slice();
+    var prefix = opts.prefix || '';
+
+    var pop = document.createElement('div');
+    pop.className = 'todo-popover';
+    pop.style.minWidth = '16rem';
+
+    var titleEl = document.createElement('div');
+    titleEl.style.cssText = 'font-size:0.75rem;font-weight:600;color:var(--bs-secondary-color);margin-bottom:0.5rem;';
+    titleEl.textContent = opts.title || '';
+    pop.appendChild(titleEl);
+
+    var pillsEl = document.createElement('div');
+    pillsEl.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.25rem;margin-bottom:0.5rem;min-height:1.5rem;';
+    pop.appendChild(pillsEl);
+
+    function renderPills() {
+        pillsEl.innerHTML = '';
+        itemSet.forEach(function(item) {
+            var pill = document.createElement('span');
+            pill.style.cssText = 'display:inline-flex;align-items:center;gap:0.25rem;background:var(--bs-secondary-bg);border-radius:9999px;padding:0.1rem 0.45rem;font-size:0.78rem;';
+            pill.textContent = prefix + item;
+            var rm = document.createElement('button');
+            rm.type = 'button';
+            rm.style.cssText = 'border:none;background:none;padding:0;cursor:pointer;font-size:0.7rem;color:var(--bs-secondary-color);line-height:1;';
+            rm.textContent = '×';
+            rm.addEventListener('click', (function(v) { return function(e) {
+                e.stopPropagation();
+                itemSet = itemSet.filter(function(x) { return x !== v; });
+                renderPills();
+            }; }(item)));
+            pill.appendChild(rm);
+            pillsEl.appendChild(pill);
+        });
+    }
+    renderPills();
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control form-control-sm';
+    input.placeholder = opts.placeholder || 'Add…';
+    pop.appendChild(input);
+
+    var suggestEl = document.createElement('div');
+    suggestEl.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.2rem;margin-top:0.3rem;';
+    pop.appendChild(suggestEl);
+
+    function renderSuggestions(all) {
+        suggestEl.innerHTML = '';
+        var pfx = prefix;
+        var q = input.value.trim().toLowerCase().replace(new RegExp('^' + pfx.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '');
+        var available = all.filter(function(v) { return itemSet.indexOf(v) === -1 && (!q || v.toLowerCase().includes(q)); }).slice(0, 8);
+        available.forEach(function(v) {
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.style.cssText = 'border:1px solid var(--bs-border-color);background:#fff;border-radius:9999px;padding:0.1rem 0.5rem;font-size:0.75rem;cursor:pointer;';
+            chip.textContent = pfx + v;
+            chip.addEventListener('click', (function(val) { return function(e) {
+                e.stopPropagation();
+                if (itemSet.indexOf(val) === -1) itemSet.push(val);
+                input.value = '';
+                renderPills();
+                renderSuggestions(all);
+            }; }(v)));
+            suggestEl.appendChild(chip);
+        });
+    }
+
+    if (opts.suggestUrl) {
+        fetch(opts.suggestUrl).then(function(r) { return r.json(); }).then(function(data) {
+            var all = opts.suggestTransform ? opts.suggestTransform(data) : (Array.isArray(data) ? data : []);
+            renderSuggestions(all);
+            input.addEventListener('input', function() { renderSuggestions(all); });
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') { e.preventDefault(); closePopovers(); return; }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    var val = input.value.trim().replace(new RegExp('^' + prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '');
+                    if (val && itemSet.indexOf(val) === -1) itemSet.push(val);
+                    input.value = '';
+                    renderPills();
+                    renderSuggestions(all);
+                }
+            });
+        }).catch(function() {});
+    } else {
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') { e.preventDefault(); closePopovers(); return; }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                var val = input.value.trim().replace(new RegExp('^' + prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '');
+                if (val && itemSet.indexOf(val) === -1) itemSet.push(val);
+                input.value = '';
+                renderPills();
+            }
+        });
+    }
+
+    var footer = document.createElement('div');
+    footer.className = 'todo-popover-actions';
+    footer.style.marginTop = '0.5rem';
+    var setBtn = document.createElement('button');
+    setBtn.type = 'button'; setBtn.className = 'btn btn-sm btn-dark'; setBtn.textContent = 'Set';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button'; cancelBtn.className = 'btn btn-sm btn-link text-muted'; cancelBtn.textContent = 'Cancel';
+    footer.appendChild(setBtn); footer.appendChild(cancelBtn);
+    pop.appendChild(footer);
+
+    setBtn.addEventListener('click', function() { closePopovers(); if (opts.onCommit) opts.onCommit(itemSet); });
+    cancelBtn.addEventListener('click', function() { closePopovers(); });
+
+    anchorPopover(pop, opts.anchorEl);
+    setTimeout(function() { input.focus(); }, 0);
+}
+
+// --- Tags picker (wrapper around _openItemsPicker) ---------------------------
+
+function openTagsPicker(itemEl, anchorEl) {
+    var url = itemEl.dataset.setTagsUrl;
+    if (!url) return;
+    var list = document.getElementById('todo-list');
+    _openItemsPicker({
+        anchorEl: anchorEl || itemEl,
+        title: 'Tags',
+        items: (itemEl.dataset.todoTags || '').split(',').filter(Boolean),
+        placeholder: 'Add tag…',
+        prefix: '#',
+        suggestUrl: '/todos/tags.json',
+        suggestTransform: function(data) {
+            return data.map ? data.map(function(t) {
+                return typeof t === 'string' ? t : (t.tag || t.name || String(t));
+            }) : [];
+        },
+        onCommit: function(items) {
+            htmx.ajax('POST', url, {
+                target: list || document.body,
+                swap: list ? 'innerHTML' : 'none',
+                values: {tags: items.join(',')}
+            });
+        }
+    });
+}
+
+// --- Assignees picker (wrapper around _openItemsPicker) ----------------------
+
+function openAssigneesPicker(itemEl, anchorEl) {
+    _openItemsPicker({
+        anchorEl: anchorEl || itemEl,
+        title: 'Assign',
+        items: (itemEl.dataset.todoAssignees || '').split(',').filter(Boolean),
+        placeholder: 'Add person…',
+        prefix: '@',
+        suggestUrl: '/todos/principals.json',
+        suggestTransform: function(data) {
+            return Array.isArray(data) ? data.map(function(p) { return p.name || String(p); }) : [];
+        },
+        onCommit: function(items) {
+            _postEdit(itemEl, {assignees: items});
         }
     });
 }
@@ -1047,36 +1233,48 @@ function ensureHelpOverlay() {
 
         _kbdSection('Todo list'),
         '<table class="table table-sm table-borderless mb-0"><tbody>',
-        _kbdRow('click', 'Select / deselect item'),
-        _kbdRow('e', 'Edit hovered item'),
-        _kbdRow('c', 'Mark hovered / selected done'),
-        _kbdRow('h', 'Put hovered / selected on hold'),
-        _kbdRow('d', 'Set / change due date (hovered)'),
-        _kbdRow('f', 'Set / change repetition rule (hovered)'),
-        _kbdRow('p', 'Postpone hovered / selected by 1 day'),
+        _kbdRow('click', 'Select item \u2014 opens details pane'),
+        _kbdRow('c', 'Mark selected done'),
+        _kbdRow('h', 'Put selected on hold'),
+        _kbdRow('d', 'Set / change due date'),
+        _kbdRow('f', 'Set / change repetition rule'),
+        _kbdRow('s', 'Edit tags'),
+        _kbdRow('p', 'Postpone selected by 1 day'),
         _kbdRow('Shift+P', 'Postpone\u2026 (palette + calendar)'),
         _kbdRow('r', 'Open protocol palette \u2014 start a run'),
-        _kbdRow('o', 'Open protocol run for hovered item'),
         _kbdRow('[', 'Collapse all groups'),
         _kbdRow(']', 'Expand all groups'),
         _kbdRow('u', 'Undo last action'),
         _kbdRow('click \u21bb', 'Show repetition history'),
         '</tbody></table>',
+
+        _kbdSection('Details pane'),
+        '<table class="table table-sm table-borderless mb-0"><tbody>',
+        _kbdRow('e', 'Edit title'),
+        _kbdRow('d', 'Edit due date'),
+        _kbdRow('f', 'Edit repetition rule'),
+        _kbdRow('s', 'Edit tags'),
+        _kbdRow('~', 'Edit note'),
+        _kbdRow('@', 'Edit assignees'),
+        _kbdRow('l', 'Add / edit link'),
+        _kbdRow('click field', 'Edit that field'),
+        _kbdRow('Esc', 'Close pane / picker'),
+        '</tbody></table>',
     ]);
     var col2 = _kbdCol([
-        _kbdSection('Protocol run'),
+        _kbdSection('Protocol run (in details pane)'),
         '<table class="table table-sm table-borderless mb-0"><tbody>',
         _kbdRow('j / \u2193', 'Next item'),
         _kbdRow('k / \u2191', 'Previous item'),
         _kbdRow('c', 'Mark current done'),
         _kbdRow('t', 'Send current to the todo list'),
         _kbdRow('e', 'Edit current item before sending'),
-        _kbdRow('Esc', 'Back to the todo list'),
+        _kbdRow('Esc', 'Close details pane'),
         _kbdRow('swipe \u2192', 'Same as <kbd>c</kbd>'),
         _kbdRow('swipe \u2190', 'Same as <kbd>t</kbd>'),
         '</tbody></table>',
 
-        _kbdSection('Adding / editing a todo'),
+        _kbdSection('Adding a todo'),
         '<table class="table table-sm table-borderless mb-0"><tbody>',
         _kbdRow('#tag', 'Attach a tag (single word)'),
         _kbdRow('^', 'Open the date picker'),
@@ -1123,61 +1321,498 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// --- Inline run panel (open / close) ----------------------------------------
+// --- Details pane -----------------------------------------------------------
 
-function openRunPanel(panelUrl) {
-    var pane = document.getElementById('run-pane');
-    var panel = document.getElementById('run-panel');
-    if (!pane || !panel) return;
-    fetch(panelUrl)
-        .then(function(r) { return r.text(); })
-        .then(function(html) {
-            panel.innerHTML = html;
-            pane.classList.remove('d-none');
-            htmx.process(panel);
-            _runCurrentIdx = 0;
-            _runHighlight();
-            if (window.innerWidth < 992) {
-                var bd = document.createElement('div');
-                bd.id = 'run-panel-backdrop';
-                bd.addEventListener('click', closeRunPanel);
-                document.body.appendChild(bd);
-            }
-        });
-}
+var _detailsItemId = null;
 
-function closeRunPanel() {
-    var pane = document.getElementById('run-pane');
-    var panel = document.getElementById('run-panel');
+function closeDetailsPane() {
+    var pane = document.getElementById('details-pane');
+    var panel = document.getElementById('details-panel');
     if (pane) pane.classList.add('d-none');
     if (panel) panel.innerHTML = '';
+    _detailsItemId = null;
     var bd = document.getElementById('run-panel-backdrop');
     if (bd) bd.parentNode.removeChild(bd);
 }
 
-// Intercept protocol-run link clicks to open inline panel instead of navigating.
-document.addEventListener('click', function(e) {
-    var link = e.target.closest('.todo-protocol-link[data-panel-url]');
-    if (!link) return;
-    e.preventDefault();
-    openRunPanel(link.dataset.panelUrl);
+// Keep as alias so templates that still reference closeRunPanel work.
+function closeRunPanel() { closeDetailsPane(); }
+
+function _buildCompositeText(title, li) {
+    var parts = [title];
+    (li.dataset.todoTags || '').split(',').filter(Boolean).forEach(function(t) { parts.push('#' + t); });
+    (li.dataset.todoAssignees || '').split(',').filter(Boolean).forEach(function(a) { parts.push('@' + a); });
+    if (li.dataset.dueDate) parts.push('^' + li.dataset.dueDate);
+    if (li.dataset.recurrence) parts.push('*' + li.dataset.recurrence);
+    if (li.dataset.todoNote) parts.push('~' + li.dataset.todoNote);
+    JSON.parse(li.dataset.todoLinks || '[]').forEach(function(l) { parts.push(l); });
+    return parts.join(' ');
+}
+
+function _buildCompositeTextWith(li, overrides) {
+    var o = overrides || {};
+    var title = 'title' in o ? o.title : (li.dataset.todoText || '');
+    var tags = 'tags' in o ? o.tags : (li.dataset.todoTags || '').split(',').filter(Boolean);
+    var assignees = 'assignees' in o ? o.assignees : (li.dataset.todoAssignees || '').split(',').filter(Boolean);
+    var dueDate = 'dueDate' in o ? o.dueDate : (li.dataset.dueDate || '');
+    var recurrence = 'recurrence' in o ? o.recurrence : (li.dataset.recurrence || '');
+    var note = 'note' in o ? o.note : (li.dataset.todoNote || '');
+    var links = 'links' in o ? o.links : JSON.parse(li.dataset.todoLinks || '[]');
+    var parts = [title];
+    tags.forEach(function(t) { parts.push('#' + t); });
+    assignees.forEach(function(a) { parts.push('@' + a); });
+    if (dueDate) parts.push('^' + dueDate);
+    if (recurrence) parts.push('*' + recurrence);
+    if (note) parts.push('~' + note);
+    links.forEach(function(l) { parts.push(l); });
+    return parts.join(' ');
+}
+
+// Post an edit to the server and refresh the todo list (or reload on pages without #todo-list).
+function _postEdit(li, overrides) {
+    var composite = _buildCompositeTextWith(li, overrides);
+    var url = li.dataset.editUrl;
+    if (!url) return;
+    var list = document.getElementById('todo-list');
+    if (list) {
+        htmx.ajax('POST', url, {target: list, swap: 'innerHTML', values: {text: composite}});
+    } else {
+        var body = new URLSearchParams({text: composite});
+        fetch(url, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body.toString()})
+            .then(function() { window.location.reload(); });
+    }
+}
+
+function _detailsTitleEdit(li) {
+    if (!li) return;
+    var valueEl = document.querySelector('#details-panel .details-field--text .details-field-value');
+    if (!valueEl) {
+        // Pane not open yet or not showing details — open it first then retry
+        if (!_detailsItemId) {
+            _detailsItemId = li.id.replace('todo-', '');
+            _renderDetailsPane(li);
+            setTimeout(function() { _detailsTitleEdit(li); }, 50);
+        }
+        return;
+    }
+    var currentText = li.dataset.todoText || '';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentText;
+    input.className = 'form-control form-control-sm';
+    valueEl.replaceWith(input);
+    input.focus();
+    input.select();
+    var committed = false;
+    function commit() {
+        if (committed) return;
+        committed = true;
+        var newTitle = input.value.trim();
+        if (!newTitle || !li.dataset.editUrl) { input.replaceWith(valueEl); return; }
+        _postEdit(li, {title: newTitle});
+    }
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        else if (e.key === 'Escape') { committed = true; input.replaceWith(valueEl); }
+    });
+    input.addEventListener('blur', commit);
+}
+
+function _renderDetailsPane(li) {
+    var pane = document.getElementById('details-pane');
+    var panel = document.getElementById('details-panel');
+    if (!pane || !panel || !li) return;
+
+    var tags = (li.dataset.todoTags || '').split(',').filter(Boolean);
+    var assignees = (li.dataset.todoAssignees || '').split(',').filter(Boolean);
+    var dueDate = li.dataset.dueDate || '';
+    var recurrence = li.dataset.recurrence || '';
+    var note = li.dataset.todoNote || '';
+    var links = JSON.parse(li.dataset.todoLinks || '[]');
+    var attachments = JSON.parse(li.dataset.attachments || '[]');
+    var panelUrl = li.dataset.protocolPanelUrl || '';
+
+    var html = '<div class="p-2">';
+
+    // Close button
+    html += '<div class="d-flex align-items-center mb-1 px-1">'
+          + '<button type="button" class="btn btn-sm btn-link text-muted p-0 ms-auto details-close-btn" title="Close (Esc)">'
+          + '<i class="bi bi-x-lg"></i></button></div>';
+
+    // Title: full width, no label
+    html += '<div class="details-field-row details-field--text mb-2" data-field="text">'
+          + '<span class="details-field-value fw-semibold">' + _escHtml(li.dataset.todoText || '') + '</span>'
+          + '</div>';
+
+    // Tags: only when non-empty
+    if (tags.length) {
+        var tagPills = tags.map(function(t) {
+            return '<span class="details-tag-pill">#' + _escHtml(t) + '</span>';
+        }).join('');
+        html += '<div class="details-field-row details-field--tags" data-field="tags">'
+              + '<span class="details-field-label">Tags</span>'
+              + '<span class="details-field-value">' + tagPills + '</span>'
+              + '</div>';
+    }
+
+    // Due + Recurrence: combined when both present, individual otherwise
+    if (dueDate && recurrence) {
+        html += '<div class="d-flex">'
+              + '<div class="details-field-row details-field--due flex-fill" data-field="due">'
+              + '<span class="details-field-label">Due</span>'
+              + '<span class="details-field-value">' + _escHtml(dueDate) + '</span>'
+              + '</div>'
+              + '<div class="details-field-row details-field--rec flex-fill" data-field="rec">'
+              + '<span class="details-field-label">Repeat</span>'
+              + '<span class="details-field-value">' + _escHtml(recurrence) + '</span>'
+              + '</div>'
+              + '</div>';
+    } else if (dueDate) {
+        html += '<div class="details-field-row details-field--due" data-field="due">'
+              + '<span class="details-field-label">Due</span>'
+              + '<span class="details-field-value">' + _escHtml(dueDate) + '</span>'
+              + '</div>';
+    } else if (recurrence) {
+        html += '<div class="details-field-row details-field--rec" data-field="rec">'
+              + '<span class="details-field-label">Repeat</span>'
+              + '<span class="details-field-value">' + _escHtml(recurrence) + '</span>'
+              + '</div>';
+    }
+
+    // Note: only when non-empty
+    if (note) {
+        html += '<div class="details-field-row details-field--note" data-field="note">'
+              + '<span class="details-field-label">Note</span>'
+              + '<span class="details-field-value">' + _escHtml(note) + '</span>'
+              + '</div>';
+    }
+
+    // Assignees: only when non-empty
+    if (assignees.length) {
+        var assigneeText = assignees.map(function(a) { return '@' + _escHtml(a); }).join(' ');
+        html += '<div class="details-field-row details-field--assignees" data-field="assignees">'
+              + '<span class="details-field-label">Assigned</span>'
+              + '<span class="details-field-value">' + assigneeText + '</span>'
+              + '</div>';
+    }
+
+    // Links: only when non-empty, with per-link edit/remove
+    if (links.length) {
+        var linkItems = links.map(function(l, idx) {
+            var m = l.match(/^\[([^\]]*)]\(([^)]+)\)$/);
+            var href = m ? m[2] : l;
+            var label = m ? (m[1] || href) : href;
+            return '<span class="me-1 text-nowrap">'
+                + '<a href="' + _escHtml(href) + '" target="_blank" rel="noopener noreferrer" class="small">' + _escHtml(label) + '</a>'
+                + ' <button type="button" class="btn btn-link btn-sm p-0 details-link-edit" data-link-idx="' + idx + '" title="Edit">'
+                + '<i class="bi bi-pencil" style="font-size:0.6rem;vertical-align:middle"></i></button>'
+                + '<button type="button" class="btn btn-link btn-sm p-0 text-danger details-link-remove" data-link-idx="' + idx + '" title="Remove">'
+                + '<i class="bi bi-x" style="font-size:0.75rem;vertical-align:middle"></i></button>'
+                + '</span>';
+        }).join('');
+        html += '<div class="details-field-row details-field--links" data-field="links">'
+              + '<span class="details-field-label">Links</span>'
+              + '<span class="details-field-value">' + linkItems + '</span></div>';
+    }
+
+    // Attachments: only when present
+    if (attachments.length) {
+        var thumbHtml = attachments.map(function(a) {
+            return '<img src="' + _escHtml(a.thumb_url || '') + '" alt="' + _escHtml(a.filename || '') + '" class="todo-attachment-thumb me-1" style="height:2.5rem;width:auto;border-radius:0.25rem;">';
+        }).join('');
+        html += '<div class="details-field-row details-field--attachments">'
+              + '<span class="details-field-label">Files</span>'
+              + '<span class="details-field-value">' + thumbHtml + '</span>'
+              + '</div>';
+    }
+
+    // "Add field" row: chips for each absent field
+    var missingFields = [];
+    if (!dueDate) missingFields.push({field: 'due', label: 'date'});
+    if (!recurrence) missingFields.push({field: 'rec', label: 'repeat'});
+    if (!tags.length) missingFields.push({field: 'tags', label: 'tags'});
+    if (!note) missingFields.push({field: 'note', label: 'note'});
+    if (!assignees.length) missingFields.push({field: 'assignees', label: 'assign'});
+    if (!links.length) missingFields.push({field: 'links', label: 'link'});
+    if (missingFields.length) {
+        var addChips = missingFields.map(function(f) {
+            return '<button type="button" class="details-add-field-btn btn btn-sm btn-outline-secondary py-0 px-2"'
+                + ' style="font-size:0.7rem;border-radius:9999px;" data-field="' + f.field + '">+ ' + f.label + '</button>';
+        }).join(' ');
+        html += '<div class="details-add-fields-row px-3 py-1 d-flex flex-wrap gap-1">' + addChips + '</div>';
+    }
+
+    // Protocol run section placeholder
+    if (panelUrl) {
+        html += '<div class="details-run-section"><div class="details-run-content p-2"></div></div>';
+    }
+
+    html += '</div>';
+    panel.innerHTML = html;
+    pane.classList.remove('d-none');
+    if (window.innerWidth < 992) {
+        if (!document.getElementById('run-panel-backdrop')) {
+            var bd = document.createElement('div');
+            bd.id = 'run-panel-backdrop';
+            bd.addEventListener('click', closeDetailsPane);
+            document.body.appendChild(bd);
+        }
+    }
+
+    // Load protocol run section if applicable
+    if (panelUrl) {
+        var today = new Date().toISOString().slice(0, 10);
+        var runStarted = li.dataset.runStarted === 'true';
+        var isOverdueOrToday = !dueDate || dueDate <= today;
+        var runContent = panel.querySelector('.details-run-content');
+        if (runStarted || isOverdueOrToday) {
+            fetch(panelUrl + '?inline=1')
+                .then(function(r) { return r.text(); })
+                .then(function(html) {
+                    if (runContent && runContent.isConnected) {
+                        runContent.innerHTML = html;
+                        htmx.process(runContent);
+                        _runCurrentIdx = 0;
+                        _runHighlight();
+                    }
+                });
+        } else {
+            if (runContent) {
+                runContent.innerHTML = '<div class="p-2 text-center">'
+                    + '<button class="btn btn-sm btn-outline-secondary details-start-run" data-panel-url="' + _escHtml(panelUrl) + '">Start run now</button>'
+                    + '</div>';
+            }
+        }
+    }
+}
+
+function _escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function _updateDetailsPane() {
+    var checked = Array.from(document.querySelectorAll('input.todo-checkbox:checked'));
+    var pane = document.getElementById('details-pane');
+    var panel = document.getElementById('details-panel');
+    if (!pane || !panel) return;
+    if (checked.length === 0) {
+        closeDetailsPane();
+    } else if (checked.length === 1) {
+        var li = checked[0].closest('.todo-item');
+        _detailsItemId = li ? li.id.replace('todo-', '') : null;
+        _renderDetailsPane(li);
+    } else {
+        _detailsItemId = null;
+        panel.innerHTML = '<div class="p-3 text-muted small">'
+            + checked.length + ' selected&nbsp;&nbsp;'
+            + '<a href="#" class="details-clear-sel text-muted">Clear selection</a></div>';
+        pane.classList.remove('d-none');
+    }
+}
+
+// Checkbox change → update details pane
+document.addEventListener('change', function(e) {
+    if (!e.target.classList.contains('todo-checkbox')) return;
+    _updateDetailsPane();
 });
 
-// Refresh todo list after every run-panel action; auto-close when all resolved.
+// Protocol link badge click: select the item and open details pane (run loads inline)
+document.addEventListener('click', function(e) {
+    var link = e.target.closest('.todo-protocol-link');
+    if (!link) return;
+    e.preventDefault();
+    var li = link.closest('.todo-item');
+    if (!li) return;
+    var cb = li.querySelector('.todo-checkbox');
+    if (cb) {
+        document.querySelectorAll('input.todo-checkbox:checked').forEach(function(other) {
+            if (other !== cb) { other.checked = false; }
+        });
+        cb.checked = true;
+        _updateDetailsPane();
+    }
+});
+
+// "Clear selection" link in multi-select view
+document.addEventListener('click', function(e) {
+    if (!e.target.classList.contains('details-clear-sel')) return;
+    e.preventDefault();
+    document.querySelectorAll('input.todo-checkbox:checked').forEach(function(cb) { cb.checked = false; });
+    closeDetailsPane();
+});
+
+// Details pane close button
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.details-close-btn')) return;
+    document.querySelectorAll('input.todo-checkbox:checked').forEach(function(cb) { cb.checked = false; });
+    closeDetailsPane();
+});
+
+// "Start run now" button
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.details-start-run');
+    if (!btn) return;
+    e.preventDefault();
+    var panelUrl = btn.dataset.panelUrl;
+    if (!panelUrl) return;
+    var runContent = btn.closest('.details-run-content');
+    if (runContent) runContent.innerHTML = '<div class="p-2 text-muted small">Loading…</div>';
+    fetch(panelUrl + '?inline=1')
+        .then(function(r) { return r.text(); })
+        .then(function(html) {
+            if (runContent && runContent.isConnected) {
+                runContent.innerHTML = html;
+                htmx.process(runContent);
+                _runCurrentIdx = 0;
+                _runHighlight();
+            }
+        });
+});
+
+// Details pane field click handlers (generic — specific buttons handled below)
+document.addEventListener('click', function(e) {
+    var row = e.target.closest('.details-field-row[data-field]');
+    if (!row) return;
+    if (e.target.closest('a') || e.target.closest('input') || e.target.closest('button')) return;
+    var li = _detailsItemId ? document.getElementById('todo-' + _detailsItemId) : null;
+    if (!li) return;
+    var field = row.dataset.field;
+    if (field === 'text') {
+        _detailsTitleEdit(li);
+    } else if (field === 'tags') {
+        openTagsPicker(li, row);
+    } else if (field === 'due') {
+        openSetDuePicker(li, row);
+    } else if (field === 'rec') {
+        openSetRecurrencePicker(li, row);
+    } else if (field === 'note') {
+        openNotePicker({
+            anchorEl: row,
+            initialNote: li.dataset.todoNote || '',
+            title: 'Note',
+            onCommit: function(val) { _postEdit(li, {note: val}); }
+        });
+    } else if (field === 'assignees') {
+        openAssigneesPicker(li, row);
+    } else if (field === 'links') {
+        var linksNow = JSON.parse(li.dataset.todoLinks || '[]');
+        var linksAnchor = row;
+        openLinkPicker({
+            anchorEl: linksAnchor,
+            onCommit: function(newLink) { _postEdit(li, {links: linksNow.concat([newLink])}); }
+        });
+    }
+});
+
+// Details pane: link edit/remove/add buttons
+document.addEventListener('click', function(e) {
+    var li = _detailsItemId ? document.getElementById('todo-' + _detailsItemId) : null;
+    if (!li) return;
+
+    var editBtn = e.target.closest('.details-link-edit');
+    if (editBtn) {
+        e.preventDefault(); e.stopPropagation();
+        var idx = parseInt(editBtn.dataset.linkIdx, 10);
+        var links = JSON.parse(li.dataset.todoLinks || '[]');
+        var row = editBtn.closest('.details-field--links');
+        openLinkPicker({
+            anchorEl: row || editBtn,
+            initialLink: links[idx] || '',
+            onCommit: function(newLink) {
+                var updated = links.slice(); updated[idx] = newLink;
+                _postEdit(li, {links: updated});
+            }
+        });
+        return;
+    }
+
+    var removeBtn = e.target.closest('.details-link-remove');
+    if (removeBtn) {
+        e.preventDefault(); e.stopPropagation();
+        var idx = parseInt(removeBtn.dataset.linkIdx, 10);
+        var links = JSON.parse(li.dataset.todoLinks || '[]');
+        _postEdit(li, {links: links.filter(function(_, i) { return i !== idx; })});
+        return;
+    }
+
+    var addBtn = e.target.closest('.details-add-link');
+    if (addBtn) {
+        e.preventDefault(); e.stopPropagation();
+        var links = JSON.parse(li.dataset.todoLinks || '[]');
+        var row = addBtn.closest('.details-field--links');
+        openLinkPicker({
+            anchorEl: row || addBtn,
+            onCommit: function(newLink) { _postEdit(li, {links: links.concat([newLink])}); }
+        });
+        return;
+    }
+});
+
+// Details pane: "Add field" chip buttons
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.details-add-field-btn');
+    if (!btn) return;
+    e.preventDefault();
+    var li = _detailsItemId ? document.getElementById('todo-' + _detailsItemId) : null;
+    if (!li) return;
+    var field = btn.dataset.field;
+    var anchor = btn.closest('.details-add-fields-row') || btn;
+    if (field === 'due') {
+        openSetDuePicker(li, anchor);
+    } else if (field === 'rec') {
+        openSetRecurrencePicker(li, anchor);
+    } else if (field === 'tags') {
+        openTagsPicker(li, anchor);
+    } else if (field === 'note') {
+        openNotePicker({
+            anchorEl: anchor,
+            initialNote: li.dataset.todoNote || '',
+            title: 'Note',
+            onCommit: function(val) { _postEdit(li, {note: val}); }
+        });
+    } else if (field === 'assignees') {
+        openAssigneesPicker(li, anchor);
+    } else if (field === 'links') {
+        var lLinks = JSON.parse(li.dataset.todoLinks || '[]');
+        openLinkPicker({
+            anchorEl: anchor,
+            onCommit: function(newLink) { _postEdit(li, {links: lLinks.concat([newLink])}); }
+        });
+    }
+});
+
+// Refresh todo list after every run-panel action; auto-close details pane when run is resolved.
 document.body.addEventListener('htmx:afterSwap', function(e) {
     var target = e.detail && e.detail.target;
-    if (!target || target.id !== 'protocol-run') return;
-    var list = document.getElementById('todo-list');
-    var groupsUrl = list && list.dataset.groupsUrl;
-    if (!target.querySelector('.protocol-run-item')) {
-        setTimeout(function() {
-            closeRunPanel();
-            if (groupsUrl && list) {
-                htmx.ajax('GET', groupsUrl, {target: list, swap: 'innerHTML'});
+    if (!target) return;
+
+    if (target.id === 'protocol-run') {
+        var list = document.getElementById('todo-list');
+        var groupsUrl = list && list.dataset.groupsUrl;
+        if (!target.querySelector('.protocol-run-item')) {
+            setTimeout(function() {
+                closeDetailsPane();
+                if (groupsUrl && list) {
+                    htmx.ajax('GET', groupsUrl, {target: list, swap: 'innerHTML'});
+                }
+            }, 900);
+        } else if (groupsUrl && list) {
+            htmx.ajax('GET', groupsUrl, {target: list, swap: 'innerHTML'});
+        }
+        return;
+    }
+
+    if (target.id === 'todo-list' && _detailsItemId) {
+        var li = document.getElementById('todo-' + _detailsItemId);
+        if (li) {
+            var cb = li.querySelector('.todo-checkbox');
+            if (cb) {
+                cb.checked = true;
+                _renderDetailsPane(li);
             }
-        }, 900);
-    } else if (groupsUrl && list) {
-        htmx.ajax('GET', groupsUrl, {target: list, swap: 'innerHTML'});
+        } else {
+            closeDetailsPane();
+        }
     }
 });
 
@@ -1267,9 +1902,10 @@ document.addEventListener('keydown', function(e) {
     else if (e.key === 'e') { e.preventDefault(); _runFire('edit'); }
     else if (e.key === 'Escape') {
         e.preventDefault();
-        var pane = document.getElementById('run-pane');
+        var pane = document.getElementById('details-pane');
         if (pane && !pane.classList.contains('d-none')) {
-            closeRunPanel();
+            document.querySelectorAll('input.todo-checkbox:checked').forEach(function(cb) { cb.checked = false; });
+            closeDetailsPane();
         } else {
             var run = document.getElementById('protocol-run');
             if (run && run.dataset.todoRoute) location.href = run.dataset.todoRoute;
