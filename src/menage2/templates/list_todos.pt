@@ -2,6 +2,19 @@
   <span metal:fill-slot="title-mobile">TODO</span>
   <div metal:fill-slot="title">TODO</div>
 
+  <span metal:fill-slot="actions">
+    <form
+      tal:condition="on_hold_count"
+      method="post"
+      action="${request.route_url('todos_activate_all_on_hold')}"
+      class="d-inline m-0"
+    >
+      <button type="submit" class="btn btn-sm btn-dark text-nowrap">
+        <i class="bi bi-arrow-clockwise"></i> Activate all
+      </button>
+    </form>
+  </span>
+
   <div metal:fill-slot="content" class="container-fluid px-0 px-md-3 pt-3">
     <!-- Filter toggle bar -->
     <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
