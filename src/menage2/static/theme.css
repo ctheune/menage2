@@ -790,6 +790,11 @@ body {
     }
 }
 
+/* Remove lined background from the run panel (inherited from todo-list-wrap) */
+.run-panel-wrap {
+    background-image: none;
+}
+
 /* Run panel header */
 .run-panel-header {
     background-color: #fff;

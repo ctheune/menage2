@@ -1207,7 +1207,7 @@ document.body.addEventListener('htmx:afterSwap', function(e) {
         var run = document.getElementById('protocol-run');
         if (!url || !run) return;
         e.preventDefault();
-        htmx.ajax('POST', url, {target: run, swap: 'innerHTML'});
+        htmx.ajax('POST', url, {target: run, swap: 'innerHTML transition:true'});
     });
 }());
 

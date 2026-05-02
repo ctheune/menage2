@@ -391,7 +391,7 @@ def show_protocol_run(request):
     run = _get_or_404(request, ProtocolRun)
     if run.opened_at is None:
         _snapshot_run_items(run, request.dbsession)
-    items = sorted(run.items, key=lambda i: i.position)
+    items = _sorted_run_items(run)
     items_html = _render_run_partial(request, run, items)
     return {
         "run": run,
@@ -405,7 +405,7 @@ def show_protocol_run_panel(request):
     run = _get_or_404(request, ProtocolRun)
     if run.opened_at is None:
         _snapshot_run_items(run, request.dbsession)
-    items = sorted(run.items, key=lambda i: i.position)
+    items = _sorted_run_items(run)
     items_html = _render_run_partial(request, run, items)
     body = render(
         "menage2:templates/protocols/_run_panel.pt",
@@ -439,6 +439,13 @@ def _maybe_close_run(run, dbsession, now):
         spawn_protocol_every_on_completion(run, today, now, dbsession)
 
 
+def _sorted_run_items(run: ProtocolRun) -> list[ProtocolRunItem]:
+    return sorted(
+        run.items,
+        key=lambda i: (i.status != ProtocolRunItemStatus.pending, i.position),
+    )
+
+
 def _render_run_partial(request, run, items):
     return render(
         "menage2:templates/protocols/_run_items.pt",
@@ -454,7 +461,7 @@ def _render_run_partial(request, run, items):
 
 
 def _run_partial_response(request, run):
-    items = sorted(run.items, key=lambda i: i.position)
+    items = _sorted_run_items(run)
     body = _render_run_partial(request, run, items)
     request.response.content_type = "text/html"
     request.response.text = body

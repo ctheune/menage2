@@ -36,6 +36,49 @@ def _make_protocol(dbsession, admin_user, title="Weekly inventory", items=()):
 
 
 # ---------------------------------------------------------------------------
+# Unit tests (no DB)
+# ---------------------------------------------------------------------------
+
+
+def test_sorted_run_items_pending_first():
+    from types import SimpleNamespace
+
+    from menage2.views.protocol import _sorted_run_items
+
+    done = SimpleNamespace(status=ProtocolRunItemStatus.done, position=0)
+    sent = SimpleNamespace(status=ProtocolRunItemStatus.sent_to_todo, position=1)
+    pending_a = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=2)
+    pending_b = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=3)
+
+    run = SimpleNamespace(items=[done, sent, pending_a, pending_b])
+    result = _sorted_run_items(run)
+
+    assert result[0] is pending_a
+    assert result[1] is pending_b
+    assert result[2] is done
+    assert result[3] is sent
+
+
+def test_sorted_run_items_preserves_position_within_group():
+    from types import SimpleNamespace
+
+    from menage2.views.protocol import _sorted_run_items
+
+    pending_2 = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=2)
+    pending_0 = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=0)
+    done_1 = SimpleNamespace(status=ProtocolRunItemStatus.done, position=1)
+    done_3 = SimpleNamespace(status=ProtocolRunItemStatus.done, position=3)
+
+    run = SimpleNamespace(items=[pending_2, done_3, pending_0, done_1])
+    result = _sorted_run_items(run)
+
+    assert result[0] is pending_0
+    assert result[1] is pending_2
+    assert result[2] is done_1
+    assert result[3] is done_3
+
+
+# ---------------------------------------------------------------------------
 # Protocol CRUD endpoints
 # ---------------------------------------------------------------------------
 
