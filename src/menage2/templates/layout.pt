@@ -228,5 +228,7 @@
     </div>
   </div>
 
+  <div id="details-backdrop" _="on click call closeDetailsPane()"></div>
+
   </body>
 </html>

@@ -773,13 +773,18 @@ body {
         left: 0;
         right: 0;
         z-index: 500;
-        max-height: 60vh;
+        max-height: 80vh;
         overflow-y: auto;
     }
     .details-pane .todo-list-wrap {
         border-radius: 0.75rem 0.75rem 0 0 !important;
         box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
         min-height: 0 !important;
+    }
+
+    /* Show backdrop whenever the details pane is visible on mobile */
+    body:has(.details-pane:not(.d-none)) #details-backdrop {
+        display: block;
     }
 }
 
@@ -841,6 +846,15 @@ body {
 
 /* Backdrop injected on mobile when panel is open */
 #run-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 499;
+}
+
+/* Permanent backdrop element; shown via :has() rule above when pane is visible on mobile */
+#details-backdrop {
+    display: none;
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.4);

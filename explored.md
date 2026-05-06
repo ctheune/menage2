@@ -10,6 +10,7 @@
 - The tasks sub-nav `<ul id="task-subnav-tabs">` (lines ~106–165) carries HTMX attributes when `in_tasks`:
   `hx-get=/todos/subnav`, `hx-trigger="todo-updated from:body"`, `hx-swap="innerHTML"`.
   On `todo-updated` it fetches fresh `<li>` items and replaces the `<ul>`'s innerHTML.
+- Contains a permanent `<div id="details-backdrop">` near `</body>` with hyperscript `on click call closeDetailsPane()`. Visibility is CSS-controlled via `:has()` — shown automatically on mobile whenever `.details-pane:not(.d-none)` exists.
 
 ### `src/menage2/format.py`
 - `_TASKS_ROUTES` frozenset — all routes where task sub-nav counts should be computed.
@@ -53,6 +54,23 @@
 
 ### `src/menage2/templates/_todo_groups.pt`
 - Used both for the initial `groups_html` render (via `list_todos` view) and for HTMX refresh (via `list_todo_groups`).
+- The outer `<form>` drives the details pane: `hx-get` → `todo_details_panel`, `hx-trigger="change"`, `hx-target="#details-pane"`, `hx-swap="outerHTML"`. Checkbox change loads the panel; hyperscript on the form handles `todo-closed` (adds `d-none` to `#details-pane`).
+
+### `src/menage2/templates/_todo_details_panel.pt`
+- Server-rendered details/edit panel for a single todo. Outer element is `<div class="details-pane" id="details-pane">` (no `d-none`), so HTMX outerHTML swap makes it visible instantly.
+- Contains a `.details-close-btn` that calls `closeDetailsPane()` via JS event delegation in `menage.js`.
+- `_todo_details_panel_empty.pt` — same outer shell but with `d-none`, used when no item is selected.
+- `_todo_details_panel_multiple.pt` — shown when multiple checkboxes are checked.
+
+## Mobile Details Pane / Backdrop
+
+### `src/menage2/static/theme.css`
+- On mobile (`max-width: 991px`): `.details-pane:not(.d-none)` is `position: fixed; bottom: 0; max-height: 80vh; z-index: 500`.
+- `#details-backdrop`: permanent hidden element (`display: none`); shown via `body:has(.details-pane:not(.d-none)) #details-backdrop { display: block }` CSS rule inside the mobile media query. Sits at `z-index: 499`.
+
+### `src/menage2/static/menage.js`
+- `closeDetailsPane()` — adds `d-none` to `#details-pane`, clears `#details-panel` innerHTML, removes any legacy `#run-panel-backdrop` element (dynamic injection from before the HTMX refactor; the permanent `#details-backdrop` is now hidden by CSS automatically when `d-none` is on the pane).
+- `closeRunPanel()` — alias for `closeDetailsPane()` kept for template compatibility.
 
 ## HTMX / Hyperscript Patterns
 
