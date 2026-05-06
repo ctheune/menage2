@@ -43,6 +43,7 @@ def dashboard(request):
             "dashboard_pt_departures", token=token
         ),
         "dashboard_pt_hbf_url": request.route_url("dashboard_pt_hbf", token=token),
+        "dashboard_timers_url": request.route_url("timers", token=token),
     }
 
 

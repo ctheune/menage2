@@ -52,6 +52,7 @@ def _make_todo(dbsession, **kwargs):
         tags=kwargs.pop("tags", set()),
         status=kwargs.pop("status", TodoStatus.todo),
         created_at=kwargs.pop("created_at", _now()),
+        owner=kwargs.pop("owner"),
         **kwargs,
     )
     dbsession.add(todo)
@@ -78,10 +79,14 @@ def test_spec_rule_roundtrip(dbsession):
 # ---------------------------------------------------------------------------
 
 
-def test_spawn_after_creates_clone_with_new_due_date(dbsession):
+def test_spawn_after_creates_clone_with_new_due_date(dbsession, admin_user):
     rule = _make_rule(dbsession, "after", "week", n=1)
     parent = _make_todo(
-        dbsession, text="Water plants", tags={"chores"}, recurrence_id=rule.id
+        dbsession,
+        text="Water plants",
+        tags={"chores"},
+        recurrence_id=rule.id,
+        owner=admin_user,
     )
     completion = datetime.date(2026, 5, 10)
     new = spawn_after(parent, completion, _now(), dbsession)
@@ -94,9 +99,9 @@ def test_spawn_after_creates_clone_with_new_due_date(dbsession):
     assert new.due_date == datetime.date(2026, 5, 17)
 
 
-def test_spawn_after_returns_none_for_non_after_rule(dbsession):
+def test_spawn_after_returns_none_for_non_after_rule(dbsession, admin_user):
     rule = _make_rule(dbsession, "every", "week", n=1)
-    parent = _make_todo(dbsession, recurrence_id=rule.id)
+    parent = _make_todo(dbsession, recurrence_id=rule.id, owner=admin_user)
     assert spawn_after(parent, datetime.date(2026, 5, 1), _now(), dbsession) is None
 
 

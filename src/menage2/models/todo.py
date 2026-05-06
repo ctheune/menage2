@@ -116,7 +116,7 @@ class Todo(Base):
     # Deprecated: Use TodoLink relationship instead. Kept for migration purposes.
     links = Column(LinkList, nullable=False, server_default="{}")
 
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     assignees = Column(TagSet, nullable=False, server_default="{}")
 
     recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)

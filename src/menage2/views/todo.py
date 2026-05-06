@@ -551,7 +551,14 @@ def _bump_due_date(
     current: datetime.date | None, today: datetime.date, interval: str
 ) -> datetime.date:
     """Apply a postpone interval, snapping overdue items to today first."""
-    base = current if (current is not None and current > today) else today
+    if current is None:
+        base = today
+    elif current >= today:
+        base = current
+    else:
+        # Items from the past getting postponed by 1 day end
+        # up with today first.
+        base = today - datetime.timedelta(days=1)
     unit, n = _POSTPONE_INTERVALS[interval]
     if unit == "days":
         return base + datetime.timedelta(days=n)

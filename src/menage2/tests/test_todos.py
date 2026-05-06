@@ -46,13 +46,14 @@ def _today():
     return datetime.date.today()
 
 
-def _todo(text="Test", tags=None, status=TodoStatus.todo, **kwargs):
+def _todo(text="Test", tags=None, status=TodoStatus.todo, owner_id=1, **kwargs):
     """Helper to build an unsaved Todo."""
     return Todo(
         text=text,
         tags=tags if tags is not None else set(),
         status=status,
         created_at=_now(),
+        owner_id=owner_id,
         **kwargs,
     )
 
@@ -390,8 +391,8 @@ def test_build_tag_tree_prefix_parent_node_is_empty():
         (datetime.date(2026, 5, 5), "1d", "2026-05-06"),
         (datetime.date(2026, 5, 5), "2w", "2026-05-19"),
         # Overdue → snap to today first
-        (datetime.date(2026, 4, 1), "1d", "2026-04-30"),
-        (datetime.date(2026, 4, 1), "1w", "2026-05-06"),
+        (datetime.date(2026, 4, 1), "1d", "2026-04-29"),
+        (datetime.date(2026, 4, 1), "1w", "2026-05-05"),
         # Today → bump from today
         (datetime.date(2026, 4, 29), "3d", "2026-05-02"),
     ],
@@ -408,7 +409,7 @@ def test_bump_due_date(current, interval, expected):
 # ---------------------------------------------------------------------------
 
 
-def test_add_todo_creates_record(app_request, dbsession):
+def test_add_todo_creates_record(app_request, dbsession, admin_user):
     app_request.method = "POST"
     app_request.POST["text"] = "Buy milk #shopping"
     add_todo(app_request)
@@ -421,7 +422,7 @@ def test_add_todo_creates_record(app_request, dbsession):
     assert todo.due_date is None
 
 
-def test_add_todo_persists_due_date(app_request, dbsession):
+def test_add_todo_persists_due_date(app_request, dbsession, admin_user):
     app_request.method = "POST"
     app_request.POST["text"] = "Pay rent ^2030-05-01"
     add_todo(app_request)
@@ -430,7 +431,7 @@ def test_add_todo_persists_due_date(app_request, dbsession):
     assert todo.due_date == datetime.date(2030, 5, 1)
 
 
-def test_add_todo_empty_text_redirects(app_request, dbsession):
+def test_add_todo_empty_text_redirects(app_request, dbsession, admin_user):
     app_request.method = "POST"
     app_request.POST["text"] = "  "
     response = add_todo(app_request)
@@ -438,7 +439,7 @@ def test_add_todo_empty_text_redirects(app_request, dbsession):
     assert dbsession.query(Todo).count() == 0
 
 
-def test_add_todo_only_tags_returns_error(app_request, dbsession):
+def test_add_todo_only_tags_returns_error(app_request, dbsession, admin_user):
     app_request.method = "POST"
     app_request.POST["text"] = "#foo #bar"
     response = add_todo(app_request)
@@ -450,7 +451,7 @@ def test_add_todo_only_tags_returns_error(app_request, dbsession):
     assert dbsession.query(Todo).count() == 0
 
 
-def test_todos_done_sets_status_and_timestamp(app_request, dbsession):
+def test_todos_done_sets_status_and_timestamp(app_request, dbsession, admin_user):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
@@ -464,7 +465,7 @@ def test_todos_done_sets_status_and_timestamp(app_request, dbsession):
     assert todo.done_at.tzinfo is not None
 
 
-def test_todos_done_response_has_hx_trigger(app_request, dbsession):
+def test_todos_done_response_has_hx_trigger(app_request, dbsession, admin_user):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
@@ -479,7 +480,7 @@ def test_todos_done_response_has_hx_trigger(app_request, dbsession):
     assert trigger["showUndoToast"]["label"] == "Test"
 
 
-def test_todos_hold_sets_status(app_request, dbsession):
+def test_todos_hold_sets_status(app_request, dbsession, admin_user):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
@@ -493,7 +494,9 @@ def test_todos_hold_sets_status(app_request, dbsession):
     assert todo.on_hold_at.tzinfo is not None
 
 
-def test_todos_postpone_sets_due_date_one_day_default(app_request, dbsession):
+def test_todos_postpone_sets_due_date_one_day_default(
+    app_request, dbsession, admin_user
+):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
@@ -506,7 +509,7 @@ def test_todos_postpone_sets_due_date_one_day_default(app_request, dbsession):
     assert todo.status == TodoStatus.todo  # status untouched
 
 
-def test_todos_postpone_with_interval(app_request, dbsession):
+def test_todos_postpone_with_interval(app_request, dbsession, admin_user):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
@@ -519,7 +522,9 @@ def test_todos_postpone_with_interval(app_request, dbsession):
     assert todo.due_date == _today() + datetime.timedelta(days=7)
 
 
-def test_todos_postpone_overdue_snaps_to_today_first(app_request, dbsession):
+def test_todos_postpone_overdue_snaps_to_today_first(
+    app_request, dbsession, admin_user
+):
     todo = _todo(due_date=_today() - datetime.timedelta(days=5))
     dbsession.add(todo)
     dbsession.flush()
@@ -530,10 +535,10 @@ def test_todos_postpone_overdue_snaps_to_today_first(app_request, dbsession):
     dbsession.flush()
     dbsession.refresh(todo)
     # Overdue items snap to today, then +1 day.
-    assert todo.due_date == _today() + datetime.timedelta(days=1)
+    assert todo.due_date == _today()
 
 
-def test_todos_activate_batch_restores_status(app_request, dbsession):
+def test_todos_activate_batch_restores_status(app_request, dbsession, admin_user):
     todo = _todo(status=TodoStatus.done, done_at=_now())
     dbsession.add(todo)
     dbsession.flush()
@@ -546,7 +551,7 @@ def test_todos_activate_batch_restores_status(app_request, dbsession):
     assert todo.done_at is None
 
 
-def test_todos_done_marks_multiple(app_request, dbsession):
+def test_todos_done_marks_multiple(app_request, dbsession, admin_user):
     todos = [_todo(f"T{i}") for i in range(3)]
     for t in todos:
         dbsession.add(t)
@@ -560,7 +565,7 @@ def test_todos_done_marks_multiple(app_request, dbsession):
         assert t.status == TodoStatus.done
 
 
-def test_todos_activate_all_on_hold(app_request, dbsession):
+def test_todos_activate_all_on_hold(app_request, dbsession, admin_user):
     todos = [_todo(f"H{i}", status=TodoStatus.on_hold) for i in range(2)]
     for t in todos:
         dbsession.add(t)
@@ -573,8 +578,8 @@ def test_todos_activate_all_on_hold(app_request, dbsession):
         assert t.on_hold_at is None
 
 
-def test_todo_undo_reverts_done_to_todo(app_request, dbsession):
-    todo = _todo(status=TodoStatus.done, done_at=_now())
+def test_todo_undo_reverts_done_to_todo(app_request, dbsession, admin_user):
+    todo = _todo(status=TodoStatus.done, done_at=_now(), owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
     app_request.method = "POST"
@@ -587,8 +592,8 @@ def test_todo_undo_reverts_done_to_todo(app_request, dbsession):
     assert todo.done_at is None
 
 
-def test_todo_undo_reverts_on_hold_to_todo(app_request, dbsession):
-    todo = _todo(status=TodoStatus.on_hold, on_hold_at=_now())
+def test_todo_undo_reverts_on_hold_to_todo(app_request, dbsession, admin_user):
+    todo = _todo(status=TodoStatus.on_hold, on_hold_at=_now(), owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
     app_request.method = "POST"
@@ -601,8 +606,12 @@ def test_todo_undo_reverts_on_hold_to_todo(app_request, dbsession):
     assert todo.on_hold_at is None
 
 
-def test_todo_undo_returns_list_html_with_confirm_trigger(app_request, dbsession):
-    todo = _todo("Undo me", status=TodoStatus.done, done_at=_now())
+def test_todo_undo_returns_list_html_with_confirm_trigger(
+    app_request, dbsession, admin_user
+):
+    todo = _todo(
+        "Undo me", status=TodoStatus.done, done_at=_now(), owner_id=admin_user.id
+    )
     dbsession.add(todo)
     dbsession.flush()
     app_request.method = "POST"
@@ -615,7 +624,7 @@ def test_todo_undo_returns_list_html_with_confirm_trigger(app_request, dbsession
     assert trigger["showUndoConfirm"]["label"] == "Undo me"
 
 
-def test_list_todos_done_ordered_by_done_at(app_request, dbsession):
+def test_list_todos_done_ordered_by_done_at(app_request, dbsession, admin_user):
     now = _now()
     t1 = _todo(
         "First", status=TodoStatus.done, done_at=now - datetime.timedelta(seconds=60)
@@ -627,7 +636,7 @@ def test_list_todos_done_ordered_by_done_at(app_request, dbsession):
     assert info["todos"][0].text == "Second"
 
 
-def test_list_todos_only_shows_active(app_request, dbsession):
+def test_list_todos_only_shows_active(app_request, dbsession, admin_user):
     t_active = _todo("Active")
     t_done = _todo("Done", status=TodoStatus.done, done_at=_now())
     t_held = _todo("Held", status=TodoStatus.on_hold)
@@ -639,7 +648,7 @@ def test_list_todos_only_shows_active(app_request, dbsession):
     assert all_items[0].text == "Active"
 
 
-def test_list_todos_hides_future_dated(app_request, dbsession):
+def test_list_todos_hides_future_dated(app_request, dbsession, admin_user):
     today = _today()
     visible = _todo("Visible", due_date=today)
     overdue = _todo("Overdue", due_date=today - datetime.timedelta(days=2))
@@ -653,7 +662,7 @@ def test_list_todos_hides_future_dated(app_request, dbsession):
     assert texts == {"Visible", "Overdue", "Undated"}
 
 
-def test_list_todos_counts(app_request, dbsession):
+def test_list_todos_counts(app_request, dbsession, admin_user):
     today = _today()
     dbsession.add(_todo("H1", status=TodoStatus.on_hold))
     dbsession.add(_todo("H2", status=TodoStatus.on_hold))
@@ -664,7 +673,7 @@ def test_list_todos_counts(app_request, dbsession):
     assert info["scheduled_count"] == 1
 
 
-def test_list_todos_sorted_due_first_then_undated(app_request, dbsession):
+def test_list_todos_sorted_due_first_then_undated(app_request, dbsession, admin_user):
     today = _today()
     a_undated = _todo("A_undated", tags={"x"})
     b_due_today = _todo("B_today", tags={"x"}, due_date=today)
@@ -684,7 +693,7 @@ def test_list_todos_sorted_due_first_then_undated(app_request, dbsession):
 # ---------------------------------------------------------------------------
 
 
-def test_list_todos_scheduled_only_future(app_request, dbsession):
+def test_list_todos_scheduled_only_future(app_request, dbsession, admin_user):
     today = _today()
     today_item = _todo("Today", due_date=today)
     future = _todo("Future", due_date=today + datetime.timedelta(days=3))
@@ -696,7 +705,7 @@ def test_list_todos_scheduled_only_future(app_request, dbsession):
     assert [t.text for t in flat] == ["Future", "Far"]
 
 
-def test_list_todos_scheduled_grouped_by_date(app_request, dbsession):
+def test_list_todos_scheduled_grouped_by_date(app_request, dbsession, admin_user):
     today = _today()
     a = _todo("A", due_date=today + datetime.timedelta(days=2))
     b = _todo("B", due_date=today + datetime.timedelta(days=2))
@@ -714,7 +723,7 @@ def test_list_todos_scheduled_grouped_by_date(app_request, dbsession):
 # ---------------------------------------------------------------------------
 
 
-def test_set_due_date_with_natural_language(app_request, dbsession):
+def test_set_due_date_with_natural_language(app_request, dbsession, admin_user):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
@@ -727,7 +736,7 @@ def test_set_due_date_with_natural_language(app_request, dbsession):
     assert todo.due_date == _today() + datetime.timedelta(days=1)
 
 
-def test_set_due_date_clears_when_empty(app_request, dbsession):
+def test_set_due_date_clears_when_empty(app_request, dbsession, admin_user):
     todo = _todo(due_date=_today() + datetime.timedelta(days=2))
     dbsession.add(todo)
     dbsession.flush()
@@ -740,7 +749,7 @@ def test_set_due_date_clears_when_empty(app_request, dbsession):
     assert todo.due_date is None
 
 
-def test_set_due_date_invalid_input_returns_422(app_request, dbsession):
+def test_set_due_date_invalid_input_returns_422(app_request, dbsession, admin_user):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
@@ -843,7 +852,7 @@ def test_set_due_date_endpoint(authenticated_testapp, dbsession):
     assert todo.due_date == _today() + datetime.timedelta(days=1)
 
 
-def test_edit_todo_updates_text_and_tags(app_request, dbsession):
+def test_edit_todo_updates_text_and_tags(app_request, dbsession, admin_user):
     todo = _todo("Old text", {"old-tag"})
     dbsession.add(todo)
     dbsession.flush()
@@ -857,7 +866,7 @@ def test_edit_todo_updates_text_and_tags(app_request, dbsession):
     assert todo.tags == {"new-tag"}
 
 
-def test_add_todo_saves_note(app_request, dbsession):
+def test_add_todo_saves_note(app_request, dbsession, admin_user):
     app_request.method = "POST"
     app_request.POST["text"] = "Buy milk ~get organic"
     add_todo(app_request)
@@ -866,7 +875,7 @@ def test_add_todo_saves_note(app_request, dbsession):
     assert todo.note == "get organic"
 
 
-def test_edit_todo_saves_note(app_request, dbsession):
+def test_edit_todo_saves_note(app_request, dbsession, admin_user):
     todo = _todo("Old text")
     dbsession.add(todo)
     dbsession.flush()
@@ -880,7 +889,7 @@ def test_edit_todo_saves_note(app_request, dbsession):
     assert todo.note == "a note"
 
 
-def test_edit_todo_only_tags_returns_422(app_request, dbsession):
+def test_edit_todo_only_tags_returns_422(app_request, dbsession, admin_user):
     todo = _todo("Something")
     dbsession.add(todo)
     dbsession.flush()
@@ -957,7 +966,7 @@ def test_parse_todo_input_unparseable_recurrence_kept_as_text():
     assert "*blah blah" in parsed.text
 
 
-def test_add_todo_creates_recurrence_rule(app_request, dbsession):
+def test_add_todo_creates_recurrence_rule(app_request, dbsession, admin_user):
     app_request.method = "POST"
     app_request.POST["text"] = "Water plants *every week"
     add_todo(app_request)
@@ -970,7 +979,7 @@ def test_add_todo_creates_recurrence_rule(app_request, dbsession):
     assert rule.interval_value == 1
 
 
-def test_edit_todo_updates_existing_rule_in_place(app_request, dbsession):
+def test_edit_todo_updates_existing_rule_in_place(app_request, dbsession, admin_user):
     rule = RecurrenceRule(
         kind=RecurrenceKind.every,
         interval_value=1,
@@ -992,7 +1001,7 @@ def test_edit_todo_updates_existing_rule_in_place(app_request, dbsession):
     assert rule.interval_value == 2
 
 
-def test_edit_todo_clears_recurrence_when_dropped(app_request, dbsession):
+def test_edit_todo_clears_recurrence_when_dropped(app_request, dbsession, admin_user):
     rule = RecurrenceRule(
         kind=RecurrenceKind.every,
         interval_value=1,
@@ -1012,7 +1021,7 @@ def test_edit_todo_clears_recurrence_when_dropped(app_request, dbsession):
     assert todo.recurrence_id is None
 
 
-def test_todos_done_spawns_after_instance(app_request, dbsession):
+def test_todos_done_spawns_after_instance(app_request, dbsession, admin_user):
     rule = RecurrenceRule(
         kind=RecurrenceKind.after,
         interval_value=1,
@@ -1034,7 +1043,7 @@ def test_todos_done_spawns_after_instance(app_request, dbsession):
     assert children[0].due_date == _today() + datetime.timedelta(days=7)
 
 
-def test_todos_done_spawns_every_instance(app_request, dbsession):
+def test_todos_done_spawns_every_instance(app_request, dbsession, admin_user):
     """Completing the only active in an every-chain must spawn the next."""
     rule = RecurrenceRule(
         kind=RecurrenceKind.every,
@@ -1069,7 +1078,7 @@ def test_todos_done_spawns_every_instance(app_request, dbsession):
 # ---------------------------------------------------------------------------
 
 
-def test_set_recurrence_creates_rule(app_request, dbsession):
+def test_set_recurrence_creates_rule(app_request, dbsession, admin_user):
     todo = _todo("Subject")
     dbsession.add(todo)
     dbsession.flush()
@@ -1083,7 +1092,7 @@ def test_set_recurrence_creates_rule(app_request, dbsession):
     assert todo.recurrence.weekday == 2
 
 
-def test_set_recurrence_clears_when_empty(app_request, dbsession):
+def test_set_recurrence_clears_when_empty(app_request, dbsession, admin_user):
     rule = RecurrenceRule(
         kind=RecurrenceKind.every,
         interval_value=1,
@@ -1103,7 +1112,7 @@ def test_set_recurrence_clears_when_empty(app_request, dbsession):
     assert todo.recurrence_id is None
 
 
-def test_set_recurrence_invalid_returns_422(app_request, dbsession):
+def test_set_recurrence_invalid_returns_422(app_request, dbsession, admin_user):
     todo = _todo("Subject")
     dbsession.add(todo)
     dbsession.flush()
@@ -1151,7 +1160,9 @@ def test_recurrence_history_returns_chain(authenticated_testapp, dbsession):
     assert b"Repetition history" in res.body
 
 
-def test_list_todos_runs_daily_sweep_creating_future_instance(app_request, dbsession):
+def test_list_todos_runs_daily_sweep_creating_future_instance(
+    app_request, dbsession, admin_user
+):
     rule = RecurrenceRule(
         kind=RecurrenceKind.every,
         interval_value=1,
@@ -1184,7 +1195,7 @@ def test_list_todos_runs_daily_sweep_creating_future_instance(app_request, dbses
 # ---------------------------------------------------------------------------
 
 
-def test_set_tags_updates_tags(app_request, dbsession):
+def test_set_tags_updates_tags(app_request, dbsession, admin_user):
     todo = _todo("Buy groceries", tags={"old"})
     dbsession.add(todo)
     dbsession.flush()
@@ -1197,7 +1208,7 @@ def test_set_tags_updates_tags(app_request, dbsession):
     assert todo.tags == {"shopping", "food"}
 
 
-def test_set_tags_clears_all_tags(app_request, dbsession):
+def test_set_tags_clears_all_tags(app_request, dbsession, admin_user):
     todo = _todo("Clean up", tags={"chore", "home"})
     dbsession.add(todo)
     dbsession.flush()
@@ -1210,7 +1221,7 @@ def test_set_tags_clears_all_tags(app_request, dbsession):
     assert todo.tags == set()
 
 
-def test_set_tags_returns_html(app_request, dbsession):
+def test_set_tags_returns_html(app_request, dbsession, admin_user):
     todo = _todo("Write tests")
     dbsession.add(todo)
     dbsession.flush()
@@ -1222,7 +1233,7 @@ def test_set_tags_returns_html(app_request, dbsession):
     assert b"<" in response.body
 
 
-def test_set_tags_unknown_id_returns_404(app_request):
+def test_set_tags_unknown_id_returns_404(app_request, admin_user):
     app_request.matchdict = {"id": "99999"}
     app_request.method = "POST"
     app_request.POST["tags"] = "test"
@@ -1244,7 +1255,7 @@ def _json_request(app_request, todo_id, body: dict):
     return app_request
 
 
-def test_todo_update_sets_note(app_request, dbsession):
+def test_todo_update_sets_note(app_request, dbsession, admin_user):
     todo = _todo("Buy milk")
     dbsession.add(todo)
     dbsession.flush()
@@ -1255,7 +1266,7 @@ def test_todo_update_sets_note(app_request, dbsession):
     assert todo.note == "get organic"
 
 
-def test_todo_update_clears_note(app_request, dbsession):
+def test_todo_update_clears_note(app_request, dbsession, admin_user):
     todo = _todo("Buy milk", note="old note")
     dbsession.add(todo)
     dbsession.flush()
@@ -1266,7 +1277,7 @@ def test_todo_update_clears_note(app_request, dbsession):
     assert todo.note == ""
 
 
-def test_todo_update_sets_assignees(app_request, dbsession):
+def test_todo_update_sets_assignees(app_request, dbsession, admin_user):
     todo = _todo("Fix bug")
     dbsession.add(todo)
     dbsession.flush()
@@ -1277,7 +1288,7 @@ def test_todo_update_sets_assignees(app_request, dbsession):
     assert todo.assignees == {"alice", "bob"}
 
 
-def test_todo_update_clears_assignees(app_request, dbsession):
+def test_todo_update_clears_assignees(app_request, dbsession, admin_user):
     todo = _todo("Deploy", assignees={"carol"})
     dbsession.add(todo)
     dbsession.flush()
@@ -1288,7 +1299,7 @@ def test_todo_update_clears_assignees(app_request, dbsession):
     assert todo.assignees == set()
 
 
-def test_todo_update_sets_links(app_request, dbsession):
+def test_todo_update_sets_links(app_request, dbsession, admin_user):
     from menage2.models.todo import TodoLink
 
     todo = _todo("Read docs")
@@ -1313,7 +1324,7 @@ def test_todo_update_sets_links(app_request, dbsession):
     assert links[0].label == "Example"
 
 
-def test_todo_update_replaces_links(app_request, dbsession):
+def test_todo_update_replaces_links(app_request, dbsession, admin_user):
     from menage2.models.todo import TodoLink
 
     todo = _todo("Check ticket")
@@ -1346,7 +1357,7 @@ def test_todo_update_replaces_links(app_request, dbsession):
     assert links[0].label == "New"
 
 
-def test_todo_update_clears_links(app_request, dbsession):
+def test_todo_update_clears_links(app_request, dbsession, admin_user):
     from menage2.models.todo import TodoLink
 
     todo = _todo("Review PR")
@@ -1371,7 +1382,7 @@ def test_todo_update_clears_links(app_request, dbsession):
     assert links == []
 
 
-def test_todo_update_partial_only_note_not_text(app_request, dbsession):
+def test_todo_update_partial_only_note_not_text(app_request, dbsession, admin_user):
     todo = _todo("Original text")
     dbsession.add(todo)
     dbsession.flush()
@@ -1389,7 +1400,7 @@ def test_todo_update_unknown_id_returns_404(app_request):
     assert response.status_int == 404
 
 
-def test_todo_update_invalid_body_returns_400(app_request, dbsession):
+def test_todo_update_invalid_body_returns_400(app_request, dbsession, admin_user):
     todo = _todo("Test")
     dbsession.add(todo)
     dbsession.flush()
@@ -1401,7 +1412,9 @@ def test_todo_update_invalid_body_returns_400(app_request, dbsession):
     assert response.status_int == 400
 
 
-def test_todo_update_htmx_redirects_to_details_panel(app_request, dbsession):
+def test_todo_update_htmx_redirects_to_details_panel(
+    app_request, dbsession, admin_user
+):
     todo = _todo("Buy bread")
     dbsession.add(todo)
     dbsession.flush()

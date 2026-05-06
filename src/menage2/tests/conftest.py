@@ -136,12 +136,13 @@ def testapp(app, tm, dbsession):
 
 
 @pytest.fixture
-def app_request(app, tm, dbsession):
+def app_request(app, tm, dbsession, admin_user):
     with prepare(registry=app.registry) as env:
         request = env["request"]
         request.host = "example.com"
         request.dbsession = dbsession
         request.tm = tm
+        type(request).identity = property(lambda self: admin_user)
         yield request
 
 
@@ -168,6 +169,7 @@ def dummy_config(dummy_request):
 @pytest.fixture
 def admin_user(dbsession):
     user = User(
+        id=1,
         username="admin",
         real_name="Admin User",
         email="admin@example.com",
@@ -184,6 +186,7 @@ def admin_user(dbsession):
 @pytest.fixture
 def regular_user(dbsession):
     user = User(
+        id=2,
         username="user",
         real_name="Regular User",
         email="user@example.com",

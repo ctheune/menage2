@@ -80,6 +80,7 @@ def _clone_for_recurrence(
         due_date=due_date,
         recurrence_id=parent.recurrence_id,
         recurred_from_id=parent.id,
+        owner_id=parent.owner_id,
     )
 
 

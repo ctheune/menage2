@@ -332,10 +332,18 @@ def test_star_creates_recurring_todo(page):
 def test_f_key_opens_recurrence_picker_for_selected(page):
     page.goto("/todos")
     _add_todo(page, "F-key target")
-    page.wait_for_selector('.todo-item[data-todo-text="F-key target"]')
-    _select_item(page, '.todo-item[data-todo-text="F-key target"]')
+    page.wait_for_selector(".todo-item")
+    _select_item(page, ".todo-item")
     page.keyboard.press("f")
-    page.wait_for_selector(".todo-popover[data-role='recurrence-picker']", timeout=2000)
+
+    try:
+        page.wait_for_selector(
+            ".todo-popover[data-role='recurrence-picker']", timeout=2000
+        )
+    except Exception:
+        print(page.console_messages())
+        page.screenshot(path="screenshot.png", full_page=True)
+        raise
     assert page.locator(".todo-popover[data-role='recurrence-picker']").is_visible()
 
 

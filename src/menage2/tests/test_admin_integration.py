@@ -90,7 +90,7 @@ def test_dashboard_token_reset(authenticated_testapp):
     assert b"dashboard" in follow.body.lower()
 
 
-def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession):
+def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession, admin_user):
     """The admin button forces a sweep regardless of the daily marker."""
     import datetime
 
@@ -118,6 +118,7 @@ def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession):
             recurrence_id=rule.id,
             due_date=today - datetime.timedelta(days=14),
             created_at=datetime.datetime.now(datetime.timezone.utc),
+            owner=admin_user,
         )
     )
     dbsession.add(ConfigItem(key=_LAST_SWEEP_KEY, value=today.isoformat()))

@@ -43,7 +43,7 @@ def _make_protocol(dbsession, admin_user, title="Weekly inventory", items=()):
 def test_sorted_run_items_pending_first():
     from types import SimpleNamespace
 
-    from menage2.views.protocol import _sorted_run_items
+    from menage2.models.protocol import ProtocolRun
 
     done = SimpleNamespace(status=ProtocolRunItemStatus.done, position=0)
     sent = SimpleNamespace(status=ProtocolRunItemStatus.sent_to_todo, position=1)
@@ -51,7 +51,7 @@ def test_sorted_run_items_pending_first():
     pending_b = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=3)
 
     run = SimpleNamespace(items=[done, sent, pending_a, pending_b])
-    result = _sorted_run_items(run)
+    result = ProtocolRun.sorted_items(run)
 
     assert result[0] is pending_a
     assert result[1] is pending_b
@@ -62,7 +62,7 @@ def test_sorted_run_items_pending_first():
 def test_sorted_run_items_preserves_position_within_group():
     from types import SimpleNamespace
 
-    from menage2.views.protocol import _sorted_run_items
+    from menage2.models.protocol import ProtocolRun
 
     pending_2 = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=2)
     pending_0 = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=0)
@@ -70,7 +70,7 @@ def test_sorted_run_items_preserves_position_within_group():
     done_3 = SimpleNamespace(status=ProtocolRunItemStatus.done, position=3)
 
     run = SimpleNamespace(items=[pending_2, done_3, pending_0, done_1])
-    result = _sorted_run_items(run)
+    result = ProtocolRun.sorted_items(run)
 
     assert result[0] is pending_0
     assert result[1] is pending_2
@@ -310,8 +310,7 @@ def test_start_protocol_run_creates_run_and_todo(
     authenticated_testapp, dbsession, admin_user
 ):
     p = _make_protocol(dbsession, admin_user, items=["a", "b"])
-    res = authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
-    assert "/protocols/run/" in res.location
+    authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
     todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
     assert todo.text == p.title
@@ -326,7 +325,10 @@ def test_show_run_snapshots_items_on_first_open(
     p = _make_protocol(dbsession, admin_user, items=["alpha", "beta", "gamma"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    res = authenticated_testapp.get(f"/protocols/run/{run.id}", status=200)
+    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    res = authenticated_testapp.get(
+        f"/todos/details-panel?todo_ids={todo.id}", status=200
+    )
     assert b"alpha" in res.body
     assert b"beta" in res.body
     dbsession.flush()
@@ -343,14 +345,17 @@ def test_show_run_reuses_snapshot_after_template_edit(
     p = _make_protocol(dbsession, admin_user, items=["original-1", "original-2"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    authenticated_testapp.get(f"/protocols/run/{run.id}", status=200)
+    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    authenticated_testapp.get(f"/todos/details-panel?todo_ids={todo.id}", status=200)
     # Now mutate the template
     authenticated_testapp.post(
         f"/protocols/{p.id}/items",
         {"text": "leak-attempt"},
         status=303,
     )
-    res = authenticated_testapp.get(f"/protocols/run/{run.id}", status=200)
+    res = authenticated_testapp.get(
+        f"/todos/details-panel?todo_ids={todo.id}", status=200
+    )
     assert b"leak-attempt" not in res.body
     assert b"original-1" in res.body
 
@@ -363,7 +368,8 @@ def test_show_run_reuses_snapshot_after_template_edit(
 def _start_and_open_run(testapp, dbsession, p):
     testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    testapp.get(f"/protocols/run/{run.id}", status=200)
+    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    testapp.get(f"/todos/details-panel?todo_ids={todo.id}", status=200)
     dbsession.flush()
     dbsession.refresh(run)
     return run

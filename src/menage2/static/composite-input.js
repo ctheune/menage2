@@ -1050,10 +1050,13 @@ function CompositeInput(containerEl, opts) {
 
     if (e.key === "Enter") {
       e.preventDefault();
-      if (form)
-        form.dispatchEvent(
-          new Event("submit", { bubbles: true, cancelable: true }),
-        );
+      if (form) {
+        if (typeof form.requestSubmit === "function") {
+          form.requestSubmit();
+        } else {
+          form.submit();
+        }
+      }
       return;
     }
 

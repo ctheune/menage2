@@ -488,8 +488,13 @@ def test_protocol_assignee_can_start_run(
     )
     dbsession.add(p)
     dbsession.flush()
-    res = user_testapp.post(f"/protocols/{p.id}/start", status=303)
-    assert "/protocols/run/" in res.location
+    from menage2.models.protocol import ProtocolRun
+
+    user_testapp.post(f"/protocols/{p.id}/start", status=303)
+    assert (
+        dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).count()
+        == 1
+    )
 
 
 # ---------------------------------------------------------------------------
