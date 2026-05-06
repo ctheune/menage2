@@ -165,7 +165,7 @@ def test_thumbnail_endpoint_requires_auth(
     dbsession.flush()
 
     res = testapp.get(
-        f"/todos/{todo.id}/attachment/test-uuid-thumbnail/thumbnail",
+        f"/todos/{todo.id}/attachment/test-uuid-thumbnail/thumb",
         expect_errors=True,
     )
     assert res.status_int in (302, 303, 404)
@@ -190,7 +190,7 @@ def test_thumbnail_returns_image_bytes(
     dbsession.flush()
 
     res = authenticated_testapp.get(
-        f"/todos/{todo.id}/attachment/{uuid_str}/thumbnail",
+        f"/todos/{todo.id}/attachment/{uuid_str}/thumb",
         status=200,
     )
     assert "image/jpeg" in res.headers.get("Content-Type", "")
@@ -245,7 +245,7 @@ def test_thumbnail_wrong_todo_id_returns_404(
     dbsession.flush()
 
     authenticated_testapp.get(
-        f"/todos/{todo_b.id}/attachment/{uuid_str}/thumbnail",
+        f"/todos/{todo_b.id}/attachment/{uuid_str}/thumb",
         status=404,
     )
 
@@ -274,7 +274,7 @@ def test_other_user_cannot_access_attachment(
     )
 
     res = testapp.get(
-        f"/todos/{todo.id}/attachment/{uuid_str}/thumbnail",
+        f"/todos/{todo.id}/attachment/{uuid_str}/thumb",
         expect_errors=True,
     )
     assert res.status_int == 404

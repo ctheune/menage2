@@ -39,7 +39,6 @@ _TASKS_ROUTES = frozenset(
         "update_protocol_item_partial",
         "delete_protocol_item",
         "start_protocol_run",
-        "show_protocol_run",
         "list_protocols_palette",
     }
 )

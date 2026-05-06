@@ -19,6 +19,7 @@ dependencies = [
     "peppercorn",
     "plaster-pastedeploy>=1.0.1",
     "psycopg2-binary>=2.9.9",
+    "pydantic>=2.0.0",
     "webauthn>=2.1.0",
     "pyramid-chameleon>=0.3",
     "pyramid-debugtoolbar>=4.10",

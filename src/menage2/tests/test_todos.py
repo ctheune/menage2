@@ -29,6 +29,7 @@ from menage2.views.todo import (
     set_recurrence,
     set_tags,
     todo_undo,
+    todo_update,
     todos_activate_all_on_hold,
     todos_activate_batch,
     todos_done,
@@ -808,8 +809,11 @@ def test_batch_done_endpoint(authenticated_testapp, dbsession):
     for t in todos:
         dbsession.add(t)
     dbsession.flush()
-    ids = ",".join(str(t.id) for t in todos)
-    authenticated_testapp.post("/todos/done-items", {"todo_ids": ids}, status=200)
+    authenticated_testapp.post(
+        "/todos/done-items",
+        [("todo_ids", str(t.id)) for t in todos],
+        status=200,
+    )
     for t in todos:
         dbsession.refresh(t)
         assert t.status == TodoStatus.done
@@ -821,7 +825,7 @@ def test_postpone_endpoint_bumps_due_date(authenticated_testapp, dbsession):
     dbsession.flush()
     authenticated_testapp.post(
         "/todos/postpone-items",
-        {"todo_ids": str(todo.id), "interval": "2w"},
+        [("todo_ids", str(todo.id)), ("interval", "2w")],
         status=200,
     )
     dbsession.refresh(todo)
@@ -1224,3 +1228,186 @@ def test_set_tags_unknown_id_returns_404(app_request):
     app_request.POST["tags"] = "test"
     response = set_tags(app_request)
     assert response.status_int == 404
+
+
+# ---------------------------------------------------------------------------
+# todo_update (JSON PATCH endpoint used by the details panel pickers)
+# ---------------------------------------------------------------------------
+
+
+def _json_request(app_request, todo_id, body: dict):
+    """Configure app_request for a JSON POST to todo_update."""
+    app_request.matchdict = {"id": str(todo_id)}
+    app_request.method = "POST"
+    app_request.content_type = "application/json"
+    app_request.body = json.dumps(body).encode()
+    return app_request
+
+
+def test_todo_update_sets_note(app_request, dbsession):
+    todo = _todo("Buy milk")
+    dbsession.add(todo)
+    dbsession.flush()
+    _json_request(app_request, todo.id, {"note": "get organic"})
+    todo_update(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.note == "get organic"
+
+
+def test_todo_update_clears_note(app_request, dbsession):
+    todo = _todo("Buy milk", note="old note")
+    dbsession.add(todo)
+    dbsession.flush()
+    _json_request(app_request, todo.id, {"note": ""})
+    todo_update(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.note == ""
+
+
+def test_todo_update_sets_assignees(app_request, dbsession):
+    todo = _todo("Fix bug")
+    dbsession.add(todo)
+    dbsession.flush()
+    _json_request(app_request, todo.id, {"assignees": ["alice", "bob"]})
+    todo_update(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.assignees == {"alice", "bob"}
+
+
+def test_todo_update_clears_assignees(app_request, dbsession):
+    todo = _todo("Deploy", assignees={"carol"})
+    dbsession.add(todo)
+    dbsession.flush()
+    _json_request(app_request, todo.id, {"assignees": []})
+    todo_update(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.assignees == set()
+
+
+def test_todo_update_sets_links(app_request, dbsession):
+    from menage2.models.todo import TodoLink
+
+    todo = _todo("Read docs")
+    dbsession.add(todo)
+    dbsession.flush()
+    _json_request(
+        app_request,
+        todo.id,
+        {"links": [{"url": "https://example.com", "label": "Example"}]},
+    )
+    todo_update(app_request)
+    dbsession.flush()
+    links = (
+        dbsession.execute(
+            __import__("sqlalchemy").select(TodoLink).where(TodoLink.todo_id == todo.id)
+        )
+        .scalars()
+        .all()
+    )
+    assert len(links) == 1
+    assert links[0].url == "https://example.com"
+    assert links[0].label == "Example"
+
+
+def test_todo_update_replaces_links(app_request, dbsession):
+    from menage2.models.todo import TodoLink
+
+    todo = _todo("Check ticket")
+    dbsession.add(todo)
+    dbsession.flush()
+    dbsession.add(
+        TodoLink(
+            todo_id=todo.id, url="https://old.example.com", label="Old", position=0
+        )
+    )
+    dbsession.flush()
+
+    _json_request(
+        app_request,
+        todo.id,
+        {"links": [{"url": "https://new.example.com", "label": "New"}]},
+    )
+    todo_update(app_request)
+    dbsession.flush()
+
+    from sqlalchemy import select as sa_select
+
+    links = (
+        dbsession.execute(sa_select(TodoLink).where(TodoLink.todo_id == todo.id))
+        .scalars()
+        .all()
+    )
+    assert len(links) == 1
+    assert links[0].url == "https://new.example.com"
+    assert links[0].label == "New"
+
+
+def test_todo_update_clears_links(app_request, dbsession):
+    from menage2.models.todo import TodoLink
+
+    todo = _todo("Review PR")
+    dbsession.add(todo)
+    dbsession.flush()
+    dbsession.add(
+        TodoLink(todo_id=todo.id, url="https://github.com/pr/1", label="PR", position=0)
+    )
+    dbsession.flush()
+
+    _json_request(app_request, todo.id, {"links": []})
+    todo_update(app_request)
+    dbsession.flush()
+
+    from sqlalchemy import select as sa_select
+
+    links = (
+        dbsession.execute(sa_select(TodoLink).where(TodoLink.todo_id == todo.id))
+        .scalars()
+        .all()
+    )
+    assert links == []
+
+
+def test_todo_update_partial_only_note_not_text(app_request, dbsession):
+    todo = _todo("Original text")
+    dbsession.add(todo)
+    dbsession.flush()
+    _json_request(app_request, todo.id, {"note": "added later"})
+    todo_update(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.text == "Original text"
+    assert todo.note == "added later"
+
+
+def test_todo_update_unknown_id_returns_404(app_request):
+    _json_request(app_request, 99999, {"note": "test"})
+    response = todo_update(app_request)
+    assert response.status_int == 404
+
+
+def test_todo_update_invalid_body_returns_400(app_request, dbsession):
+    todo = _todo("Test")
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.matchdict = {"id": str(todo.id)}
+    app_request.method = "POST"
+    app_request.content_type = "application/json"
+    app_request.body = b"not json"
+    response = todo_update(app_request)
+    assert response.status_int == 400
+
+
+def test_todo_update_htmx_redirects_to_details_panel(app_request, dbsession):
+    todo = _todo("Buy bread")
+    dbsession.add(todo)
+    dbsession.flush()
+    _json_request(app_request, todo.id, {"note": "sourdough"})
+    app_request.headers["HX-Request"] = "true"
+    response = todo_update(app_request)
+    assert response.status_int == 303
+    assert "/todos/details-panel" in response.location
+    assert f"todo_ids={todo.id}" in response.location

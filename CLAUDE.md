@@ -36,11 +36,19 @@ To avoid encoding issues, always encode unicode characters outside ascii as hex 
 
   don't do "user.id == protocol.owner_id" -> do "user == protocol.owner" instead
 
-## Hyperscript instead of Javascript
+## Hyperscript and HTMX instead of plain Javascript
 
+* see @3rdparty-docs/hyperscript.md for details on
+  how to use hyperscript and avoid javascript
 * implement client-side interactivity purely with hyperscript
 
+Use HTMX to interact with the server and avoid keeping local state
+
+* see @3rdparty-docs/htmx.md for documentation
+
 * note that to refer to tags (instead of classes) in a hyperscript expression you need to use pointy brackets: `<a/>` instead of just plain `a`.
+
+Use form-json (@3rdparty-docs/htmx-form-json.md) and pydantic models for submitting json data to the server. use the "hidden value" approach.
 
 # Tests
 

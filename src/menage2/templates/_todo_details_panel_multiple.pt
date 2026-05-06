@@ -1,0 +1,20 @@
+<div class="details-pane" id="details-pane">
+  <div class="todo-list-wrap run-panel-wrap" id="details-panel">
+    <div class="p-3 text-muted small">
+      <span tal:content="python:str(len(todos)) + ' selected'"></span
+      >&nbsp;&nbsp;
+      <!--
+      <a
+        href="#"
+        class="details-clear-sel text-muted"
+        _="set :checkboxes to <input[type=checkbox].todo-checkbox/>
+           on click set checked of the :checkboxes to false
+           then trigger changed :checkboxes
+           then halt"
+      >
+        Clear selection
+      </a>
+      -->
+    </div>
+  </div>
+</div>

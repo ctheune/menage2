@@ -1,82 +1,103 @@
-<li id="todo-${todo.id}"
-    class="todo-item mb-1 shadow-sm"
-    data-todo-text="${todo.text}"
-    data-todo-note="${todo.note or ''}"
-    data-todo-tags="${python:','.join(sorted(todo.tags))}"
-    data-todo-assignees="${python:','.join(sorted(todo.assignees))}"
-    data-due-date="${todo.due_date.isoformat() if todo.due_date else ''}"
-    data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
-    data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
-    data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}"
-    data-set-tags-url="${request.route_url('set_tags', id=todo.id)}"
-    tal:attributes="data-recurrence python:_recurrence_label(todo);
+<li
+  id="todo-${todo.id}"
+  class="todo-item mb-1 shadow-sm"
+  data-todo-note="${todo.note or ''}"
+  data-todo-assignees="${python:','.join(sorted(todo.assignees))}"
+  data-due-date="${todo.due_date.isoformat() if todo.due_date else ''}"
+  data-edit-url="${request.route_url('edit_todo', id=todo.id)}"
+  data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
+  data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}"
+  data-set-tags-url="${request.route_url('set_tags', id=todo.id)}"
+  tal:attributes="data-recurrence python:_recurrence_label(todo);
                     data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else '';
-                    data-protocol-run-url python:request.route_url('show_protocol_run', id=todo.protocol_run_id) if todo.protocol_run_id else '';
-                    data-protocol-panel-url python:request.route_url('show_protocol_run_panel', id=todo.protocol_run_id) if todo.protocol_run_id else '';
                     data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments]);
                     data-todo-links python:__import__('json').dumps(list(todo.links or []));
-                    data-run-started python:'true' if todo.protocol_run_id and todo.protocol_run and todo.protocol_run.opened_at else 'false'">
-
+                    data-run-started python:'true' if todo.protocol_run_id and todo.protocol_run and todo.protocol_run.opened_at else 'false'"
+>
   <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2">
     <span class="flex-shrink-0">
-      <input type="checkbox" class="form-check-input todo-checkbox" data-id="${todo.id}" style="margin-top: 0.11em" />
+      <input
+        type="checkbox"
+        class="form-check-input todo-checkbox"
+        data-id="${todo.id}"
+        style="margin-top: 0.11em"
+      />
     </span>
-    <a tal:condition="todo.protocol_run_id"
-       tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id);
-                       data-panel-url python:request.route_url('show_protocol_run_panel', id=todo.protocol_run_id)"
-       class="todo-protocol-link flex-shrink-0 small"
-       hx-boost="false"
-       title="Open protocol run (o)">
+    <a
+      tal:condition="todo.protocol_run_id"
+      class="todo-protocol-link flex-shrink-0 small"
+    >
       <i class="bi bi-clipboard-check"></i>
     </a>
-    <span class="flex-grow-1 d-flex align-items-center gap-2 small" style="min-width:0">
-      <span class="text-truncate" style="min-width:0">
+    <span
+      class="flex-grow-1 d-flex align-items-center gap-2 small"
+      style="min-width: 0"
+    >
+      <span class="text-truncate" style="min-width: 0">
         <span class="todo-title">${todo.text}</span>
         <span class="d-block" tal:condition="todo.note or todo.links">
-          <span tal:condition="todo.note"
-                class="todo-note-display text-muted"
-                tal:content="structure render_note_html(todo.note)"></span>
+          <span
+            tal:condition="todo.note"
+            class="todo-note-display text-muted"
+            tal:content="structure render_note_html(todo.note)"
+          ></span>
           <tal:block tal:condition="todo.links" tal:repeat="link todo.links">
-            <a tal:define="parsed python:parse_link(link)"
-               tal:attributes="href python:parsed[1]"
-               target="_blank" rel="noopener noreferrer"
-               class="todo-link-badge d-inline-block text-decoration-none me-1">
-              <i class="bi bi-link-45deg"></i><tal:block
-                tal:condition="python:parsed[0] != parsed[1]"> ${python:parsed[0]}</tal:block>
+            <a
+              tal:define="parsed python:parse_link(link)"
+              tal:attributes="href python:parsed[1]"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="todo-link-badge d-inline-block text-decoration-none me-1"
+            >
+              <i class="bi bi-link-45deg"></i
+              ><tal:block tal:condition="python:parsed[0] != parsed[1]">
+                ${python:parsed[0]}</tal:block
+              >
             </a>
           </tal:block>
         </span>
       </span>
-      <span tal:condition="todo.attachments"
-            class="todo-attachment-thumbs flex-shrink-0">
+      <span
+        tal:condition="todo.attachments"
+        class="todo-attachment-thumbs flex-shrink-0"
+      >
         <tal:block tal:repeat="att todo.attachments">
-          <img class="todo-attachment-thumb"
-               loading="lazy"
-               tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
+          <img
+            class="todo-attachment-thumb"
+            loading="lazy"
+            tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
                                data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);
-                               alt att.original_filename" />
+                               alt att.original_filename"
+          />
         </tal:block>
       </span>
     </span>
 
     <tal:block tal:condition="python:todo.due_date and todo.due_date != today">
-      <span tal:define="overdue python:todo.due_date < today"
-            tal:attributes="class python: 'todo-due small flex-shrink-0 ' + ('todo-due--overdue' if overdue else 'todo-due--future');
-                            title python: format.date(todo.due_date, format='full')">
-        ${python:date_ago(todo.due_date, today) if overdue else format.date(todo.due_date, format='medium')}
+      <span
+        tal:define="overdue python:todo.due_date < today"
+        tal:attributes="class python: 'todo-due small flex-shrink-0 ' + ('todo-due--overdue' if overdue else 'todo-due--future');
+                            title python: format.date(todo.due_date, format='full')"
+      >
+        ${python:date_ago(todo.due_date, today) if overdue else
+        format.date(todo.due_date, format='medium')}
       </span>
     </tal:block>
 
-    <span tal:condition="todo.recurrence_id"
-          class="todo-recurrence flex-shrink-0 small"
-          tal:attributes="title python:_recurrence_label(todo)">
-      &#8635; <span class="todo-recurrence-label">${_recurrence_label(todo)}</span>
+    <span
+      tal:condition="todo.recurrence_id"
+      class="todo-recurrence flex-shrink-0 small"
+      tal:attributes="title python:_recurrence_label(todo)"
+    >
+      &#8635;
+      <span class="todo-recurrence-label">${_recurrence_label(todo)}</span>
     </span>
 
-    <span tal:condition="todo.assignees"
-          class="todo-assignees flex-shrink-0 small text-muted d-none">
+    <span
+      tal:condition="todo.assignees"
+      class="todo-assignees flex-shrink-0 small text-muted d-none"
+    >
       <tal:block tal:repeat="a python:sorted(todo.assignees)">@${a} </tal:block>
     </span>
-
   </div>
 </li>

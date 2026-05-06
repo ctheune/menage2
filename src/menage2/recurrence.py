@@ -16,13 +16,13 @@ from __future__ import annotations
 
 import datetime
 import threading
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
 from sqlalchemy import select
 
+import menage2.models.protocol
 from menage2.dateparse import RecurrenceSpec, next_occurrence
 from menage2.models.config import ConfigItem
-from menage2.models.protocol import Protocol, ProtocolRun
 from menage2.models.todo import (
     RecurrenceKind,
     RecurrenceRule,
@@ -30,6 +30,9 @@ from menage2.models.todo import (
     Todo,
     TodoStatus,
 )
+
+if TYPE_CHECKING:  # avoid circular import; models.protocol imports from this module
+    from menage2.models.protocol import Protocol, ProtocolRun
 
 _LAST_SWEEP_KEY = "last_recurrence_sweep_date"
 _sweep_lock = threading.Lock()
@@ -262,17 +265,17 @@ def _sweep_every_rules(
 
 
 def spawn_protocol_run(
-    protocol: Protocol,
+    protocol: menage2.models.Protocol,
     due_date: datetime.date,
     now_utc: datetime.datetime,
     dbsession,
     owner_id: int | None = None,
-) -> ProtocolRun:
+) -> menage2.models.ProtocolRun:
     """Create one ProtocolRun + its calendar Todo. Items are NOT snapshotted
     yet — that happens lazily when the user opens the run page.
     """
     effective_owner = owner_id if owner_id is not None else protocol.owner_id
-    run = ProtocolRun(
+    run = menage2.models.ProtocolRun(
         protocol_id=protocol.id, spawned_at=now_utc, owner_id=effective_owner
     )
     dbsession.add(run)
@@ -299,9 +302,12 @@ def _has_today_or_future_active_run(
     return (
         dbsession.execute(
             select(Todo.id)
-            .join(ProtocolRun, ProtocolRun.id == Todo.protocol_run_id)
+            .join(
+                menage2.models.protocol.ProtocolRun,
+                menage2.models.protocol.ProtocolRun.id == Todo.protocol_run_id,
+            )
             .where(
-                ProtocolRun.protocol_id == protocol_id,
+                menage2.models.protocol.ProtocolRun.protocol_id == protocol_id,
                 Todo.status == TodoStatus.todo,
                 Todo.due_date >= today,
             )
@@ -313,6 +319,7 @@ def _has_today_or_future_active_run(
 
 def _latest_run_due_for_protocol(dbsession, protocol_id: int) -> datetime.date | None:
     """The most recent due_date of any run-todo for this protocol."""
+    ProtocolRun = menage2.models.protocol.ProtocolRun
     return dbsession.execute(
         select(Todo.due_date)
         .join(ProtocolRun, ProtocolRun.id == Todo.protocol_run_id)
@@ -393,11 +400,14 @@ def _sweep_every_protocols(
     """Daily sweep equivalent for every-rule protocols."""
     every_protocols = (
         dbsession.execute(
-            select(Protocol)
-            .join(RecurrenceRule, RecurrenceRule.id == Protocol.recurrence_id)
+            select(menage2.models.protocol.Protocol)
+            .join(
+                RecurrenceRule,
+                RecurrenceRule.id == menage2.models.protocol.Protocol.recurrence_id,
+            )
             .where(
                 RecurrenceRule.kind == RecurrenceKind.every,
-                Protocol.archived_at.is_(None),
+                menage2.models.protocol.Protocol.archived_at.is_(None),
             )
         )
         .scalars()

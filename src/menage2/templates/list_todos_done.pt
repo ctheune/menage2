@@ -22,7 +22,22 @@
     <div
       id="done-list"
       data-batch-activate-url="${request.route_url('todos_activate_batch')}"
+      _="on keydown[key is 'r'] from body
+           if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+           if no <input.todo-checkbox:checked/> in me exit end
+           trigger reactivateSelected on the first <.reactivate-trigger/> in me"
     >
+      <button
+        class="reactivate-trigger d-none"
+        type="button"
+        hx-post="${request.route_url('todos_activate_batch')}"
+        hx-trigger="reactivateSelected"
+        hx-include="#done-list .todo-checkbox:checked"
+        hx-target="#done-list"
+        hx-swap="innerHTML"
+        aria-hidden="true"
+        tabindex="-1"
+      ></button>
       <tal:block tal:condition="todos">
         <ul class="list-unstyled">
           <li
@@ -35,6 +50,8 @@
             >
               <input
                 type="checkbox"
+                name="todo_ids"
+                value="${todo.id}"
                 class="form-check-input todo-checkbox flex-shrink-0"
                 data-id="${todo.id}"
               />
@@ -51,9 +68,7 @@
 
               <a
                 tal:condition="todo.protocol_run_id"
-                tal:attributes="href python:request.route_url('show_protocol_run', id=todo.protocol_run_id)"
                 class="todo-protocol-link flex-shrink-0 small"
-                title="Open protocol run"
               >
                 <i class="bi bi-clipboard-check"></i>
               </a>

@@ -1,11 +1,19 @@
 from datetime import datetime, timedelta
 
 import arrow
+from pyramid.security import NO_PERMISSION_REQUIRED
 from pyramid.view import view_config
 
+from .dashboard import _check_dashboard_token
 
-@view_config(route_name="letscook", renderer="menage2:templates/letscook.pt")
+
+@view_config(
+    route_name="letscook",
+    renderer="menage2:templates/letscook.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def letscook(request):
+    _check_dashboard_token(request)
     return {}
 
 
@@ -58,46 +66,89 @@ templates = [
 timerdb: dict[int, Timer] = {}
 
 
-@view_config(route_name="timers", renderer="menage2:templates/timers.pt")
+@view_config(
+    route_name="timers",
+    renderer="menage2:templates/timers.pt",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def timers(request):
+    _check_dashboard_token(request)
     return {"timers": timerdb.values(), "templates": templates}
 
 
-@view_config(route_name="timer", request_method="POST", renderer="string")
+@view_config(
+    route_name="timer",
+    request_method="POST",
+    renderer="string",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def start_timer(request):
+    _check_dashboard_token(request)
     timer = timerdb[int(request.matchdict["id"])]
     timer.start()
     return ""
 
 
-@view_config(route_name="timer", request_method="PUT", renderer="string")
+@view_config(
+    route_name="timer",
+    request_method="PUT",
+    renderer="string",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def restart_timer(request):
+    _check_dashboard_token(request)
     timerdb[int(request.matchdict["id"])].restart()
     return ""
 
 
-@view_config(route_name="timer", request_method="PATCH", renderer="string")
+@view_config(
+    route_name="timer",
+    request_method="PATCH",
+    renderer="string",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def append_timer(request):
+    _check_dashboard_token(request)
     timer = timerdb[int(request.matchdict["id"])]
     timer.duration += timedelta(seconds=int(request.params.get("duration")))
     return ""
 
 
-@view_config(route_name="timer", request_method="DELETE", renderer="string")
+@view_config(
+    route_name="timer",
+    request_method="DELETE",
+    renderer="string",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def clear_timer(request):
+    _check_dashboard_token(request)
+
     del timerdb[int(request.matchdict["id"])]
     return ""
 
 
-@view_config(route_name="timer_pause", request_method="POST", renderer="string")
+@view_config(
+    route_name="timer_pause",
+    request_method="POST",
+    renderer="string",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def pause_timer(request):
+    _check_dashboard_token(request)
     timer = timerdb[int(request.matchdict["id"])]
     timer.pause()
     return ""
 
 
-@view_config(route_name="timers", request_method="PUT", renderer="string")
+@view_config(
+    route_name="timers",
+    request_method="PUT",
+    renderer="string",
+    permission=NO_PERMISSION_REQUIRED,
+)
 def add_timer(request):
+    _check_dashboard_token(request)
+
     name = request.params.get("name")
     duration = int(request.params.get("duration"))
     id = max([0] + list(timerdb)) + 1

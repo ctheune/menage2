@@ -7,7 +7,8 @@ from urllib.parse import urlparse as _urlparse
 
 from dateutil.relativedelta import relativedelta
 from pyramid.httpexceptions import HTTPSeeOther
-from pyramid.renderers import render
+from pyramid.renderers import render, render_to_response
+from pyramid.response import Response
 from pyramid.view import view_config
 from sqlalchemy import asc, func, nulls_last, or_, select
 from sqlalchemy.orm import joinedload
@@ -331,46 +332,6 @@ def _done_count(request, user, filter_mode: str) -> int:
     return _count_todos(request, user, filter_mode, Todo.status == TodoStatus.done)
 
 
-def _on_hold_section_oob(request, filter_mode: str = "personal") -> str:
-    user = request.identity
-    count = _on_hold_count(request, user, filter_mode)
-    activate_url = request.route_url("todos_activate_all_on_hold")
-    if count > 0:
-        btn = (
-            f'<button hx-post="{activate_url}" hx-target="body" '
-            f'class="btn btn-sm btn-secondary rounded-pill">'
-            f'<i class="bi bi-pause-fill"></i> On hold '
-            f'<span class="badge bg-light text-secondary ms-1">{count}</span></button>'
-        )
-    else:
-        btn = (
-            '<span class="badge bg-secondary rounded-pill py-2 px-3">'
-            '<i class="bi bi-pause-fill"></i> On hold '
-            '<span class="badge bg-dark ms-1">0</span></span>'
-        )
-    return f'<div id="on-hold-section" hx-swap-oob="true">{btn}</div>'
-
-
-def _scheduled_section_oob(request, filter_mode: str = "personal") -> str:
-    today = _today()
-    user = request.identity
-    count = _scheduled_count(request, today, user, filter_mode)
-    url = request.route_url("list_todos_scheduled")
-    if count > 0:
-        btn = (
-            f'<a href="{url}" class="btn btn-sm btn-outline-primary rounded-pill">'
-            f'<i class="bi bi-calendar-event"></i> Scheduled '
-            f'<span class="badge bg-primary text-white ms-1">{count}</span></a>'
-        )
-    else:
-        btn = (
-            '<span class="badge bg-light text-muted rounded-pill py-2 px-3 border">'
-            '<i class="bi bi-calendar-event"></i> Scheduled '
-            '<span class="badge bg-secondary ms-1">0</span></span>'
-        )
-    return f'<div id="scheduled-section" hx-swap-oob="true">{btn}</div>'
-
-
 def _active_todos(
     dbsession, today: datetime.date, user=None, filter_mode: str = "personal"
 ) -> list[Todo]:
@@ -494,8 +455,17 @@ def add_todo(request):
 
 @view_config(route_name="todos_done", request_method="POST")
 def todos_done(request):
-    raw_ids = request.params.get("todo_ids", "")
-    todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
+    """Mark todos done.
+
+    Accepts `todo_ids` either as a single comma-separated value (legacy keydown
+    handler) or as repeated values from the form-driven POST.
+    """
+    todo_ids: list[int] = []
+    for entry in request.params.getall("todo_ids"):
+        for x in str(entry).split(","):
+            x = x.strip()
+            if x:
+                todo_ids.append(int(x))
     today = _today()
     now = _now_utc()
     texts = []
@@ -515,25 +485,28 @@ def todos_done(request):
                     run.closed_at = now
                 spawn_protocol_after(run, today, now, request.dbsession)
                 spawn_protocol_every_on_completion(run, today, now, request.dbsession)
-    todos = _active_todos(request.dbsession, today, user=request.identity)
-    body = render(
-        "menage2:templates/_todo_groups.pt",
-        _groups_ctx(build_tag_tree(todos), _today()),
-        request=request,
-    )
+    request.dbsession.flush()
     request.response.content_type = "text/html"
-    request.response.text = body
-    request.response.headers["HX-Trigger"] = _undo_trigger(
-        todo_ids, "todo", texts, "completed"
-    )
+    request.response.text = ""
+    triggers = json.loads(_undo_trigger(todo_ids, "todo", texts, "completed"))
+    triggers["todo-updated"] = None
+    request.response.headers["HX-Trigger"] = json.dumps(triggers)
     return request.response
 
 
 @view_config(route_name="todos_hold", request_method="POST")
 def todos_hold(request):
-    """Put items 'on hold' indefinitely (the renamed paused/postponed action)."""
-    raw_ids = request.params.get("todo_ids", "")
-    todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
+    """Put items 'on hold' indefinitely (the renamed paused/postponed action).
+
+    Accepts `todo_ids` either as a single comma-separated value (legacy keydown
+    handler) or as repeated values from the form-driven POST.
+    """
+    todo_ids: list[int] = []
+    for entry in request.params.getall("todo_ids"):
+        for x in str(entry).split(","):
+            x = x.strip()
+            if x:
+                todo_ids.append(int(x))
     texts = []
     for todo_id in todo_ids:
         todo = request.dbsession.get(Todo, todo_id)
@@ -541,17 +514,12 @@ def todos_hold(request):
             texts.append(todo.text)
             todo.status = TodoStatus.on_hold
             todo.on_hold_at = _now_utc()
-    todos = _active_todos(request.dbsession, _today(), user=request.identity)
-    body = render(
-        "menage2:templates/_todo_groups.pt",
-        _groups_ctx(build_tag_tree(todos), _today()),
-        request=request,
-    )
+    request.dbsession.flush()
     request.response.content_type = "text/html"
-    request.response.text = body + _on_hold_section_oob(request)
-    request.response.headers["HX-Trigger"] = _undo_trigger(
-        todo_ids, "todo", texts, "put on hold"
-    )
+    request.response.text = ""
+    triggers = json.loads(_undo_trigger(todo_ids, "todo", texts, "put on hold"))
+    triggers["todo-updated"] = None
+    request.response.headers["HX-Trigger"] = json.dumps(triggers)
     return request.response
 
 
@@ -596,13 +564,20 @@ def _bump_due_date(
 def todos_postpone(request):
     """Bump or set due_date for one or more todos.
 
+    Accepts `todo_ids` either as a single comma-separated value (legacy keydown
+    handler) or as repeated values from the form-driven POST.
+
     If ``due_date`` is provided (ISO date or empty string for "no date"), it
     overrides any interval and applies absolutely. Otherwise the optional
     ``interval`` (default ``1d``) bumps relative to the current date / today.
     """
-    raw_ids = request.params.get("todo_ids", "")
+    todo_ids: list[int] = []
+    for entry in request.params.getall("todo_ids"):
+        for x in str(entry).split(","):
+            x = x.strip()
+            if x:
+                todo_ids.append(int(x))
     today = _today()
-    todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
 
     absolute_raw = request.params.get("due_date")
     use_absolute = absolute_raw is not None
@@ -626,14 +601,10 @@ def todos_postpone(request):
             todo.due_date = absolute_date
         else:
             todo.due_date = _bump_due_date(todo.due_date, today, interval)
-    todos = _active_todos(request.dbsession, today, user=request.identity)
-    body = render(
-        "menage2:templates/_todo_groups.pt",
-        _groups_ctx(build_tag_tree(todos), today),
-        request=request,
-    )
+    request.dbsession.flush()
     request.response.content_type = "text/html"
-    request.response.text = body + _scheduled_section_oob(request)
+    request.response.text = ""
+    request.response.headers["HX-Trigger"] = json.dumps({"todo-updated": None})
     return request.response
 
 
@@ -717,7 +688,7 @@ def set_tags(request):
         request=request,
     )
     request.response.content_type = "text/html"
-    request.response.text = body + _scheduled_section_oob(request)
+    request.response.text = body
     return request.response
 
 
@@ -770,15 +741,19 @@ def set_due_date(request):
         request=request,
     )
     request.response.content_type = "text/html"
-    request.response.text = body + _scheduled_section_oob(request)
+    request.response.text = body
     return request.response
 
 
 @view_config(route_name="todo_undo", request_method="POST")
 def todo_undo(request):
-    raw_ids = request.params.get("todo_ids", "")
+    todo_ids: list[int] = []
+    for entry in request.params.getall("todo_ids"):
+        for x in str(entry).split(","):
+            x = x.strip()
+            if x:
+                todo_ids.append(int(x))
     prev_status_str = request.params.get("prev_status", "todo")
-    todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
     try:
         prev_status = TodoStatus(prev_status_str)
     except ValueError:
@@ -793,17 +768,12 @@ def todo_undo(request):
                 todo.done_at = None
             if prev_status != TodoStatus.on_hold:
                 todo.on_hold_at = None
-    todos = _active_todos(request.dbsession, _today(), user=request.identity)
-    body = render(
-        "menage2:templates/_todo_groups.pt",
-        _groups_ctx(build_tag_tree(todos), _today()),
-        request=request,
-    )
+    request.dbsession.flush()
     label = texts[0] if len(texts) == 1 else f"{len(texts)} items"
     request.response.content_type = "text/html"
-    request.response.text = body + _on_hold_section_oob(request)
+    request.response.text = ""
     request.response.headers["HX-Trigger"] = json.dumps(
-        {"showUndoConfirm": {"label": label}}
+        {"showUndoConfirm": {"label": label}, "todo-updated": None}
     )
     return request.response
 
@@ -908,6 +878,253 @@ def list_todos_scheduled(request):
     }
 
 
+@view_config(route_name="todo_update", request_method="PUT")
+def todo_update(request):
+    """Update a todo using JSON/Pydantic validation. All fields are optional for partial updates."""
+    from menage2.models.todo import TodoLink
+
+    todo_id = int(request.matchdict["id"])
+    todo = request.dbsession.get(Todo, todo_id)
+    if not todo:
+        request.response.status_int = 404
+        return request.response
+
+    try:
+        update_data = request.json_body
+    except (ValueError, AttributeError):
+        request.response.status_int = 400
+        return request.response
+
+    from menage2.schemas import TodoUpdate
+
+    try:
+        validated = TodoUpdate(**update_data)
+    except Exception as e:
+        request.response.status_int = 422
+        request.response.headers["HX-Trigger"] = json.dumps(
+            {"showValidationError": {"message": str(e)}}
+        )
+        return request.response
+
+    clear_fields = validated.clear_fields
+
+    from sqlalchemy import delete as sqla_delete
+
+    if validated.text is not None:
+        todo.text = validated.text
+    if "tags" in clear_fields:
+        todo.tags = set()
+    elif validated.tags is not None:
+        todo.tags = validated.tags
+    if "assignees" in clear_fields:
+        todo.assignees = set()
+    elif validated.assignees is not None:
+        todo.assignees = validated.assignees
+    if "due_date" in clear_fields:
+        todo.due_date = None
+    elif validated.due_date is not None:
+        todo.due_date = validated.due_date
+    if "note" in clear_fields:
+        todo.note = None
+    elif validated.note is not None:
+        todo.note = validated.note
+    if "recurrence" in clear_fields:
+        todo.recurrence_id = None
+    elif validated.recurrence is not None:
+        from menage2.dateparse import RecurrenceSpec as DateparseRecurrenceSpec
+
+        spec = DateparseRecurrenceSpec(
+            kind=validated.recurrence.kind,
+            interval_value=validated.recurrence.interval_value,
+            interval_unit=validated.recurrence.interval_unit,
+            weekday=validated.recurrence.weekday,
+            month_day=validated.recurrence.month_day,
+        )
+        _apply_recurrence_spec(todo, spec, request.dbsession)
+    if "links" in clear_fields:
+        request.dbsession.execute(
+            sqla_delete(TodoLink).where(TodoLink.todo_id == todo.id)
+        )
+    elif validated.links is not None:
+        request.dbsession.execute(
+            sqla_delete(TodoLink).where(TodoLink.todo_id == todo.id)
+        )
+
+        for position, link_data in enumerate(validated.links):
+            link = TodoLink(
+                todo_id=todo.id,
+                label=link_data.label,
+                url=link_data.url,
+                position=position,
+            )
+            request.dbsession.add(link)
+
+    # if request.headers.get("HX-Request") == "true":
+    #     today = _today()
+    #     todos = _active_todos(request.dbsession, today, user=request.identity)
+    #     body = render(
+    #         "menage2:templates/_todo_groups.pt",
+    #         _groups_ctx(build_tag_tree(todos), today),
+    #         request=request,
+    #     )
+    #     request.response.content_type = "text/html"
+    #     request.response.text = body
+    #     return request.response
+
+    response = HTTPSeeOther(
+        request.route_url(
+            "todo_details_panel", _query=dict(todo_ids=str(todo.id), updated="true")
+        ),
+    )
+    return response
+
+
+@view_config(route_name="todo_batch_action", request_method="POST")
+def todo_batch_action(request):
+    """Handle batch actions: done, hold, postpone, activate."""
+    from menage2.schemas import BatchAction
+
+    try:
+        action_data = request.json_body
+    except (ValueError, AttributeError):
+        request.response.status_int = 400
+        return request.response
+
+    try:
+        validated = BatchAction(**action_data)
+    except Exception:
+        request.response.status_int = 422
+        return request.response
+
+    action = validated.action
+    todo_ids = validated.todo_ids
+
+    today = _today()
+    now = _now_utc()
+    texts = []
+
+    if action == "done":
+        for todo_id in todo_ids:
+            todo = request.dbsession.get(Todo, todo_id)
+            if todo:
+                texts.append(todo.text)
+                todo.status = TodoStatus.done
+                todo.done_at = now
+                spawn_after(todo, today, now, request.dbsession)
+                spawn_every_on_completion(todo, today, now, request.dbsession)
+                if todo.protocol_run is not None:
+                    run = todo.protocol_run
+                    if run.closed_at is None:
+                        run.closed_at = now
+                    spawn_protocol_after(run, today, now, request.dbsession)
+                    spawn_protocol_every_on_completion(
+                        run, today, now, request.dbsession
+                    )
+
+        todos = _active_todos(request.dbsession, today, user=request.identity)
+        body = render(
+            "menage2:templates/_todo_groups.pt",
+            _groups_ctx(build_tag_tree(todos), today),
+            request=request,
+        )
+        request.response.content_type = "text/html"
+        request.response.text = body
+        request.response.headers["HX-Trigger"] = _undo_trigger(
+            todo_ids, "todo", texts, "completed"
+        )
+        return request.response
+
+    elif action == "hold":
+        for todo_id in todo_ids:
+            todo = request.dbsession.get(Todo, todo_id)
+            if todo:
+                texts.append(todo.text)
+                todo.status = TodoStatus.on_hold
+                todo.on_hold_at = now
+
+        todos = _active_todos(request.dbsession, today, user=request.identity)
+        body = render(
+            "menage2:templates/_todo_groups.pt",
+            _groups_ctx(build_tag_tree(todos), today),
+            request=request,
+        )
+        request.response.content_type = "text/html"
+        request.response.text = body
+        request.response.headers["HX-Trigger"] = _undo_trigger(
+            todo_ids, "todo", texts, "put on hold"
+        )
+        return request.response
+
+    elif action == "postpone":
+        interval = validated.postpone_interval
+        if not interval:
+            request.response.status_int = 400
+            return request.response
+
+        for todo_id in todo_ids:
+            todo = request.dbsession.get(Todo, todo_id)
+            if todo:
+                todo.due_date = _bump_due_date(todo.due_date, today, interval)
+
+        todos = _active_todos(request.dbsession, today, user=request.identity)
+        body = render(
+            "menage2:templates/_todo_groups.pt",
+            _groups_ctx(build_tag_tree(todos), today),
+            request=request,
+        )
+        request.response.content_type = "text/html"
+        request.response.text = body
+        return request.response
+
+    elif action == "activate":
+        for todo_id in todo_ids:
+            todo = request.dbsession.get(Todo, todo_id)
+            if todo:
+                todo.status = TodoStatus.todo
+                todo.done_at = None
+                todo.on_hold_at = None
+
+        if "done" in request.referer or "done-items" in request.referer:
+            todos = (
+                request.dbsession.execute(
+                    select(Todo)
+                    .where(Todo.status == TodoStatus.done)
+                    .order_by(Todo.done_at.desc())
+                )
+                .scalars()
+                .all()
+            )
+            body = render(
+                "menage2:templates/_done_items.pt",
+                {"todos": todos},
+                request=request,
+            )
+            request.response.content_type = "text/html"
+            request.response.text = body
+            return request.response
+        else:
+            todos = (
+                request.dbsession.execute(
+                    select(Todo)
+                    .where(Todo.status == TodoStatus.on_hold)
+                    .order_by(asc(Todo.on_hold_at))
+                )
+                .scalars()
+                .all()
+            )
+            body = render(
+                "menage2:templates/_done_items.pt",
+                {"todos": todos},
+                request=request,
+            )
+            request.response.content_type = "text/html"
+            request.response.text = body
+            return request.response
+
+    request.response.status_int = 400
+    return request.response
+
+
 @view_config(route_name="edit_todo", request_method="POST")
 def edit_todo(request):
     todo_id = int(request.matchdict["id"])
@@ -962,15 +1179,19 @@ def edit_todo(request):
             request=request,
         )
         request.response.content_type = "text/html"
-        request.response.text = body + _scheduled_section_oob(request)
+        request.response.text = body
         return request.response
     return HTTPSeeOther(next_url)
 
 
 @view_config(route_name="todos_activate_batch", request_method="POST")
 def todos_activate_batch(request):
-    raw_ids = request.params.get("todo_ids", "")
-    todo_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
+    todo_ids: list[int] = []
+    for entry in request.params.getall("todo_ids"):
+        for x in str(entry).split(","):
+            x = x.strip()
+            if x:
+                todo_ids.append(int(x))
     for todo_id in todo_ids:
         todo = request.dbsession.get(Todo, todo_id)
         if todo:
@@ -994,6 +1215,51 @@ def todos_activate_batch(request):
     request.response.content_type = "text/html"
     request.response.text = body
     return request.response
+
+
+@view_config(route_name="todo_details_panel", request_method="GET")
+def todo_details_panel(request):
+    """Render the details panel for selected todos."""
+    raw_ids = request.params.getall("todo_ids")
+    todo_ids = [int(x) for x in raw_ids]
+
+    response = Response()
+    if request.params.get("updated", False):
+        response.headers["HX-Trigger"] = "todo-updated"
+
+    if not todo_ids:
+        return render_to_response(
+            "menage2:templates/_todo_details_panel_empty.pt",
+            {},
+            request=request,
+            response=response,
+        )
+
+    todos = [request.dbsession.get(Todo, todo_id) for todo_id in todo_ids]
+    if len(todos) > 1:
+        return render_to_response(
+            "menage2:templates/_todo_details_panel_multiple.pt",
+            {
+                "todos": todos,
+            },
+            request=request,
+            response=response,
+        )
+
+    todo = todos[0]
+    if todo.protocol_run:
+        todo.protocol_run.ensure_snapshot_run_items()
+
+    response = render_to_response(
+        "menage2:templates/_todo_details_panel.pt",
+        {
+            "todo": todos[0],
+            "render_note_html": render_note_html,
+        },
+        request=request,
+        response=response,
+    )
+    return response
 
 
 @view_config(route_name="list_tags_json", renderer="json")

@@ -1,0 +1,75 @@
+<div class="details-run-section">
+  <div
+    id="protocol-run"
+    tal:define="items run.sorted_items()"
+    data-run-id="${run.id}"
+    data-todo-route="${request.route_url('list_todos')}"
+  >
+    <ul class="todo-group-list mb-0 list-unstyled">
+      <li
+        tal:repeat="item items"
+        id="run-item-${item.id}"
+        tal:attributes="class python: 'protocol-run-item todo-item status-' + item.status.value;
+                              data-item-id item.id;
+                              data-done-url request.route_url('run_item_done', id=run.id, item_id=item.id);
+                              data-send-url request.route_url('run_item_send', id=run.id, item_id=item.id);
+                              data-edit-url request.route_url('run_item_edit', id=run.id, item_id=item.id)"
+      >
+        <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2">
+          <span class="protocol-run-item-marker flex-shrink-0">
+            <tal:block tal:condition="item.status.value == 'pending'"
+              >○</tal:block
+            >
+            <tal:block tal:condition="item.status.value == 'done'">✓</tal:block>
+            <tal:block tal:condition="item.status.value == 'sent_to_todo'"
+              >→</tal:block
+            >
+          </span>
+          <span class="flex-grow-1 small" style="min-width: 0">
+            <span
+              tal:attributes="class python: 'text-decoration-line-through text-muted' if item.status.value != 'pending' else ''"
+              >${item.text}</span
+            >
+            <span
+              tal:repeat="tag python:sorted(item.tags)"
+              class="badge bg-secondary rounded-pill ms-1"
+              >#${tag}</span
+            >
+            <span
+              tal:condition="item.note"
+              class="d-block text-muted"
+              style="font-size: 0.75rem"
+              >${item.note}</span
+            >
+          </span>
+          <tal:block tal:condition="item.status.value == 'pending'">
+            <button
+              type="button"
+              class="protocol-run-action flex-shrink-0 btn btn-link btn-sm p-1 text-success"
+              data-action="done"
+              title="Done (c)"
+            >
+              ✓
+            </button>
+            <button
+              type="button"
+              class="protocol-run-action flex-shrink-0 btn btn-link btn-sm p-1 text-primary"
+              data-action="send"
+              title="Send to todo list (t)"
+            >
+              →
+            </button>
+            <button
+              type="button"
+              class="protocol-run-action flex-shrink-0 btn btn-link btn-sm p-1 text-muted"
+              data-action="edit"
+              title="Edit before sending (e)"
+            >
+              ✎
+            </button>
+          </tal:block>
+        </div>
+      </li>
+    </ul>
+  </div>
+</div>

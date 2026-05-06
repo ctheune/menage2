@@ -1,10 +1,13 @@
 import time
 
+from pyramid.security import NO_PERMISSION_REQUIRED
 from pyramid.static import QueryStringConstantCacheBuster
 
 
 def includeme(config):
-    config.add_static_view("static", "static", cache_max_age=3600)
+    config.add_static_view(
+        "static", "static", cache_max_age=3600, permission=NO_PERMISSION_REQUIRED
+    )
     config.add_cache_buster(
         "static", QueryStringConstantCacheBuster(str(int(time.time())))
     )
@@ -78,11 +81,11 @@ def includeme(config):
     config.add_route("dashboard_pt_departures", "/dashboard/{token}/pt/departures")
     config.add_route("dashboard_pt_hbf", "/dashboard/{token}/pt/hbf")
 
-    config.add_route("letscook", "/lets-cook")
+    config.add_route("letscook", "/dashboard/{token}/lets-cook")
 
-    config.add_route("timers", "/timers")
-    config.add_route("timer", "/timer/{id}")
-    config.add_route("timer_pause", "/timer/{id}/pause")
+    config.add_route("timers", "/dashboard/{token}/timers")
+    config.add_route("timer", "/dashboard/{token}/timer/{id}")
+    config.add_route("timer_pause", "/dashboard/{token}/timer/{id}/pause")
 
     config.add_route("list_todos", "/todos")
     config.add_route("list_todos_done", "/todos/done")
@@ -96,6 +99,9 @@ def includeme(config):
     config.add_route("todos_activate_all_on_hold", "/todos/activate-on-hold")
     config.add_route("todo_undo", "/todos/undo")
     config.add_route("todos_activate_batch", "/todos/activate-items")
+    config.add_route("todo_details_panel", "/todos/details-panel")
+    config.add_route("todo_update", "/todos/{id:\\d+}")
+    config.add_route("todo_batch_action", "/todos/batch-action")
     config.add_route("edit_todo", "/todos/{id}/edit")
     config.add_route("set_due_date", "/todos/{id}/due-date")
     config.add_route("parse_date_preview", "/todos/parse-date")
@@ -105,7 +111,7 @@ def includeme(config):
     config.add_route("recurrence_history", "/todos/{id}/history")
     config.add_route("todo_attachment_upload", "/todos/{id}/attachments")
     config.add_route(
-        "todo_attachment_thumbnail", "/todos/{todo_id}/attachment/{uuid}/thumbnail"
+        "todo_attachment_thumbnail", "/todos/{todo_id}/attachment/{uuid}/thumb"
     )
     config.add_route("todo_attachment_full", "/todos/{todo_id}/attachment/{uuid}/full")
     config.add_route(
@@ -129,8 +135,6 @@ def includeme(config):
     )
     config.add_route("delete_protocol_item", "/protocols/{id}/items/{item_id}/delete")
     config.add_route("start_protocol_run", "/protocols/{id}/start")
-    config.add_route("show_protocol_run", "/protocols/run/{id}")
-    config.add_route("show_protocol_run_panel", "/protocols/run/{id}/panel")
     config.add_route("run_item_done", "/protocols/run/{id}/items/{item_id}/done")
     config.add_route("run_item_send", "/protocols/run/{id}/items/{item_id}/send")
     config.add_route("run_item_edit", "/protocols/run/{id}/items/{item_id}/edit")

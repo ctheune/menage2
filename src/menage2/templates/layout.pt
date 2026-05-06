@@ -15,14 +15,14 @@
 
     <script src="${request.static_url('menage2:static/htmx.min.js')}" defer></script>
     <script src="${request.static_url('menage2:static/hyperscript.min.js')}" defer></script>
-    <script src="${request.static_url('menage2:static/bootstrap.bundle.min.js')}" defer></script>
     <script src="${request.static_url('menage2:static/composite-input.js')}" defer></script>
     <script src="${request.static_url('menage2:static/menage.js')}" defer></script>
+    <script src="${request.static_url('menage2:static/bootstrap.bundle.min.js')}" defer></script>
+    <script src="${request.static_url('menage2:static/form-json.js')}" defer></script>
     <meta name="theme-color" content="#04081A">
   </head>
 
-  <body hx-boost="true"
-        data-tags-url="${request.route_url('list_tags_json')}"
+  <body data-tags-url="${request.route_url('list_tags_json')}"
         data-top-tags-url="${request.route_url('list_top_tags_json')}">
 
   <tal:block tal:define="

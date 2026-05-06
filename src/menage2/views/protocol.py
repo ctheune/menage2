@@ -8,11 +8,12 @@ import datetime
 import threading
 
 from pyramid.httpexceptions import HTTPForbidden, HTTPNotFound, HTTPSeeOther
-from pyramid.renderers import render
+from pyramid.renderers import render, render_to_response
+from pyramid.response import Response
 from pyramid.view import view_config
 from sqlalchemy import select
 
-from menage2.dateparse import label_recurrence, parse_recurrence
+from menage2.dateparse import label_recurrence
 from menage2.models.protocol import (
     Protocol,
     ProtocolItem,
@@ -29,17 +30,15 @@ from menage2.principals import (
 from menage2.recurrence import (
     ensure_protocol_has_run,
     rule_to_spec,
-    spawn_protocol_after,
-    spawn_protocol_every_on_completion,
     spawn_protocol_run,
 )
-from menage2.views.todo import _apply_recurrence_spec, parse_todo_input
+from menage2.views.todo import parse_todo_input
 
 _snapshot_lock = threading.Lock()
 
 
 def _now_utc():
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 def _today():
@@ -340,10 +339,8 @@ def delete_protocol_item(request):
 def start_protocol_run(request):
     p = _get_or_404(request, Protocol)
     owner_id = request.identity.id if request.identity else None
-    run = spawn_protocol_run(
-        p, _today(), _now_utc(), request.dbsession, owner_id=owner_id
-    )
-    return HTTPSeeOther(request.route_url("show_protocol_run", id=run.id))
+    spawn_protocol_run(p, _today(), _now_utc(), request.dbsession, owner_id=owner_id)
+    return HTTPSeeOther(request.route_url("list_todos"))
 
 
 # ---------------------------------------------------------------------------
@@ -351,130 +348,33 @@ def start_protocol_run(request):
 # ---------------------------------------------------------------------------
 
 
-def _snapshot_run_items(run, dbsession):
-    """Copy current Protocol items into ProtocolRunItem rows.
-
-    Idempotent: held under the module-level snapshot lock + a re-check of
-    ``opened_at`` so concurrent first-opens snapshot exactly once.
-    """
-    with _snapshot_lock:
-        dbsession.flush()
-        dbsession.refresh(run)
-        if run.opened_at is not None:
-            return
-        protocol = run.protocol
-        for src in sorted(protocol.items, key=lambda i: i.position):
-            item_assignees = (
-                set(src.assignees) if src.assignees else set(protocol.assignees)
-            )
-            dbsession.add(
-                ProtocolRunItem(
-                    run_id=run.id,
-                    position=src.position,
-                    text=src.text,
-                    tags=set(src.tags),
-                    assignees=item_assignees,
-                    note=src.note,
-                    status=ProtocolRunItemStatus.pending,
-                )
-            )
-        run.opened_at = _now_utc()
-        dbsession.flush()
-
-
-@view_config(
-    route_name="show_protocol_run",
-    request_method="GET",
-    renderer="menage2:templates/protocols/run.pt",
-)
-def show_protocol_run(request):
-    run = _get_or_404(request, ProtocolRun)
-    if run.opened_at is None:
-        _snapshot_run_items(run, request.dbsession)
-    items = _sorted_run_items(run)
-    items_html = _render_run_partial(request, run, items)
-    return {
-        "run": run,
-        "protocol": run.protocol,
-        "items_html": items_html,
-    }
-
-
-@view_config(route_name="show_protocol_run_panel", request_method="GET")
-def show_protocol_run_panel(request):
-    run = _get_or_404(request, ProtocolRun)
-    if run.opened_at is None:
-        _snapshot_run_items(run, request.dbsession)
-    items = _sorted_run_items(run)
-    items_html = _render_run_partial(request, run, items)
-    inline = request.params.get("inline") == "1"
-    body = render(
-        "menage2:templates/protocols/_run_panel.pt",
-        {
-            "run": run,
-            "protocol": run.protocol,
-            "items_html": items_html,
-            "todos_url": request.route_url("list_todos"),
-            "inline": inline,
-        },
-        request=request,
-    )
-    request.response.content_type = "text/html"
-    request.response.text = body
-    return request.response
-
-
-def _maybe_close_run(run, dbsession, now):
-    """Close the run + auto-complete its todo when every item is resolved."""
-    items = sorted(run.items, key=lambda i: i.position)
-    if not items:
-        return
-    if any(i.status == ProtocolRunItemStatus.pending for i in items):
-        return
-    if run.closed_at is None:
-        run.closed_at = now
-    if run.todo and run.todo.status == TodoStatus.todo:
-        run.todo.status = TodoStatus.done
-        run.todo.done_at = now
-        today = now.date()
-        spawn_protocol_after(run, today, now, dbsession)
-        spawn_protocol_every_on_completion(run, today, now, dbsession)
-
-
-def _sorted_run_items(run: ProtocolRun) -> list[ProtocolRunItem]:
-    return sorted(
-        run.items,
-        key=lambda i: (i.status != ProtocolRunItemStatus.pending, i.position),
-    )
-
-
-def _render_run_partial(request, run, items):
-    return render(
-        "menage2:templates/protocols/_run_items.pt",
-        {
-            "run": run,
-            "items": items,
-            "all_resolved": all(
-                i.status != ProtocolRunItemStatus.pending for i in items
-            ),
-        },
-        request=request,
-    )
-
-
 def _run_partial_response(request, run):
-    items = _sorted_run_items(run)
-    body = _render_run_partial(request, run, items)
-    request.response.content_type = "text/html"
-    request.response.text = body
-    return request.response
+    """Empty 200 OK + ``HX-Trigger: todo-updated``.
+
+    Send a partial with additional triggers.
+
+    """
+    events = set(["todo-updated"])
+    if run.closed_at:
+        events.add("todo-closed")
+    response = Response()
+    response.headers["HX-Trigger"] = ",".join(events)
+    return render_to_response(
+        "menage2:templates/_protocol_run_partial.pt",
+        {
+            "run": run,
+        },
+        request=request,
+        response=response,
+    )
 
 
 @view_config(route_name="run_item_done", request_method="POST")
 def run_item_done(request):
     item = _get_or_404(request, ProtocolRunItem, "item_id")
     item.status = ProtocolRunItemStatus.done
-    _maybe_close_run(item.run, request.dbsession, _now_utc())
+    item.run.maybe_close_run()
+    # XXX redirect to refresh the details panel fully
     return _run_partial_response(request, item.run)
 
 
@@ -495,7 +395,7 @@ def run_item_send(request):
     request.dbsession.flush()
     item.status = ProtocolRunItemStatus.sent_to_todo
     item.sent_todo_id = new_todo.id
-    _maybe_close_run(item.run, request.dbsession, _now_utc())
+    item.run.maybe_close_run()
     return _run_partial_response(request, item.run)
 
 

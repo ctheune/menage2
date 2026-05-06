@@ -73,6 +73,26 @@ class RecurrenceRule(Base):
     month_day = Column(Integer, nullable=True)  # 1..31 for "every Nth"
 
 
+class TodoLink(Base):
+    """Structured storage for todo links, replacing the old '[label](url)' string format."""
+
+    __tablename__ = "todo_links"
+
+    id = Column(Integer, primary_key=True)
+    todo_id = Column(
+        Integer,
+        ForeignKey("todos.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    label = Column(Text, nullable=True)
+    url = Column(Text, nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+
+    todo = relationship("Todo", back_populates="links_rel")
+
+    __table_args__ = (Index("ix_todo_links_todo_id", "todo_id"),)
+
+
 class Todo(Base):
     __tablename__ = "todos"
 
@@ -93,6 +113,7 @@ class Todo(Base):
     on_hold_at = Column(DateTime(timezone=True))
     due_date = Column(Date)
     note = Column(Text)
+    # Deprecated: Use TodoLink relationship instead. Kept for migration purposes.
     links = Column(LinkList, nullable=False, server_default="{}")
 
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -118,6 +139,13 @@ class Todo(Base):
         cascade="all, delete-orphan",
         lazy="select",
         order_by="TodoAttachment.created_at",
+    )
+    links_rel = relationship(
+        "TodoLink",
+        back_populates="todo",
+        cascade="all, delete-orphan",
+        lazy="select",
+        order_by="TodoLink.position",
     )
     recurrence = relationship("RecurrenceRule", lazy="joined")
     recurred_from = relationship(

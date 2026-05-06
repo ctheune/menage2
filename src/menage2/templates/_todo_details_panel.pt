@@ -1,0 +1,253 @@
+<div class="details-pane" id="details-pane">
+<div class="todo-list-wrap run-panel-wrap" id="details-panel">
+<tal:block tal:define=" tags python:sorted(todo.tags) if todo.tags else [];
+                        assignees python:sorted(todo.assignees) if todo.assignees else [];
+                        due_date todo.due_date;
+                        recurrence todo.recurrence;
+                        links_rel todo.links_rel">
+  <form hx-put="${request.route_url('todo_update', id=todo.id)}" hx-target="this" hx-swap="outerHTML" hx-ext="form-json">
+  <div class="p-2">
+    <!-- Close button -->
+    <div class="d-flex align-items-center mb-1 px-1">
+      <button type="button" class="btn btn-sm btn-link text-muted p-0 ms-auto details-close-btn" title="Close (Esc)">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <!-- Title: full width, no label -->
+    <div class="details-field-row details-field--text mb-2">
+
+      <div class="details-field-row mb-2"
+        _="on click or keydown[key is 'e'] from body
+        if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+        toggle .d-none
+        then toggle .d-none on #input-todo-text-${todo.id}
+        then focus #input-todo-text-${todo.id}
+        then halt">
+        <span class="details-field-value fw-semibold" tal:content="todo.text"></span>
+      </div>
+
+      <input _="on keydown[key is 'Escape'] or blur
+        toggle .d-none
+        then toggle .d-none on the previous <div/>
+        on change put my value into the previous <span/>"
+      type="text" name="text" id="input-todo-text-${todo.id}" value="${todo.text}" class="d-none" />
+
+    </div>
+
+    <!-- Tags: only when non-empty -->
+    <div tal:condition="tags" class="details-field-row details-field--tags"
+      _="on click call openTagsPicker(me, me)
+        on keydown[key is 's'] from body
+          if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+          call openTagsPicker(me, me)">
+      <span class="details-field-label">Tags</span>
+      <span class="details-field-value">
+        <tal:block tal:repeat="tag tags">
+          <span class="details-tag-pill" tal:content="structure '#'+tag"></span>
+          <input type="hidden" name="tags.${repeat.tag.index}" value="${tag}"/>
+        </tal:block>
+      </span>
+    </div>
+
+    <!-- Due + Recurrence: combined when both present, individual otherwise -->
+    <div tal:condition="python:due_date and recurrence" class="d-flex">
+      <div class="details-field-row details-field--due flex-fill"
+        _="on click call openSetDuePicker(me, me)
+          on keydown[key is 'd'] from body
+            if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+            call openSetDuePicker(me, me)">
+        <span class="details-field-label">Due</span>
+        <span class="details-field-value" tal:content="due_date.isoformat()"></span>
+        <input type="hidden" name="due_date" value="${due_date.isoformat()}"/>
+      </div>
+      <div class="details-field-row details-field--rec flex-fill"
+        _="on click call openSetRecurrencePicker(me, me)
+          on keydown[key is 'f'] from body
+            if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+            call openSetRecurrencePicker(me, me)">
+        <span class="details-field-label">Repeat</span>
+        <span class="details-field-value" tal:content="structure _recurrence_label(todo)"></span>
+        <input type="hidden" name="recurrence.kind" value="${python:recurrence.kind.value if hasattr(recurrence.kind, 'value') else recurrence.kind}"/>
+        <input type="hidden" name="recurrence.interval_value" value="${recurrence.interval_value}"/>
+        <input type="hidden" name="recurrence.interval_unit" value="${python:recurrence.interval_unit.value if hasattr(recurrence.interval_unit, 'value') else recurrence.interval_unit}"/>
+        <input tal:condition="python:recurrence.weekday is not None" type="hidden" name="recurrence.weekday" value="${recurrence.weekday}"/>
+        <input tal:condition="python:recurrence.month_day is not None" type="hidden" name="recurrence.month_day" value="${recurrence.month_day}"/>
+      </div>
+    </div>
+    <div tal:condition="python:due_date and not recurrence" class="details-field-row details-field--due"
+      _="on click call openSetDuePicker(me, me)
+        on keydown[key is 'd'] from body
+          if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+          call openSetDuePicker(me, me)">
+      <span class="details-field-label">Due</span>
+      <span class="details-field-value" tal:content="due_date.isoformat()"></span>
+      <input type="hidden" name="due_date" value="${due_date.isoformat()}"/>
+    </div>
+    <div tal:condition="python:not due_date and recurrence" class="details-field-row details-field--rec"
+      _="on click call openSetRecurrencePicker(me, me)
+        on keydown[key is 'f'] from body
+          if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+          call openSetRecurrencePicker(me, me)">
+      <span class="details-field-label">Repeat</span>
+      <span class="details-field-value" tal:content="structure _recurrence_label(todo)"></span>
+      <input type="hidden" name="recurrence.kind" value="${python:recurrence.kind.value if hasattr(recurrence.kind, 'value') else recurrence.kind}"/>
+      <input type="hidden" name="recurrence.interval_value" value="${recurrence.interval_value}"/>
+      <input type="hidden" name="recurrence.interval_unit" value="${python:recurrence.interval_unit.value if hasattr(recurrence.interval_unit, 'value') else recurrence.interval_unit}"/>
+      <input tal:condition="python:recurrence.weekday is not None" type="hidden" name="recurrence.weekday" value="${recurrence.weekday}"/>
+      <input tal:condition="python:recurrence.month_day is not None" type="hidden" name="recurrence.month_day" value="${recurrence.month_day}"/>
+    </div>
+
+    <!-- Note: only when non-empty -->
+    <div tal:condition="todo.note" class="details-field-row details-field--note"
+      _="on click call openNotePickerForDetails(me)
+        on keydown[key is '~'] from body
+          if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+          call openNotePickerForDetails(me)">
+      <span class="details-field-label">Note</span>
+      <span class="details-field-value" tal:content="structure render_note_html(todo.note)"></span>
+      <input type="hidden" name="note" value="${todo.note}"/>
+    </div>
+
+    <!-- Assignees: only when non-empty -->
+    <div tal:condition="assignees" class="details-field-row details-field--assignees"
+      _="on click call openAssigneesPicker(me, me)
+        on keydown[key is '@'] from body
+          if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+          call openAssigneesPicker(me, me)">
+      <span class="details-field-label">Assigned</span>
+      <span class="details-field-value">
+        <tal:block tal:repeat="a assignees">
+          <span class="details-assignee-pill">@${a}</span>
+          <input type="hidden" name="assignees.${repeat.a.index}" value="${a}"/>
+        </tal:block>
+      </span>
+    </div>
+
+    <!-- Links: only when non-empty, with per-link edit/remove -->
+    <div tal:condition="links_rel" class="details-field-row details-field--links">
+      <span class="details-field-label">Links</span>
+      <span class="details-field-value">
+        <tal:block tal:repeat="link links_rel">
+          <tal:block tal:define="idx python:repeat.link.index">
+            <span class="details-link-item me-1 text-nowrap" data-link-idx="${idx}">
+              <a tal:attributes="href python:link.url" target="_blank" rel="noopener noreferrer" class="small" tal:content="python:link.label or link.url"></a>
+              <button type="button" class="btn btn-link btn-sm p-0 details-link-edit" title="Edit">
+                <i class="bi bi-pencil" style="font-size:0.6rem;vertical-align:middle"></i>
+              </button>
+              <button type="button" class="btn btn-link btn-sm p-0 text-danger details-link-remove" title="Remove">
+                <i class="bi bi-x" style="font-size:0.75rem;vertical-align:middle"></i>
+              </button>
+              <input type="hidden" tal:attributes="name string:links.${idx}.url" value="${link.url}"/>
+              <input type="hidden" tal:attributes="name string:links.${idx}.label" value="${python:link.label or ''}"/>
+              <a href="#"  _="on click
+                  call openLinkPickerForDetails(me) then halt
+                on keydown[key is 'l'] from body
+                  if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                  call openLinkPickerForDetails(me)">+</a>
+            </span>
+          </tal:block>
+        </tal:block>
+      </span>
+    </div>
+
+    <!-- Attachments: only when present -->
+    <div tal:condition="todo.attachments" class="details-field-row details-field--attachments">
+      <span class="details-field-label">Files</span>
+      <span class="details-field-value">
+        <tal:block tal:repeat="att todo.attachments">
+          <img tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
+                                  alt att.original_filename" class="todo-attachment-thumb me-1" style="height:2.5rem;width:auto;border-radius:0.25rem;">
+        </tal:block>
+      </span>
+    </div>
+
+    <!-- "Add field" row: chips for each absent field -->
+    <div tal:define="missing python:[]"
+          tal:condition="python:missing or not due_date or not recurrence or not tags or not todo.note or not assignees or not links_rel"
+          class="details-add-fields-row px-3 py-1 d-flex flex-wrap gap-1">
+      <button tal:condition="not due_date" type="button" class="details-add-field-btn btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;border-radius:9999px;"
+        _="on click call openSetDuePicker(me, me)
+          on keydown[key is 'd'] from body
+            if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+            call openSetDuePicker(me, me)">+ date</button>
+      <button tal:condition="not recurrence" type="button" class="details-add-field-btn btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;border-radius:9999px;"
+        _="on click call openSetRecurrencePicker(me, me)
+          on keydown[key is 'f'] from body
+            if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+            call openSetRecurrencePicker(me, me)">+ repeat</button>
+      <button tal:condition="not tags" type="button" class="details-add-field-btn btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;border-radius:9999px;"
+        _="on click call openTagsPicker(me, me)
+          on keydown[key is 's'] from body
+            if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+            call openTagsPicker(me, me)">+ tags</button>
+      <button tal:condition="not todo.note" type="button" class="details-add-field-btn btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;border-radius:9999px;"
+        _="on click call openNotePickerForDetails(me)
+          on keydown[key is '~'] from body
+            if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+            call openNotePickerForDetails(me)">+ note</button>
+      <button tal:condition="not assignees" type="button" class="details-add-field-btn btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;border-radius:9999px;"
+        _="on click call openAssigneesPicker(me, me)
+          on keydown[key is '@'] from body
+            if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+            call openAssigneesPicker(me, me)">+ assign</button>
+      <button tal:condition="not links_rel" type="button" class="details-add-field-btn btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;border-radius:9999px;"
+        _="on click call openLinkPickerForDetails(me)
+          on keydown[key is 'l'] from body
+            if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+            call openLinkPickerForDetails(me)">+ link</button>
+    </div>
+
+  </div>
+
+  <!-- Protocol run items: rendered server-side when a run is attached -->
+  <div tal:condition="todo.protocol_run"
+     class="details-run-section">
+       <div id="protocol-run"
+            tal:define="run todo.protocol_run; items todo.protocol_run.sorted_items()"
+            data-run-id="${todo.protocol_run.id}"
+            data-todo-route="${request.route_url('list_todos')}">
+
+        <ul class="todo-group-list mb-0 list-unstyled">
+          <li tal:repeat="item items"
+              id="run-item-${item.id}"
+              tal:attributes="class python: 'protocol-run-item todo-item status-' + item.status.value;
+                              data-item-id item.id;
+                              data-done-url request.route_url('run_item_done', id=run.id, item_id=item.id);
+                              data-send-url request.route_url('run_item_send', id=run.id, item_id=item.id);
+                              data-edit-url request.route_url('run_item_edit', id=run.id, item_id=item.id)">
+            <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2">
+              <span class="protocol-run-item-marker flex-shrink-0">
+                <tal:block tal:condition="item.status.value == 'pending'">○</tal:block>
+                <tal:block tal:condition="item.status.value == 'done'">✓</tal:block>
+                <tal:block tal:condition="item.status.value == 'sent_to_todo'">→</tal:block>
+              </span>
+              <span class="flex-grow-1 small" style="min-width:0">
+                <span tal:attributes="class python: 'text-decoration-line-through text-muted' if item.status.value != 'pending' else ''">${item.text}</span>
+                <span tal:repeat="tag python:sorted(item.tags)"
+                      class="badge bg-secondary rounded-pill ms-1">#${tag}</span>
+                <span tal:condition="item.note"
+                      class="d-block text-muted" style="font-size:0.75rem">${item.note}</span>
+              </span>
+              <tal:block tal:condition="item.status.value == 'pending'">
+                <button type="button"
+                        class="protocol-run-action flex-shrink-0 btn btn-link btn-sm p-1 text-success"
+                        data-action="done"
+                        title="Done (c)">✓</button>
+                <button type="button"
+                        class="protocol-run-action flex-shrink-0 btn btn-link btn-sm p-1 text-primary"
+                        data-action="send"
+                        title="Send to todo list (t)">→</button>
+                <button type="button"
+                        class="protocol-run-action flex-shrink-0 btn btn-link btn-sm p-1 text-muted"
+                        data-action="edit"
+                        title="Edit before sending (e)">✎</button>
+              </tal:block>
+            </div>
+          </li>
+        </ul>
+            </div>
+  </div>
+  </form>
+</tal:block>
+</div>
+</div>

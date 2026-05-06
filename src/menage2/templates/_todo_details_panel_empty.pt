@@ -1,0 +1,3 @@
+<div class="details-pane d-none" id="details-pane">
+  <div class="todo-list-wrap run-panel-wrap" id="details-panel"></div>
+</div>

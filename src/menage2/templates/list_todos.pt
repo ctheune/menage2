@@ -47,6 +47,19 @@
             data-postpone-url="${request.route_url('todos_postpone')}"
             data-undo-url="${request.route_url('todo_undo')}"
             data-groups-url="${request.route_url('list_todo_groups')}?filter=${filter_mode}"
+            hx-trigger="todo-updated from:body, focus from:window"
+            hx-get="${request.route_url('list_todo_groups')}?filter=${filter_mode}"
+            _="on htmx:afterSwap trigger change on the first <form/> in me
+               on keydown[key is ']'] from body
+                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                 call setAllGroups(true)
+               on keydown[key is '['] from body
+                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                 call setAllGroups(false)
+               on keydown[key is 'u'] from body
+                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                 if no #undo-toast exit end
+                 trigger undoRequested on body"
           >
             <tal:block tal:replace="structure groups_html" />
           </div>
@@ -54,7 +67,7 @@
       </div>
 
       <!-- Details pane (hidden until an item is selected or a run is opened) -->
-      <div class="details-pane d-none" id="details-pane">
+      <div class="details-pane" id="details-pane">
         <div class="todo-list-wrap run-panel-wrap" id="details-panel"></div>
       </div>
     </div>
