@@ -4,6 +4,10 @@ Menage is a software suite for managing household day to day tasks:
 - Creating shopping lists (using tags to allow grouping things that are placed in similar locations in the supermarket)
 - a dashboard run in a kitchen ipad
 
+# Exploring
+
+Avoid exploring, first read `explored.md`. Whenever exploring again, update that file with a summarization of the new information, to reduce need for exploration.
+
 # Development
 
 * use git
