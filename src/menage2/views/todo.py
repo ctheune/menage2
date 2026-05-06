@@ -8,6 +8,7 @@ from urllib.parse import urlparse as _urlparse
 from dateutil.relativedelta import relativedelta
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.renderers import render, render_to_response
+from pyramid.request import Request
 from pyramid.response import Response
 from pyramid.view import view_config
 from sqlalchemy import asc, func, nulls_last, or_, select
@@ -371,6 +372,35 @@ def home(request):
 
 
 _VALID_FILTER_MODES = {"all", "personal", "delegated_out", "delegated_in"}
+
+
+@view_config(route_name="task_subnav", request_method="GET")
+def task_subnav_partial(request: Request) -> Response:
+    current_url = request.headers.get("HX-Current-URL", "")
+    path = _urlparse(current_url).path if current_url else ""
+
+    sub_todo_hold = path == request.route_path("list_todos_hold")
+    sub_todo_scheduled = path == request.route_path("list_todos_scheduled")
+    sub_todo_done = path == request.route_path("list_todos_done")
+    sub_protocols = path.startswith(request.route_path("list_protocols"))
+    sub_todo_active = not (
+        sub_todo_hold or sub_todo_scheduled or sub_todo_done or sub_protocols
+    )
+
+    body = render(
+        "menage2:templates/_task_subnav.pt",
+        {
+            "sub_todo_active": sub_todo_active,
+            "sub_todo_hold": sub_todo_hold,
+            "sub_todo_scheduled": sub_todo_scheduled,
+            "sub_todo_done": sub_todo_done,
+            "sub_protocols": sub_protocols,
+        },
+        request=request,
+    )
+    request.response.content_type = "text/html"
+    request.response.text = body
+    return request.response
 
 
 @view_config(route_name="list_todo_groups", request_method="GET")

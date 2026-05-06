@@ -38,6 +38,46 @@ def test_tasks_subnav_on_protocols(authenticated_testapp):
     assert b"Protocols" in res.body
 
 
+def test_task_subnav_partial_returns_nav_items(authenticated_testapp):
+    res = authenticated_testapp.get(
+        "/todos/subnav",
+        headers={"HX-Current-URL": "http://localhost/todos"},
+        status=200,
+    )
+    assert b"Active" in res.body
+    assert b"On Hold" in res.body
+    assert b"Scheduled" in res.body
+    assert b"Done" in res.body
+    assert b"Protocols" in res.body
+
+
+def test_task_subnav_partial_active_state_on_hold(authenticated_testapp):
+    res = authenticated_testapp.get(
+        "/todos/subnav",
+        headers={"HX-Current-URL": "http://example.com/todos/hold"},
+        status=200,
+    )
+    assert b"nav-link active" in res.body
+    assert b"On Hold" in res.body
+    # Active tab should not be highlighted
+    active_idx = res.body.index(b"nav-link active")
+    on_hold_idx = res.body.index(b"On Hold")
+    assert active_idx < on_hold_idx
+
+
+def test_task_subnav_partial_active_state_protocols(authenticated_testapp):
+    res = authenticated_testapp.get(
+        "/todos/subnav",
+        headers={"HX-Current-URL": "http://example.com/protocols"},
+        status=200,
+    )
+    assert b"nav-link active" in res.body
+    assert b"Protocols" in res.body
+    active_idx = res.body.index(b"nav-link active")
+    protocols_idx = res.body.index(b"Protocols")
+    assert active_idx < protocols_idx
+
+
 def test_maintenance_nav_active_on_admin_users(authenticated_testapp):
     res = authenticated_testapp.get("/admin/users", status=200)
     assert b"Maintenance" in res.body

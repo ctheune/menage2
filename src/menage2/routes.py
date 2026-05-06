@@ -96,6 +96,7 @@ def includeme(config):
     config.add_route("todos_hold", "/todos/hold-items")
     config.add_route("todos_postpone", "/todos/postpone-items")
     config.add_route("list_todo_groups", "/todos/groups")
+    config.add_route("task_subnav", "/todos/subnav")
     config.add_route("todos_activate_all_on_hold", "/todos/activate-on-hold")
     config.add_route("todo_undo", "/todos/undo")
     config.add_route("todos_activate_batch", "/todos/activate-items")

@@ -40,6 +40,7 @@ _TASKS_ROUTES = frozenset(
         "delete_protocol_item",
         "start_protocol_run",
         "list_protocols_palette",
+        "task_subnav",
     }
 )
 

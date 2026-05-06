@@ -1,0 +1,40 @@
+<tal:block xmlns:tal="http://xml.zope.org/namespaces/tal">
+<li class="nav-item">
+  <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_active else 'nav-link'"
+     href="${request.route_url('list_todos')}">
+    Active
+    <span tal:condition="python:nav_task_counts and nav_task_counts['active']"
+          class="badge rounded-pill bg-dark ms-1">
+      ${nav_task_counts['active']}
+    </span>
+  </a>
+</li>
+<li class="nav-item">
+  <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_hold else 'nav-link'"
+     href="${request.route_url('list_todos_hold')}">
+    On Hold
+    <span tal:condition="python:nav_task_counts and nav_task_counts['hold']"
+          class="badge rounded-pill bg-secondary ms-1">
+      ${nav_task_counts['hold']}
+    </span>
+  </a>
+</li>
+<li class="nav-item">
+  <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_scheduled else 'nav-link'"
+     href="${request.route_url('list_todos_scheduled')}">
+    Scheduled
+    <span tal:condition="python:nav_task_counts and nav_task_counts['scheduled']"
+          class="badge rounded-pill bg-primary ms-1">
+      ${nav_task_counts['scheduled']}
+    </span>
+  </a>
+</li>
+<li class="nav-item">
+  <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_todo_done else 'nav-link'"
+     href="${request.route_url('list_todos_done')}">Done</a>
+</li>
+<li class="nav-item">
+  <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_protocols else 'nav-link'"
+     href="${request.route_url('list_protocols')}">Protocols</a>
+</li>
+</tal:block>

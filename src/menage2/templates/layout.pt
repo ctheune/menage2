@@ -103,7 +103,13 @@
 
       <!-- Section sub-navigation -->
       <tal:block tal:condition="in_section">
-        <ul class="nav nav-tabs border-0">
+        <ul class="nav nav-tabs border-0"
+            tal:attributes="
+              id python:'task-subnav-tabs' if in_tasks else None;
+              hx-get python:request.route_url('task_subnav') + '?filter=' + request.params.get('filter', 'personal') if in_tasks else None;
+              hx-trigger python:'todo-updated from:body, focus from:window' if in_tasks else None;
+              hx-swap python:'innerHTML' if in_tasks else None
+            ">
 
           <tal:block tal:condition="in_food">
             <li class="nav-item">
