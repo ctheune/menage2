@@ -53,14 +53,6 @@ def _ext_for(att):
     return suffix or ".bin"
 
 
-def _render_todo_item(request, todo):
-    return render(
-        "menage2:templates/_todo_item.pt",
-        {"todo": todo, "today": datetime.date.today()},
-        request=request,
-    )
-
-
 @view_config(route_name="todo_attachment_upload", request_method="POST")
 def upload_attachment(request):
     todo_id = int(request.matchdict["id"])
@@ -138,10 +130,10 @@ def upload_attachment(request):
     request.dbsession.flush()
     request.dbsession.expire(todo)
 
-    html = _render_todo_item(request, todo)
     request.response.content_type = "text/html"
-    request.response.text = html
-    request.response.headers["HX-Reswap"] = "outerHTML"
+    request.response.text = ""
+    request.response.headers["HX-Reswap"] = "none"
+    request.response.hx_trigger("todo-updated")
     return request.response
 
 
@@ -228,8 +220,8 @@ def delete_attachment(request):
     request.dbsession.flush()
     request.dbsession.expire(todo)
 
-    html = _render_todo_item(request, todo)
     request.response.content_type = "text/html"
-    request.response.text = html
-    request.response.headers["HX-Reswap"] = "outerHTML"
+    request.response.text = ""
+    request.response.headers["HX-Reswap"] = "none"
+    request.response.hx_trigger("todo-updated")
     return request.response
