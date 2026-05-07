@@ -5,6 +5,15 @@ from sqlalchemy.orm import configure_mappers, sessionmaker
 # Import or define all models here to ensure they are attached to the
 # ``Base.metadata`` prior to any initialization routines.
 from .config import ConfigItem  # noqa
+from .planner import (
+    Day,
+    Month,
+    RecipeSeasons,
+    RecipeWeekDays,
+    Schedule,
+    Week,
+    Weekday,
+)
 from .protocol import (  # noqa
     Protocol,
     ProtocolItem,
