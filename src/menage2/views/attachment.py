@@ -49,8 +49,10 @@ def _get_authorized_todo(request, todo_id):
 
 
 def _ext_for(att):
-    suffix = Path(att.original_filename).suffix.lower()
-    return suffix or ".bin"
+    for mimetype, ext in _FORMAT_TO_MIMETYPE.values():
+        if mimetype == att.mimetype:
+            return ext
+    return ".bin"
 
 
 @view_config(route_name="todo_attachment_upload", request_method="POST")
