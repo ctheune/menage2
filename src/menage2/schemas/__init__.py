@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 from enum import Enum
-from typing import List, Optional, Set
+from typing import List, Literal, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -101,6 +101,6 @@ class TodoResponse(BaseModel):
 class BatchAction(BaseModel):
     """Schema for batch actions on todos."""
 
-    action: str  # "done", "hold", "postpone", "activate"
+    action: Literal["done", "hold", "postpone", "activate"]
     todo_ids: List[int]
     postpone_interval: Optional[str] = None  # "1d", "1w", "1mo", etc.

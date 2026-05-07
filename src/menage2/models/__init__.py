@@ -5,15 +5,6 @@ from sqlalchemy.orm import configure_mappers, sessionmaker
 # Import or define all models here to ensure they are attached to the
 # ``Base.metadata`` prior to any initialization routines.
 from .config import ConfigItem  # noqa
-from .planner import (
-    Day,
-    Month,
-    RecipeSeasons,
-    RecipeWeekDays,
-    Schedule,
-    Week,
-    Weekday,
-)
 from .protocol import (  # noqa
     Protocol,
     ProtocolItem,
@@ -32,7 +23,9 @@ configure_mappers()
 
 
 def get_engine(settings, prefix="sqlalchemy."):
-    return engine_from_config(settings, prefix, echo=True)
+    # Use the 'echo' setting if provided; default to False to avoid noisy SQL output during tests
+    echo = settings.get(f"{prefix}echo", False)
+    return engine_from_config(settings, prefix, echo=echo)
 
 
 def get_session_factory(engine):

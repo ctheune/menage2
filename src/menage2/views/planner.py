@@ -207,6 +207,7 @@ def send_to_shopping_list(request):
                     text=text,
                     tags=tags,
                     status=TodoStatus.todo,
+                    owner=request.identity,
                     created_at=now,
                     note=note,
                 )
@@ -225,6 +226,7 @@ def send_to_shopping_list(request):
                 text=usage.to_shopping_list(),
                 tags=tags,
                 status=TodoStatus.todo,
+                owner=request.identity,
                 created_at=now,
                 note=note,
             )

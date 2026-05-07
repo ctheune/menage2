@@ -6,7 +6,7 @@ from sqlalchemy.orm import backref, contains_eager, relationship
 from sqlalchemy.orm.session import Session
 
 from .meta import Base
-from .recipe import IngredientUsage, Recipe
+from .recipe import Recipe
 
 
 class Weekday(enum.Enum):

@@ -114,6 +114,7 @@ def list_protocols(request):
         "active": active,
         "archived": archived,
         "rule_label": _rule_label,
+        "filter_mode": request.params.get("filter", "personal"),
     }
 
 
@@ -189,6 +190,7 @@ def edit_protocol(request):
         "rule_label": _rule_label(p),
         "is_editor": is_editor,
         "render_item": lambda item: _render_protocol_item(request, p, item, is_editor),
+        "filter_mode": request.params.get("filter", "personal"),
     }
 
 
@@ -354,18 +356,16 @@ def _run_partial_response(request, run):
     Send a partial with additional triggers.
 
     """
-    events = set(["todo-updated"])
+    request.response.hx_trigger("todo-updated")
     if run.closed_at:
-        events.add("todo-closed")
-    response = Response()
-    response.headers["HX-Trigger"] = ",".join(events)
+        request.response.hx_trigger("todo-closed")
     return render_to_response(
         "menage2:templates/_protocol_run_partial.pt",
         {
             "run": run,
         },
         request=request,
-        response=response,
+        response=request.response,
     )
 
 

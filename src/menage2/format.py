@@ -6,45 +6,6 @@ from babel.dates import get_timezone
 from babel.support import Format
 from pyramid.events import subscriber
 from pyramid.interfaces import IBeforeRender
-from sqlalchemy import func, or_, select
-
-_TASKS_ROUTES = frozenset(
-    {
-        "list_todos",
-        "list_todos_done",
-        "list_todos_scheduled",
-        "list_todos_hold",
-        "add_todo",
-        "edit_todo",
-        "todos_done",
-        "todos_hold",
-        "todos_postpone",
-        "todos_activate_all_on_hold",
-        "todo_undo",
-        "todos_activate_batch",
-        "set_due_date",
-        "parse_date_preview",
-        "set_recurrence",
-        "parse_recurrence_preview",
-        "recurrence_history",
-        "list_tags_json",
-        "list_principals_json",
-        "list_protocols",
-        "new_protocol",
-        "edit_protocol",
-        "archive_protocol",
-        "unarchive_protocol",
-        "add_protocol_item",
-        "update_protocol_item",
-        "update_protocol_item_partial",
-        "delete_protocol_item",
-        "start_protocol_run",
-        "list_protocols_palette",
-        "task_subnav",
-    }
-)
-
-_VALID_FILTER_MODES = frozenset({"all", "personal", "delegated_out", "delegated_in"})
 
 
 def format_timedelta(td: timedelta):
@@ -145,63 +106,3 @@ def globals_factory(event):
     event["humanize_ago"] = humanize_ago
     event["absolute_with_weekday"] = humanize_ago_with_weekday
     event["_recurrence_label"] = _recurrence_label
-
-    # Task sub-nav counts (active / on-hold / scheduled)
-    request = event["request"]
-    route_name = request.matched_route.name if request.matched_route else ""
-    nav_task_counts = None
-    if (
-        route_name in _TASKS_ROUTES
-        and request.identity is not None
-        and hasattr(request, "dbsession")
-    ):
-        from menage2.models.todo import Todo, TodoStatus
-        from menage2.principals import get_user_team_memberships, todo_matches_filter
-
-        today = _dt.date.today()
-        user = request.identity
-        filter_mode = request.params.get("filter", "personal")
-        if filter_mode not in _VALID_FILTER_MODES:
-            filter_mode = "personal"
-        db = request.dbsession
-        db.flush()
-        memberships = get_user_team_memberships(db, user)
-
-        def _count(todos):
-            return sum(
-                1
-                for t in todos
-                if todo_matches_filter(t, user, memberships, filter_mode)
-            )
-
-        todos_active = (
-            db.execute(
-                select(Todo).where(
-                    Todo.status == TodoStatus.todo,
-                    or_(Todo.due_date.is_(None), Todo.due_date <= today),
-                )
-            )
-            .scalars()
-            .all()
-        )
-        todos_hold = (
-            db.execute(select(Todo).where(Todo.status == TodoStatus.on_hold))
-            .scalars()
-            .all()
-        )
-        todos_sched = (
-            db.execute(
-                select(Todo).where(
-                    Todo.status == TodoStatus.todo, Todo.due_date > today
-                )
-            )
-            .scalars()
-            .all()
-        )
-        nav_task_counts = {
-            "active": _count(todos_active),
-            "hold": _count(todos_hold),
-            "scheduled": _count(todos_sched),
-        }
-
-    event["nav_task_counts"] = nav_task_counts

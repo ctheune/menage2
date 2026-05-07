@@ -4,16 +4,13 @@ Menage is a software suite for managing household day to day tasks:
 - Creating shopping lists (using tags to allow grouping things that are placed in similar locations in the supermarket)
 - a dashboard run in a kitchen ipad
 
-# Exploring
-
-Avoid exploring, first read `explored.md`. Whenever exploring again, update that file with a summarization of the new information, to reduce need for exploration.
-
 # Development
 
 * use git
 
 * you are running inside a devenv
-  * `uv run pytest` to run tests. run `devenv up` in the background if it isn't running already and stop it when done with the tests.
+
+  * `uv run pytest -v` to run tests. `devenv up` is already running in the background, DO NOT start any other devenv processes.
 
 * use `uv run alembic -c development.ini revision --autogenerate -m "<message>"` to generate database upgrades when changing the structure. however, verify the generated file whether it matches the changes you made or whether you need to adjust things for proper upgrades. downgrades are not important.
 

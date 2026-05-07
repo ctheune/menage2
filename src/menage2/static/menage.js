@@ -85,9 +85,24 @@ document.addEventListener(
     var inner = item.querySelector(".todo-content");
     if (!inner) return;
     state.dx = e.touches[0].clientX - state.startX;
+
+    var todoList = document.getElementById("todo-list");
+    var currentStatus = todoList ? todoList.dataset.status : null;
+
+    // Don't preview right swipe on done list
+    if (state.dx > 0 && currentStatus === "done") {
+      return;
+    }
+
+    // Don't preview left swipe on scheduled list
+    if (state.dx < 0 && currentStatus === "scheduled") {
+      return;
+    }
+
     inner.style.transform =
       "translateX(" + Math.max(-150, Math.min(150, state.dx)) + "px)";
     item.dataset.swipeDir = state.dx > 0 ? "right" : state.dx < 0 ? "left" : "";
+    item.dataset.swipeStatus = currentStatus || "";
   },
   { passive: true },
 );
@@ -103,15 +118,38 @@ document.addEventListener("touchend", function (e) {
   if (!inner) return;
   inner.style.transition = "transform 0.2s ease";
   var dx = state.dx;
-  var list = document.getElementById("todo-list");
   var checkbox = item.querySelector(".todo-checkbox");
-  var todoId = checkbox ? checkbox.value : null;
-  if (dx >= _SWIPE_THRESHOLD && list && todoId) {
+  var todoList = document.getElementById("todo-list");
+  var status = todoList ? todoList.dataset.status : null;
+
+  if (
+    dx >= _SWIPE_THRESHOLD &&
+    checkbox &&
+    document.querySelector(".done-trigger")
+  ) {
     inner.style.transform = "translateX(100vw)";
-    swipePost(list.dataset.doneUrl, todoId, list);
-  } else if (dx <= -_SWIPE_THRESHOLD && list && todoId) {
+    checkbox.checked = true;
+    htmx.trigger(".done-trigger", "doneSelected");
+  } else if (dx <= -_SWIPE_THRESHOLD && checkbox) {
     inner.style.transform = "translateX(-100vw)";
-    swipePost(list.dataset.holdUrl, todoId, list);
+
+    // Choose action based on status
+    if (status === "on_hold" || status === "done") {
+      // Use activate for on_hold and done lists
+      document.querySelectorAll(".todo-checkbox").forEach(function (cb) {
+        cb.checked = false;
+      });
+      checkbox.checked = true;
+      htmx.trigger(".activate-trigger", "activateSelected");
+    } else if (status === "active") {
+      // Use hold for active list only
+      checkbox.checked = true;
+      htmx.trigger(".hold-trigger", "holdSelected");
+    } else {
+      // No action for other statuses (e.g., scheduled)
+      inner.style.transform = "translateX(0)";
+      delete item.dataset.swipeDir;
+    }
   } else {
     inner.style.transform = "translateX(0)";
     delete item.dataset.swipeDir;
@@ -135,7 +173,7 @@ document.addEventListener("click", function (e) {
   )
     return;
   checkbox.checked = !checkbox.checked;
-  checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+  checkbox.dispatchEvent(new Event("open-details", { bubbles: true }));
 });
 
 // Full-screen image modal with prev/next navigation

@@ -12,26 +12,17 @@ from menage2.models.todo import (
     TodoStatus,
 )
 from menage2.views.todo import (
-    ParsedTodoInput,
     _bump_due_date,
+    _format_date_group,
     add_todo,
     build_tag_tree,
-    edit_todo,
     list_todos,
-    list_todos_done,
-    list_todos_scheduled,
     parse_link,
-    parse_recurrence_preview,
     parse_todo_input,
-    recurrence_history,
     render_note_html,
-    set_due_date,
-    set_recurrence,
-    set_tags,
     todo_undo,
     todo_update,
     todos_activate_all_on_hold,
-    todos_activate_batch,
     todos_done,
     todos_hold,
     todos_postpone,
@@ -538,19 +529,6 @@ def test_todos_postpone_overdue_snaps_to_today_first(
     assert todo.due_date == _today()
 
 
-def test_todos_activate_batch_restores_status(app_request, dbsession, admin_user):
-    todo = _todo(status=TodoStatus.done, done_at=_now())
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.method = "POST"
-    app_request.POST["todo_ids"] = str(todo.id)
-    todos_activate_batch(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.status == TodoStatus.todo
-    assert todo.done_at is None
-
-
 def test_todos_done_marks_multiple(app_request, dbsession, admin_user):
     todos = [_todo(f"T{i}") for i in range(3)]
     for t in todos:
@@ -624,18 +602,6 @@ def test_todo_undo_returns_list_html_with_confirm_trigger(
     assert trigger["showUndoConfirm"]["label"] == "Undo me"
 
 
-def test_list_todos_done_ordered_by_done_at(app_request, dbsession, admin_user):
-    now = _now()
-    t1 = _todo(
-        "First", status=TodoStatus.done, done_at=now - datetime.timedelta(seconds=60)
-    )
-    t2 = _todo("Second", status=TodoStatus.done, done_at=now)
-    dbsession.add_all([t1, t2])
-    dbsession.flush()
-    info = list_todos_done(app_request)
-    assert info["todos"][0].text == "Second"
-
-
 def test_list_todos_only_shows_active(app_request, dbsession, admin_user):
     t_active = _todo("Active")
     t_done = _todo("Done", status=TodoStatus.done, done_at=_now())
@@ -686,79 +652,6 @@ def test_list_todos_sorted_due_first_then_undated(app_request, dbsession, admin_
     items = info["groups"][0]["items"]
     # Most overdue first, then today, then undated.
     assert [t.text for t in items] == ["C_overdue", "B_today", "A_undated"]
-
-
-# ---------------------------------------------------------------------------
-# Scheduled view
-# ---------------------------------------------------------------------------
-
-
-def test_list_todos_scheduled_only_future(app_request, dbsession, admin_user):
-    today = _today()
-    today_item = _todo("Today", due_date=today)
-    future = _todo("Future", due_date=today + datetime.timedelta(days=3))
-    far_future = _todo("Far", due_date=today + datetime.timedelta(days=10))
-    dbsession.add_all([today_item, future, far_future])
-    dbsession.flush()
-    info = list_todos_scheduled(app_request)
-    flat = [item for g in info["groups"] for item in g["items"]]
-    assert [t.text for t in flat] == ["Future", "Far"]
-
-
-def test_list_todos_scheduled_grouped_by_date(app_request, dbsession, admin_user):
-    today = _today()
-    a = _todo("A", due_date=today + datetime.timedelta(days=2))
-    b = _todo("B", due_date=today + datetime.timedelta(days=2))
-    c = _todo("C", due_date=today + datetime.timedelta(days=5))
-    dbsession.add_all([a, b, c])
-    dbsession.flush()
-    info = list_todos_scheduled(app_request)
-    assert len(info["groups"]) == 2
-    assert len(info["groups"][0]["items"]) == 2
-    assert len(info["groups"][1]["items"]) == 1
-
-
-# ---------------------------------------------------------------------------
-# set_due_date
-# ---------------------------------------------------------------------------
-
-
-def test_set_due_date_with_natural_language(app_request, dbsession, admin_user):
-    todo = _todo()
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["due_date"] = "tomorrow"
-    set_due_date(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.due_date == _today() + datetime.timedelta(days=1)
-
-
-def test_set_due_date_clears_when_empty(app_request, dbsession, admin_user):
-    todo = _todo(due_date=_today() + datetime.timedelta(days=2))
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["due_date"] = ""
-    set_due_date(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.due_date is None
-
-
-def test_set_due_date_invalid_input_returns_422(app_request, dbsession, admin_user):
-    todo = _todo()
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["due_date"] = "not a date"
-    response = set_due_date(app_request)
-    assert response.status_int == 422
-    assert todo.due_date is None
 
 
 # ---------------------------------------------------------------------------
@@ -852,20 +745,6 @@ def test_set_due_date_endpoint(authenticated_testapp, dbsession):
     assert todo.due_date == _today() + datetime.timedelta(days=1)
 
 
-def test_edit_todo_updates_text_and_tags(app_request, dbsession, admin_user):
-    todo = _todo("Old text", {"old-tag"})
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["text"] = "New text #new-tag"
-    edit_todo(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.text == "New text"
-    assert todo.tags == {"new-tag"}
-
-
 def test_add_todo_saves_note(app_request, dbsession, admin_user):
     app_request.method = "POST"
     app_request.POST["text"] = "Buy milk ~get organic"
@@ -873,61 +752,6 @@ def test_add_todo_saves_note(app_request, dbsession, admin_user):
     todo = dbsession.query(Todo).one()
     assert todo.text == "Buy milk"
     assert todo.note == "get organic"
-
-
-def test_edit_todo_saves_note(app_request, dbsession, admin_user):
-    todo = _todo("Old text")
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["text"] = "New text ~a note"
-    edit_todo(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.text == "New text"
-    assert todo.note == "a note"
-
-
-def test_edit_todo_only_tags_returns_422(app_request, dbsession, admin_user):
-    todo = _todo("Something")
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["text"] = "#only-tag"
-    response = edit_todo(app_request)
-    assert response.status_int == 422
-    assert todo.text == "Something"
-
-
-def test_edit_todo_workflow(authenticated_testapp, dbsession):
-    todo = _todo("Original")
-    dbsession.add(todo)
-    dbsession.flush()
-    authenticated_testapp.post(
-        f"/todos/{todo.id}/edit", {"text": "Updated #work"}, status=303
-    )
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.text == "Updated"
-    assert todo.tags == {"work"}
-
-
-def test_edit_todo_htmx_updates_text(authenticated_testapp, dbsession):
-    todo = _todo("Original htmx")
-    dbsession.add(todo)
-    dbsession.flush()
-    res = authenticated_testapp.post(
-        f"/todos/{todo.id}/edit",
-        {"text": "Updated htmx"},
-        headers={"HX-Request": "true"},
-        status=200,
-    )
-    assert "Updated htmx" in res.text
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.text == "Updated htmx"
 
 
 # ---------------------------------------------------------------------------
@@ -977,48 +801,6 @@ def test_add_todo_creates_recurrence_rule(app_request, dbsession, admin_user):
     assert rule.kind == RecurrenceKind.every
     assert rule.interval_unit == RecurrenceUnit.week
     assert rule.interval_value == 1
-
-
-def test_edit_todo_updates_existing_rule_in_place(app_request, dbsession, admin_user):
-    rule = RecurrenceRule(
-        kind=RecurrenceKind.every,
-        interval_value=1,
-        interval_unit=RecurrenceUnit.week,
-    )
-    dbsession.add(rule)
-    dbsession.flush()
-    todo = _todo("Yoga", recurrence_id=rule.id)
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["text"] = "Yoga *every 2 weeks"
-    edit_todo(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    dbsession.refresh(rule)
-    assert todo.recurrence_id == rule.id
-    assert rule.interval_value == 2
-
-
-def test_edit_todo_clears_recurrence_when_dropped(app_request, dbsession, admin_user):
-    rule = RecurrenceRule(
-        kind=RecurrenceKind.every,
-        interval_value=1,
-        interval_unit=RecurrenceUnit.week,
-    )
-    dbsession.add(rule)
-    dbsession.flush()
-    todo = _todo("Yoga", recurrence_id=rule.id)
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["text"] = "Yoga"
-    edit_todo(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.recurrence_id is None
 
 
 def test_todos_done_spawns_after_instance(app_request, dbsession, admin_user):
@@ -1071,56 +853,6 @@ def test_todos_done_spawns_every_instance(app_request, dbsession, admin_user):
     assert len(pending) == 1
     assert pending[0].due_date == _today() + datetime.timedelta(days=7)
     assert pending[0].recurred_from_id == todo.id
-
-
-# ---------------------------------------------------------------------------
-# set_recurrence / parse_recurrence_preview / recurrence_history
-# ---------------------------------------------------------------------------
-
-
-def test_set_recurrence_creates_rule(app_request, dbsession, admin_user):
-    todo = _todo("Subject")
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["recurrence"] = "every wednesday"
-    set_recurrence(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.recurrence_id is not None
-    assert todo.recurrence.weekday == 2
-
-
-def test_set_recurrence_clears_when_empty(app_request, dbsession, admin_user):
-    rule = RecurrenceRule(
-        kind=RecurrenceKind.every,
-        interval_value=1,
-        interval_unit=RecurrenceUnit.week,
-    )
-    dbsession.add(rule)
-    dbsession.flush()
-    todo = _todo("Subject", recurrence_id=rule.id)
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["recurrence"] = ""
-    set_recurrence(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.recurrence_id is None
-
-
-def test_set_recurrence_invalid_returns_422(app_request, dbsession, admin_user):
-    todo = _todo("Subject")
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["recurrence"] = "garbled"
-    response = set_recurrence(app_request)
-    assert response.status_int == 422
 
 
 def test_parse_recurrence_preview_endpoint(authenticated_testapp):
@@ -1188,57 +920,6 @@ def test_list_todos_runs_daily_sweep_creating_future_instance(
         .all()
     )
     assert len(actives) >= 1
-
-
-# ---------------------------------------------------------------------------
-# set_tags tests
-# ---------------------------------------------------------------------------
-
-
-def test_set_tags_updates_tags(app_request, dbsession, admin_user):
-    todo = _todo("Buy groceries", tags={"old"})
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["tags"] = "shopping,food"
-    set_tags(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.tags == {"shopping", "food"}
-
-
-def test_set_tags_clears_all_tags(app_request, dbsession, admin_user):
-    todo = _todo("Clean up", tags={"chore", "home"})
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["tags"] = ""
-    set_tags(app_request)
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.tags == set()
-
-
-def test_set_tags_returns_html(app_request, dbsession, admin_user):
-    todo = _todo("Write tests")
-    dbsession.add(todo)
-    dbsession.flush()
-    app_request.matchdict = {"id": str(todo.id)}
-    app_request.method = "POST"
-    app_request.POST["tags"] = "dev"
-    response = set_tags(app_request)
-    assert response.content_type == "text/html"
-    assert b"<" in response.body
-
-
-def test_set_tags_unknown_id_returns_404(app_request, admin_user):
-    app_request.matchdict = {"id": "99999"}
-    app_request.method = "POST"
-    app_request.POST["tags"] = "test"
-    response = set_tags(app_request)
-    assert response.status_int == 404
 
 
 # ---------------------------------------------------------------------------
@@ -1424,3 +1105,51 @@ def test_todo_update_htmx_redirects_to_details_panel(
     assert response.status_int == 303
     assert "/todos/details-panel" in response.location
     assert f"todo_ids={todo.id}" in response.location
+
+
+# Format tests
+# ---------------------------------------------------------------------------
+
+
+def test_format_date_group_today():
+    today = datetime.date(2026, 5, 7)
+    assert _format_date_group(today, today) == "Today, 07.05.2026"
+
+
+def test_format_date_group_tomorrow():
+    today = datetime.date(2026, 5, 7)
+    tomorrow = today + datetime.timedelta(days=1)
+    assert _format_date_group(tomorrow, today) == "Tomorrow, 08.05.2026"
+
+
+def test_format_date_group_yesterday():
+    today = datetime.date(2026, 5, 7)
+    yesterday = today - datetime.timedelta(days=1)
+    assert _format_date_group(yesterday, today) == "Yesterday, 06.05.2026"
+
+
+def test_format_date_group_future_within_week():
+    today = datetime.date(2026, 5, 7)  # Thursday
+    date = today + datetime.timedelta(days=3)  # Sunday
+    assert _format_date_group(date, today) == "Sunday, 10.05.2026 (in 3 days)"
+
+
+def test_format_date_group_future_beyond_week():
+    today = datetime.date(2026, 5, 7)  # Thursday
+    date = today + datetime.timedelta(days=10)
+    formatted = _format_date_group(date, today)
+    assert formatted == "Sunday, 17.05.2026 (in 1 week)"
+
+
+def test_format_date_group_past_within_week():
+    today = datetime.date(2026, 5, 7)  # Thursday
+    date = today - datetime.timedelta(days=3)  # Monday
+    formatted = _format_date_group(date, today)
+    assert formatted == "Monday, 04.05.2026 (3 days ago)"
+
+
+def test_format_date_group_past_beyond_week():
+    today = datetime.date(2026, 5, 7)  # Thursday
+    date = today - datetime.timedelta(days=10)
+    formatted = _format_date_group(date, today)
+    assert formatted == "Monday, 27.04.2026 (1 week ago)"

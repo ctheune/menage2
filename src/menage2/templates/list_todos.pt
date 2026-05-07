@@ -4,7 +4,6 @@
 
   <span metal:fill-slot="actions">
     <form
-      tal:condition="on_hold_count"
       method="post"
       action="${request.route_url('todos_activate_all_on_hold')}"
       class="d-inline m-0"
@@ -16,21 +15,28 @@
   </span>
 
   <div metal:fill-slot="content" class="container-fluid px-0 px-md-3 pt-3">
-    <!-- Filter toggle bar -->
+    <!-- Status navigation (active / hold / scheduled / done) -->
     <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
-      <tal:block
-        tal:define="modes python:[('personal','My Tasks'),('delegated_out','Delegated out'),('delegated_in','Delegated in'),('all','All')]"
+      <a
+        href="${request.route_url('list_todos')}?filter=${filter_mode}&status=active"
+        class="btn btn-sm rounded-pill ${'btn-dark' if status == 'active' else 'btn-outline-secondary'}"
+        >Active</a
       >
-        <tal:block tal:repeat="mode modes">
-          <a
-            tal:define="mkey python:mode[0]; mlabel python:mode[1]"
-            href="${request.route_url('list_todos')}?filter=${mkey}"
-            tal:attributes="class python:'btn btn-sm rounded-pill ' + ('btn-dark' if filter_mode == mkey else 'btn-outline-secondary')"
-          >
-            ${mlabel}
-          </a>
-        </tal:block>
-      </tal:block>
+      <a
+        href="${request.route_url('list_todos')}?filter=${filter_mode}&status=on_hold"
+        class="btn btn-sm rounded-pill ${'btn-dark' if status == 'on_hold' else 'btn-outline-secondary'}"
+        >On Hold</a
+      >
+      <a
+        href="${request.route_url('list_todos')}?filter=${filter_mode}&status=scheduled"
+        class="btn btn-sm rounded-pill ${'btn-dark' if status == 'scheduled' else 'btn-outline-secondary'}"
+        >Scheduled</a
+      >
+      <a
+        href="${request.route_url('list_todos')}?filter=${filter_mode}&status=done"
+        class="btn btn-sm rounded-pill ${'btn-dark' if status == 'done' else 'btn-outline-secondary'}"
+        >Done</a
+      >
     </div>
 
     <!-- Add / edit todo form (shared across views; rendered server-side) -->
@@ -42,13 +48,9 @@
         <div class="todo-list-wrap">
           <div
             id="todo-list"
-            data-done-url="${request.route_url('todos_done')}"
-            data-hold-url="${request.route_url('todos_hold')}"
-            data-postpone-url="${request.route_url('todos_postpone')}"
-            data-undo-url="${request.route_url('todo_undo')}"
-            data-groups-url="${request.route_url('list_todo_groups')}?filter=${filter_mode}"
-            hx-trigger="todo-updated from:body, focus from:window"
-            hx-get="${request.route_url('list_todo_groups')}?filter=${filter_mode}"
+            data-status="${status}"
+            hx-trigger="load, todo-updated from:body, focus from:window"
+            hx-get="${request.route_url('list_todo_groups', _query=dict(filter=filter_mode, status=status))}"
             _="on htmx:afterSwap trigger change on the first <form/> in me
                on keydown[key is ']'] from body
                  if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
@@ -60,14 +62,12 @@
                  if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                  if no #undo-toast exit end
                  trigger undoRequested on body"
-          >
-            <tal:block tal:replace="structure groups_html" />
-          </div>
+          ></div>
         </div>
       </div>
 
       <!-- Details pane (hidden until an item is selected or a run is opened) -->
-      <div class="details-pane" id="details-pane">
+      <div class="details-pane d-none" id="details-pane">
         <div class="todo-list-wrap run-panel-wrap" id="details-panel"></div>
       </div>
     </div>

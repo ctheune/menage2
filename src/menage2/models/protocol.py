@@ -14,9 +14,10 @@ Todo done closes the run.
 
 import datetime
 import enum
+from typing import Optional
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Text
-from sqlalchemy.orm import object_session, relationship
+from sqlalchemy.orm import Mapped, mapped_column, object_session, relationship
 
 from menage2.recurrence import (
     ensure_protocol_has_run,
@@ -51,7 +52,9 @@ class Protocol(Base):
         nullable=False,
         default=lambda: datetime.datetime.now(datetime.timezone.utc),
     )
-    archived_at = Column(DateTime(timezone=True))
+    archived_at: Mapped[Optional[datetime.datetime]] = Column(
+        DateTime(timezone=True), nullable=True
+    )
 
     owner = relationship("User", foreign_keys=[owner_id])
     items = relationship(

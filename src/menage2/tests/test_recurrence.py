@@ -13,6 +13,7 @@ from menage2.models.todo import (
     Todo,
     TodoStatus,
 )
+from menage2.models.user import User
 from menage2.recurrence import (
     _LAST_SWEEP_KEY,
     chain_history,
@@ -105,8 +106,8 @@ def test_spawn_after_returns_none_for_non_after_rule(dbsession, admin_user):
     assert spawn_after(parent, datetime.date(2026, 5, 1), _now(), dbsession) is None
 
 
-def test_spawn_after_returns_none_for_no_rule(dbsession):
-    parent = _make_todo(dbsession)
+def test_spawn_after_returns_none_for_no_rule(dbsession, admin_user):
+    parent = _make_todo(dbsession, owner=admin_user)
     assert spawn_after(parent, datetime.date(2026, 5, 1), _now(), dbsession) is None
 
 
@@ -115,7 +116,7 @@ def test_spawn_after_returns_none_for_no_rule(dbsession):
 # ---------------------------------------------------------------------------
 
 
-def test_spawn_every_on_completion_creates_next_instance(dbsession):
+def test_spawn_every_on_completion_creates_next_instance(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)  # Wed
     rule = _make_rule(dbsession, "every", "week", weekday=2)
     todo = _make_todo(
@@ -125,6 +126,7 @@ def test_spawn_every_on_completion_creates_next_instance(dbsession):
         due_date=today,
         status=TodoStatus.done,
         done_at=_now(),
+        owner=admin_user,
     )
     spawned = spawn_every_on_completion(todo, today, _now(), dbsession)
     assert spawned == 1
@@ -141,7 +143,9 @@ def test_spawn_every_on_completion_creates_next_instance(dbsession):
     assert pending[0].recurred_from_id == todo.id
 
 
-def test_spawn_every_on_completion_skips_if_future_already_active(dbsession):
+def test_spawn_every_on_completion_skips_if_future_already_active(
+    dbsession, admin_user
+):
     today = datetime.date(2026, 4, 29)
     rule = _make_rule(dbsession, "every", "week", weekday=2)
     # Sweep already created next-Wed before this completion
@@ -150,6 +154,7 @@ def test_spawn_every_on_completion_skips_if_future_already_active(dbsession):
         text="next",
         recurrence_id=rule.id,
         due_date=datetime.date(2026, 5, 6),
+        owner=admin_user,
     )
     completed = _make_todo(
         dbsession,
@@ -158,22 +163,23 @@ def test_spawn_every_on_completion_skips_if_future_already_active(dbsession):
         due_date=today,
         status=TodoStatus.done,
         done_at=_now(),
+        owner=admin_user,
     )
     spawned = spawn_every_on_completion(completed, today, _now(), dbsession)
     assert spawned == 0
 
 
-def test_spawn_every_on_completion_no_op_for_after_rule(dbsession):
+def test_spawn_every_on_completion_no_op_for_after_rule(dbsession, admin_user):
     rule = _make_rule(dbsession, "after", "week", n=1)
-    todo = _make_todo(dbsession, recurrence_id=rule.id)
+    todo = _make_todo(dbsession, recurrence_id=rule.id, owner=admin_user)
     assert (
         spawn_every_on_completion(todo, datetime.date(2026, 5, 1), _now(), dbsession)
         == 0
     )
 
 
-def test_spawn_every_on_completion_no_op_for_no_rule(dbsession):
-    todo = _make_todo(dbsession)
+def test_spawn_every_on_completion_no_op_for_no_rule(dbsession, admin_user):
+    todo = _make_todo(dbsession, owner=admin_user)
     assert (
         spawn_every_on_completion(todo, datetime.date(2026, 5, 1), _now(), dbsession)
         == 0
@@ -185,7 +191,7 @@ def test_spawn_every_on_completion_no_op_for_no_rule(dbsession):
 # ---------------------------------------------------------------------------
 
 
-def test_sweep_creates_no_op_when_marker_already_today(dbsession):
+def test_sweep_creates_no_op_when_marker_already_today(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
     dbsession.add(ConfigItem(key=_LAST_SWEEP_KEY, value=today.isoformat()))
     rule = _make_rule(dbsession, "every", "week", weekday=2)
@@ -194,6 +200,7 @@ def test_sweep_creates_no_op_when_marker_already_today(dbsession):
         text="Yoga",
         recurrence_id=rule.id,
         due_date=datetime.date(2026, 4, 22),
+        owner=admin_user,
     )
     spawned = spawn_due_every_if_needed(dbsession, today, _now())
     assert spawned == 0
@@ -201,26 +208,23 @@ def test_sweep_creates_no_op_when_marker_already_today(dbsession):
     assert dbsession.query(Todo).count() == 1
 
 
-def test_sweep_writes_marker_after_running(dbsession):
+def test_sweep_writes_marker_after_running(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
     rule = _make_rule(dbsession, "every", "week", n=1)
-    _make_todo(dbsession, text="Weekly rev", recurrence_id=rule.id, due_date=today)
+    _make_todo(
+        dbsession,
+        text="Weekly rev",
+        recurrence_id=rule.id,
+        due_date=today,
+        owner=admin_user,
+    )
     spawn_due_every_if_needed(dbsession, today, _now())
     item = dbsession.get(ConfigItem, _LAST_SWEEP_KEY)
     assert item.value == today.isoformat()
 
 
-def test_sweep_skips_when_today_active_anchor(dbsession):
+def test_sweep_skips_when_today_active_anchor(dbsession, admin_user):
     """An active anchor due today already satisfies 'has today-or-future'."""
-    today = datetime.date(2026, 4, 29)  # Wed
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
-    _make_todo(dbsession, text="Weekly", recurrence_id=rule.id, due_date=today)
-    spawned = spawn_due_every_if_needed(dbsession, today, _now())
-    assert spawned == 0
-
-
-def test_sweep_creates_next_when_today_anchor_already_done(dbsession):
-    """Today's instance done → spawn the next so the chain stays alive."""
     today = datetime.date(2026, 4, 29)  # Wed
     rule = _make_rule(dbsession, "every", "week", weekday=2)
     _make_todo(
@@ -228,8 +232,24 @@ def test_sweep_creates_next_when_today_anchor_already_done(dbsession):
         text="Weekly",
         recurrence_id=rule.id,
         due_date=today,
+        owner=admin_user,
+    )
+    spawned = spawn_due_every_if_needed(dbsession, today, _now())
+    assert spawned == 0
+
+
+def test_sweep_creates_next_when_today_anchor_already_done(dbsession, admin_user):
+    """Today's instance done → spawn the next so the chain stays alive."""
+    today = datetime.date(2026, 4, 29)  # Wed
+    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    _make_todo(
+        dbsession,
+        text="Yoga",
+        recurrence_id=rule.id,
+        due_date=today,
         status=TodoStatus.done,
         done_at=_now(),
+        owner=admin_user,
     )
     spawned = spawn_due_every_if_needed(dbsession, today, _now())
     assert spawned >= 1
@@ -245,7 +265,7 @@ def test_sweep_creates_next_when_today_anchor_already_done(dbsession):
     assert pending[0].due_date == datetime.date(2026, 5, 6)
 
 
-def test_sweep_catches_up_missed_occurrences(dbsession):
+def test_sweep_catches_up_missed_occurrences(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)  # Wed
     rule = _make_rule(dbsession, "every", "week", weekday=2)
     _make_todo(
@@ -253,6 +273,7 @@ def test_sweep_catches_up_missed_occurrences(dbsession):
         text="catchup",
         recurrence_id=rule.id,
         due_date=datetime.date(2026, 4, 1),
+        owner=admin_user,
     )  # Wed, 4 weeks before today
     spawn_due_every_if_needed(dbsession, today, _now())
     children = dbsession.query(Todo).filter(Todo.recurrence_id == rule.id).all()
@@ -262,7 +283,9 @@ def test_sweep_catches_up_missed_occurrences(dbsession):
     assert all(c.recurrence_id == rule.id for c in children)
 
 
-def test_sweep_creates_until_today_or_future_when_only_past_active(dbsession):
+def test_sweep_creates_until_today_or_future_when_only_past_active(
+    dbsession, admin_user
+):
     """Past-active instance counts as 'no today-or-future' → catch up."""
     today = datetime.date(2026, 4, 29)  # Wed
     rule = _make_rule(dbsession, "every", "week", weekday=2)
@@ -272,6 +295,7 @@ def test_sweep_creates_until_today_or_future_when_only_past_active(dbsession):
         recurrence_id=rule.id,
         due_date=datetime.date(2026, 4, 8),
         status=TodoStatus.todo,
+        owner=admin_user,
     )
     spawn_due_every_if_needed(dbsession, today, _now())
     actives = (
@@ -286,7 +310,7 @@ def test_sweep_creates_until_today_or_future_when_only_past_active(dbsession):
     assert any(t.due_date >= today for t in actives)
 
 
-def test_sweep_skips_when_future_active_exists(dbsession):
+def test_sweep_skips_when_future_active_exists(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
     rule = _make_rule(dbsession, "every", "week", n=1)
     _make_todo(
@@ -294,6 +318,7 @@ def test_sweep_skips_when_future_active_exists(dbsession):
         text="anchor",
         recurrence_id=rule.id,
         due_date=datetime.date(2026, 4, 1),
+        owner=admin_user,
     )
     # Already-pending future instance — sweep should leave well alone.
     _make_todo(
@@ -302,13 +327,14 @@ def test_sweep_skips_when_future_active_exists(dbsession):
         recurrence_id=rule.id,
         due_date=datetime.date(2026, 5, 6),
         status=TodoStatus.todo,
+        owner=admin_user,
     )
     before = dbsession.query(Todo).count()
     spawn_due_every_if_needed(dbsession, today, _now())
     assert dbsession.query(Todo).count() == before
 
 
-def test_force_recurrence_sweep_bypasses_daily_marker(dbsession):
+def test_force_recurrence_sweep_bypasses_daily_marker(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
     dbsession.add(ConfigItem(key=_LAST_SWEEP_KEY, value=today.isoformat()))
     rule = _make_rule(dbsession, "every", "week", weekday=2)
@@ -317,6 +343,7 @@ def test_force_recurrence_sweep_bypasses_daily_marker(dbsession):
         text="forced",
         recurrence_id=rule.id,
         due_date=datetime.date(2026, 4, 1),
+        owner=admin_user,
     )
     spawned = force_recurrence_sweep(dbsession, today, _now())
     assert spawned >= 1
@@ -332,12 +359,17 @@ def test_force_recurrence_sweep_bypasses_daily_marker(dbsession):
     assert pending == 1
 
 
-def test_sweep_concurrent_calls_collapse_to_one(dbsession):
+def test_sweep_concurrent_calls_collapse_to_one(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
     rule = _make_rule(dbsession, "every", "week", n=1)
     # Past-due anchor → the chain has no today-or-future, so a sweep would
     # spawn. We expect only the first thread to actually do so.
-    _make_todo(dbsession, recurrence_id=rule.id, due_date=datetime.date(2026, 4, 1))
+    _make_todo(
+        dbsession,
+        recurrence_id=rule.id,
+        due_date=datetime.date(2026, 4, 1),
+        owner=admin_user,
+    )
 
     results = []
     barrier = threading.Barrier(3)
@@ -363,17 +395,29 @@ def test_sweep_concurrent_calls_collapse_to_one(dbsession):
 # ---------------------------------------------------------------------------
 
 
-def test_chain_history_walks_oldest_first(dbsession):
+def test_chain_history_walks_oldest_first(dbsession, admin_user):
     rule = _make_rule(dbsession, "every", "week", n=1)
-    a = _make_todo(dbsession, text="A", recurrence_id=rule.id)
-    b = _make_todo(dbsession, text="B", recurrence_id=rule.id, recurred_from_id=a.id)
-    c = _make_todo(dbsession, text="C", recurrence_id=rule.id, recurred_from_id=b.id)
+    a = _make_todo(dbsession, text="A", recurrence_id=rule.id, owner=admin_user)
+    b = _make_todo(
+        dbsession,
+        text="B",
+        recurrence_id=rule.id,
+        recurred_from_id=a.id,
+        owner=admin_user,
+    )
+    c = _make_todo(
+        dbsession,
+        text="C",
+        recurrence_id=rule.id,
+        recurred_from_id=b.id,
+        owner=admin_user,
+    )
     chain = chain_history(dbsession, c)
     assert [t.text for t in chain] == ["A", "B", "C"]
 
 
-def test_chain_history_single_item_when_no_parent(dbsession):
-    t = _make_todo(dbsession, text="solo")
+def test_chain_history_single_item_when_no_parent(dbsession, admin_user):
+    t = _make_todo(dbsession, text="solo", owner=admin_user)
     assert chain_history(dbsession, t) == [t]
 
 

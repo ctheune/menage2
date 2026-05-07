@@ -67,6 +67,10 @@ def main(global_config, **settings):
         config.set_default_permission("authenticated")
 
         config.add_tween(
+            "menage2.tweens.hx_trigger_tween_factory",
+            under="pyramid_tm.tm_tween_factory",
+        )
+        config.add_tween(
             "menage2.tweens.first_run_tween_factory",
             under="pyramid_tm.tm_tween_factory",
         )

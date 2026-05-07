@@ -935,6 +935,12 @@ body {
     z-index: 0;
 }
 
+.todo-item[data-swipe-status="done"][data-swipe-dir="left"]::after,
+.todo-item[data-swipe-status="on_hold"][data-swipe-dir="left"]::after {
+    content: "⏎";
+    background: var(--bs-info);
+}
+
 /* ── Assignee pills (input) ──────────────────────────────────────────── */
 .todo-assignee-pill {
     display: inline-flex;

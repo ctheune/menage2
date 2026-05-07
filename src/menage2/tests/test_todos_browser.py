@@ -336,14 +336,7 @@ def test_f_key_opens_recurrence_picker_for_selected(page):
     _select_item(page, ".todo-item")
     page.keyboard.press("f")
 
-    try:
-        page.wait_for_selector(
-            ".todo-popover[data-role='recurrence-picker']", timeout=2000
-        )
-    except Exception:
-        print(page.console_messages())
-        page.screenshot(path="screenshot.png", full_page=True)
-        raise
+    page.wait_for_selector(".todo-popover[data-role='recurrence-picker']", timeout=2000)
     assert page.locator(".todo-popover[data-role='recurrence-picker']").is_visible()
 
 
