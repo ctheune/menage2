@@ -1,30 +1,32 @@
 <!DOCTYPE html>
 <div metal:use-macro="load: layout_fullscreen.pt">
-
   <metal:block fill-slot="header-after">
-      <title>Menage – ${recipe.title}</title>
+    <title>Menage – ${recipe.title}</title>
   </metal:block>
 
-  <div metal:fill-slot="content" class="container py-3">
-
+  <div metal:fill-slot="content" class="container py-3 bg-white">
     <h4>${recipe.title}</h4>
 
-    <a tal:omit-tag="not recipe.source_url" href="${recipe.source_url}" class="text-decoration-underline">
-        <span tal:condition="recipe.source">${recipe.source}</span>
-        <span tal:condition="not recipe.source">${recipe.source_url}</span>
+    <a
+      tal:omit-tag="not recipe.source_url"
+      href="${recipe.source_url}"
+      class="text-decoration-underline"
+    >
+      <span tal:condition="recipe.source">${recipe.source}</span>
+      <span tal:condition="not recipe.source">${recipe.source_url}</span>
     </a>
 
     <div class="d-flex gap-4 mt-3">
-      <div tal:content="structure steps_html" class="markdown flex-grow-1"/>
+      <div tal:content="structure steps_html" class="markdown flex-grow-1" />
       <div>
         <h5>Zutaten</h5>
         <ul class="list-unstyled">
           <li tal:repeat="ingredient recipe.ingredients">
-            ${ingredient.amount} ${ingredient.unit} ${ingredient.ingredient.description}
+            ${ingredient.amount} ${ingredient.unit}
+            ${ingredient.ingredient.description}
           </li>
         </ul>
       </div>
     </div>
   </div>
-
 </div>

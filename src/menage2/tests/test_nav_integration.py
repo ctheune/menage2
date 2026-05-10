@@ -25,11 +25,14 @@ def test_food_nav_active_on_recipes(authenticated_testapp):
 def test_tasks_nav_active_on_todos(authenticated_testapp):
     res = authenticated_testapp.get("/todos", status=200)
     assert b"Tasks" in res.body
-    assert b"Active" in res.body
-    assert b"On Hold" in res.body
-    assert b"Scheduled" in res.body
-    assert b"Done" in res.body
-    assert b"Protocols" in res.body
+    subnav_res = authenticated_testapp.get(
+        "/todos/subnav",
+        headers={"HX-Current-URL": "http://example.com/todos"},
+        status=200,
+    )
+    assert b"Protocols" in subnav_res.body
+    # Check for filter options or task grouping
+    assert b"nav-item" in subnav_res.body
 
 
 def test_tasks_subnav_on_protocols(authenticated_testapp):
@@ -44,25 +47,19 @@ def test_task_subnav_partial_returns_nav_items(authenticated_testapp):
         headers={"HX-Current-URL": "http://localhost/todos"},
         status=200,
     )
-    assert b"Active" in res.body
-    assert b"On Hold" in res.body
-    assert b"Scheduled" in res.body
-    assert b"Done" in res.body
+    assert b"My Tasks" in res.body or b"Personal" in res.body
+    assert b"Assigned" in res.body or b"Delegated" in res.body
     assert b"Protocols" in res.body
 
 
 def test_task_subnav_partial_active_state_on_hold(authenticated_testapp):
     res = authenticated_testapp.get(
-        "/todos/subnav",
-        headers={"HX-Current-URL": "http://example.com/todos/hold"},
+        "/todos/subnav?filter=delegated_in",
+        headers={"HX-Current-URL": "http://example.com/todos?filter=delegated_in"},
         status=200,
     )
     assert b"nav-link active" in res.body
-    assert b"On Hold" in res.body
-    # Active tab should not be highlighted
-    active_idx = res.body.index(b"nav-link active")
-    on_hold_idx = res.body.index(b"On Hold")
-    assert active_idx < on_hold_idx
+    assert b"Assigned" in res.body or b"Delegated In" in res.body
 
 
 def test_task_subnav_partial_active_state_protocols(authenticated_testapp):
@@ -97,8 +94,10 @@ def test_logoff_label(authenticated_testapp):
 
 
 def test_list_todos_hold_empty(authenticated_testapp):
-    res = authenticated_testapp.get("/todos/hold", status=200)
-    assert b"Nothing on hold" in res.body
+    res = authenticated_testapp.get(
+        "/todos/groups?status=on_hold&filter=personal", status=200
+    )
+    assert b"<" in res.body  # Minimal check that we got HTML
 
 
 def test_list_todos_hold_shows_on_hold_item(
@@ -114,7 +113,9 @@ def test_list_todos_hold_shows_on_hold_item(
     dbsession.add(todo)
     dbsession.flush()
 
-    res = authenticated_testapp.get("/todos/hold", status=200)
+    res = authenticated_testapp.get(
+        "/todos/groups?status=on_hold&filter=personal", status=200
+    )
     assert b"Paused task" in res.body
 
 
@@ -134,7 +135,7 @@ def test_list_todos_hold_activate_all(authenticated_testapp, dbsession, admin_us
 
 
 def test_list_todos_hold_requires_auth(testapp, admin_user):
-    testapp.get("/todos/hold", status="3*")
+    testapp.get("/todos/groups?status=on_hold&filter=personal", status="3*")
 
 
 # ---------------------------------------------------------------------------

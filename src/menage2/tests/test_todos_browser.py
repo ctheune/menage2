@@ -175,12 +175,22 @@ def test_d_key_opens_date_picker(page):
     assert page.locator(".todo-popover[data-role='date-picker']").is_visible()
 
 
-def test_p_key_postpones_one_day(page):
+def test_p_key_opens_postpone_palette(page):
+    page.goto("/todos")
+    _add_todo(page, "Palette target")
+    page.wait_for_selector('.todo-item[data-todo-text="Palette target"]')
+    _select_item(page, '.todo-item[data-todo-text="Palette target"]')
+    page.keyboard.press("p")
+    page.wait_for_selector(".todo-popover[data-role='postpone-palette']", timeout=2000)
+    assert page.locator("text=+1 week").is_visible()
+
+
+def test_shift_p_postpones_one_day_directly(page):
     page.goto("/todos")
     _add_todo(page, "Postpone target")
     page.wait_for_selector('.todo-item[data-todo-text="Postpone target"]')
     _select_item(page, '.todo-item[data-todo-text="Postpone target"]')
-    page.keyboard.press("p")
+    page.keyboard.press("Shift+P")
     page.wait_for_function(
         "document.querySelectorAll('.todo-item[data-todo-text=\\\"Postpone target\\\"]').length === 0",
         timeout=5000,
@@ -189,14 +199,99 @@ def test_p_key_postpones_one_day(page):
     assert page.locator("text=Postpone target").count() >= 1
 
 
-def test_shift_p_opens_postpone_palette(page):
-    page.goto("/todos")
-    _add_todo(page, "Palette target")
-    page.wait_for_selector('.todo-item[data-todo-text="Palette target"]')
-    _select_item(page, '.todo-item[data-todo-text="Palette target"]')
-    page.keyboard.press("Shift+P")
+# ---------------------------------------------------------------------------
+# Postpone picker — interval chips and absolute date (single and multiple)
+# ---------------------------------------------------------------------------
+
+
+def _open_postpone_picker(page, selector: str) -> None:
+    """Select an item and open the postpone palette."""
+    _select_item(page, selector)
+    page.keyboard.press("p")
     page.wait_for_selector(".todo-popover[data-role='postpone-palette']", timeout=2000)
-    assert page.locator("text=+1 week").is_visible()
+
+
+def test_postpone_picker_interval_single_item(page):
+    page.goto("/todos")
+    _add_todo(page, "Interval single")
+    page.wait_for_selector('.todo-item[data-todo-text="Interval single"]')
+    _open_postpone_picker(page, '.todo-item[data-todo-text="Interval single"]')
+    page.click("text=+1 week")
+    page.wait_for_function(
+        "document.querySelectorAll('.todo-item[data-todo-text=\\\"Interval single\\\"]').length === 0",
+        timeout=5000,
+    )
+    page.goto("/todos/scheduled")
+    assert page.locator("text=Interval single").count() >= 1
+
+
+def test_postpone_picker_interval_multiple_items(page):
+    page.goto("/todos")
+    _add_todo(page, "Multi A")
+    _add_todo(page, "Multi B")
+    page.wait_for_selector('.todo-item[data-todo-text="Multi A"]')
+    page.wait_for_selector('.todo-item[data-todo-text="Multi B"]')
+    # Select both
+    page.locator('.todo-item[data-todo-text="Multi A"] .todo-checkbox').click()
+    page.locator('.todo-item[data-todo-text="Multi B"] .todo-checkbox').click()
+    page.evaluate("document.activeElement && document.activeElement.blur()")
+    page.keyboard.press("p")
+    page.wait_for_selector(".todo-popover[data-role='postpone-palette']", timeout=2000)
+    page.click("text=+2 weeks")
+    page.wait_for_function(
+        "document.querySelectorAll('.todo-item[data-todo-text=\\\"Multi A\\\"]').length === 0",
+        timeout=5000,
+    )
+    page.wait_for_function(
+        "document.querySelectorAll('.todo-item[data-todo-text=\\\"Multi B\\\"]').length === 0",
+        timeout=5000,
+    )
+    page.goto("/todos/scheduled")
+    assert page.locator("text=Multi A").count() >= 1
+    assert page.locator("text=Multi B").count() >= 1
+
+
+def test_postpone_picker_absolute_date_single_item(page):
+    page.goto("/todos")
+    _add_todo(page, "Absolute single")
+    page.wait_for_selector('.todo-item[data-todo-text="Absolute single"]')
+    _open_postpone_picker(page, '.todo-item[data-todo-text="Absolute single"]')
+    page.click("text=Pick specific date…")
+    page.wait_for_selector(".todo-popover[data-role='postpone-date']", timeout=2000)
+    page.click("text=+1 week")
+    page.wait_for_function(
+        "document.querySelectorAll('.todo-item[data-todo-text=\\\"Absolute single\\\"]').length === 0",
+        timeout=5000,
+    )
+    page.goto("/todos/scheduled")
+    assert page.locator("text=Absolute single").count() >= 1
+
+
+def test_postpone_picker_absolute_date_multiple_items(page):
+    page.goto("/todos")
+    _add_todo(page, "AbsMulti X")
+    _add_todo(page, "AbsMulti Y")
+    page.wait_for_selector('.todo-item[data-todo-text="AbsMulti X"]')
+    page.wait_for_selector('.todo-item[data-todo-text="AbsMulti Y"]')
+    page.locator('.todo-item[data-todo-text="AbsMulti X"] .todo-checkbox').click()
+    page.locator('.todo-item[data-todo-text="AbsMulti Y"] .todo-checkbox').click()
+    page.evaluate("document.activeElement && document.activeElement.blur()")
+    page.keyboard.press("p")
+    page.wait_for_selector(".todo-popover[data-role='postpone-palette']", timeout=2000)
+    page.click("text=Pick specific date…")
+    page.wait_for_selector(".todo-popover[data-role='postpone-date']", timeout=2000)
+    page.click("text=+1 week")
+    page.wait_for_function(
+        "document.querySelectorAll('.todo-item[data-todo-text=\\\"AbsMulti X\\\"]').length === 0",
+        timeout=5000,
+    )
+    page.wait_for_function(
+        "document.querySelectorAll('.todo-item[data-todo-text=\\\"AbsMulti Y\\\"]').length === 0",
+        timeout=5000,
+    )
+    page.goto("/todos/scheduled")
+    assert page.locator("text=AbsMulti X").count() >= 1
+    assert page.locator("text=AbsMulti Y").count() >= 1
 
 
 def test_h_key_puts_item_on_hold(page):

@@ -67,6 +67,7 @@ class TodoUpdate(BaseModel):
     recurrence: Optional[RecurrenceSpec] = None
     note: Optional[str] = None
     links: Optional[List[TodoLinkCreate]] = None
+    attachments: Optional[Set[str]] = None
     clear_fields: Set[str] = Field(default_factory=set)
 
     @field_validator("due_date", mode="before")
@@ -117,6 +118,7 @@ class TodoResponse(BaseModel):
 class BatchAction(BaseModel):
     """Schema for batch actions on todos."""
 
-    action: Literal["done", "hold", "postpone", "activate"]
+    action: Literal["done", "hold", "postpone", "activate", "edit"]
     todo_ids: List[int]
-    postpone_interval: Optional[str] = None  # "1d", "1w", "1mo", etc.
+    interval: Optional[str] = None  # "1d", "1w", "1mo", etc. — used by postpone
+    todo: Optional[TodoUpdate] = None  # used by edit

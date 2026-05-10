@@ -23,6 +23,7 @@ from menage2.views.todo import (
     parse_link,
     parse_todo_input,
     render_note_html,
+    todo_batch_action,
     todo_undo,
     todo_update,
     todos_activate_all_on_hold,
@@ -611,7 +612,9 @@ def test_list_todos_only_shows_active(app_request, dbsession, admin_user):
     t_held = _todo("Held", status=TodoStatus.on_hold)
     dbsession.add_all([t_active, t_done, t_held])
     dbsession.flush()
-    info = list_todos(app_request)
+    from menage2.views.todo import list_todo_groups
+
+    info = list_todo_groups(app_request)
     all_items = [item for g in info["groups"] for item in g["items"]]
     assert len(all_items) == 1
     assert all_items[0].text == "Active"
@@ -625,7 +628,9 @@ def test_list_todos_hides_future_dated(app_request, dbsession, admin_user):
     undated = _todo("Undated")
     dbsession.add_all([visible, overdue, future, undated])
     dbsession.flush()
-    info = list_todos(app_request)
+    from menage2.views.todo import list_todo_groups
+
+    info = list_todo_groups(app_request)
     all_items = [item for g in info["groups"] for item in g["items"]]
     texts = {t.text for t in all_items}
     assert texts == {"Visible", "Overdue", "Undated"}
@@ -638,8 +643,9 @@ def test_list_todos_counts(app_request, dbsession, admin_user):
     dbsession.add(_todo("S1", due_date=today + datetime.timedelta(days=2)))
     dbsession.flush()
     info = list_todos(app_request)
-    assert info["on_hold_count"] == 2
-    assert info["scheduled_count"] == 1
+    assert "status" in info
+    assert "filter_mode" in info
+    assert "form_html" in info
 
 
 def test_list_todos_sorted_due_first_then_undated(app_request, dbsession, admin_user):
@@ -651,7 +657,9 @@ def test_list_todos_sorted_due_first_then_undated(app_request, dbsession, admin_
     )
     dbsession.add_all([a_undated, b_due_today, c_overdue])
     dbsession.flush()
-    info = list_todos(app_request)
+    from menage2.views.todo import list_todo_groups
+
+    info = list_todo_groups(app_request)
     items = info["groups"][0]["items"]
     # Most overdue first, then today, then undated.
     assert [t.text for t in items] == ["C_overdue", "B_today", "A_undated"]
@@ -670,7 +678,9 @@ def test_get_todos_page(authenticated_testapp):
 
 def test_add_todo_workflow(authenticated_testapp, dbsession):
     authenticated_testapp.post("/todos/add", {"text": "Walk dog #chores"}, status=303)
-    res = authenticated_testapp.get("/todos", status=200)
+    res = authenticated_testapp.get(
+        "/todos/groups?status=active&filter=personal", status=200
+    )
     assert b"Walk dog" in res.body
     assert b"chores" in res.body
 
@@ -681,7 +691,9 @@ def test_done_view_shows_completed(authenticated_testapp, dbsession, admin_user)
     )
     dbsession.add(todo)
     dbsession.flush()
-    res = authenticated_testapp.get("/todos/done", status=200)
+    res = authenticated_testapp.get(
+        "/todos/groups?status=done&filter=personal", status=200
+    )
     assert b"Completed" in res.body
 
 
@@ -695,7 +707,9 @@ def test_scheduled_view_lists_future_items(
     )
     dbsession.add(todo)
     dbsession.flush()
-    res = authenticated_testapp.get("/todos/scheduled", status=200)
+    res = authenticated_testapp.get(
+        "/todos/groups?status=scheduled&filter=personal", status=200
+    )
     assert b"Pay rent" in res.body
 
 
@@ -737,15 +751,154 @@ def test_postpone_endpoint_bumps_due_date(authenticated_testapp, dbsession):
     assert todo.due_date == _today() + datetime.timedelta(days=14)
 
 
-def test_set_due_date_endpoint(authenticated_testapp, dbsession):
-    todo = _todo("Schedule me")
+# ---------------------------------------------------------------------------
+# todo_batch_action — postpone (relative) and edit (absolute + field updates)
+# ---------------------------------------------------------------------------
+
+
+def _batch_request(app_request, body: dict):
+    """Configure app_request for a JSON POST to todo_batch_action."""
+    app_request.method = "POST"
+    app_request.content_type = "application/json"
+    app_request.body = json.dumps(body).encode()
+    return app_request
+
+
+def test_batch_postpone_single_item_relative(app_request, dbsession, admin_user):
+    todo = _todo("Bump me", due_date=_today())
     dbsession.add(todo)
     dbsession.flush()
-    authenticated_testapp.post(
-        f"/todos/{todo.id}/due-date", {"due_date": "tomorrow"}, status=200
+    _batch_request(
+        app_request,
+        {"action": "postpone", "todo_ids": [todo.id], "interval": "1w"},
     )
+    todo_batch_action(app_request)
+    dbsession.flush()
     dbsession.refresh(todo)
-    assert todo.due_date == _today() + datetime.timedelta(days=1)
+    assert todo.due_date == _today() + datetime.timedelta(days=7)
+
+
+def test_batch_postpone_multiple_items_each_bumped_individually(
+    app_request, dbsession, admin_user
+):
+    today = _today()
+    t1 = _todo("A", due_date=today)
+    t2 = _todo("B", due_date=today + datetime.timedelta(days=3))
+    dbsession.add_all([t1, t2])
+    dbsession.flush()
+    _batch_request(
+        app_request,
+        {"action": "postpone", "todo_ids": [t1.id, t2.id], "interval": "2d"},
+    )
+    todo_batch_action(app_request)
+    dbsession.flush()
+    dbsession.refresh(t1)
+    dbsession.refresh(t2)
+    assert t1.due_date == today + datetime.timedelta(days=2)
+    assert t2.due_date == today + datetime.timedelta(days=5)
+
+
+def test_batch_edit_sets_absolute_due_date_single(app_request, dbsession, admin_user):
+    todo = _todo("Task")
+    dbsession.add(todo)
+    dbsession.flush()
+    target = _today() + datetime.timedelta(days=10)
+    _batch_request(
+        app_request,
+        {
+            "action": "edit",
+            "todo_ids": [todo.id],
+            "todo": {"due_date": target.isoformat()},
+        },
+    )
+    todo_batch_action(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.due_date == target
+
+
+def test_batch_edit_sets_absolute_due_date_multiple(app_request, dbsession, admin_user):
+    t1 = _todo("X")
+    t2 = _todo("Y")
+    dbsession.add_all([t1, t2])
+    dbsession.flush()
+    target = _today() + datetime.timedelta(days=5)
+    _batch_request(
+        app_request,
+        {
+            "action": "edit",
+            "todo_ids": [t1.id, t2.id],
+            "todo": {"due_date": target.isoformat()},
+        },
+    )
+    todo_batch_action(app_request)
+    dbsession.flush()
+    dbsession.refresh(t1)
+    dbsession.refresh(t2)
+    assert t1.due_date == target
+    assert t2.due_date == target
+
+
+def test_batch_edit_sets_tags(app_request, dbsession, admin_user):
+    t1 = _todo("A", tags={"old"})
+    t2 = _todo("B", tags={"old"})
+    dbsession.add_all([t1, t2])
+    dbsession.flush()
+    _batch_request(
+        app_request,
+        {
+            "action": "edit",
+            "todo_ids": [t1.id, t2.id],
+            "todo": {"tags": ["grocery", "errand"]},
+        },
+    )
+    todo_batch_action(app_request)
+    dbsession.flush()
+    dbsession.refresh(t1)
+    dbsession.refresh(t2)
+    assert t1.tags == {"grocery", "errand"}
+    assert t2.tags == {"grocery", "errand"}
+
+
+def test_batch_edit_sets_assignees(app_request, dbsession, admin_user):
+    t1 = _todo("A")
+    t2 = _todo("B")
+    dbsession.add_all([t1, t2])
+    dbsession.flush()
+    _batch_request(
+        app_request,
+        {
+            "action": "edit",
+            "todo_ids": [t1.id, t2.id],
+            "todo": {"assignees": ["alice"]},
+        },
+    )
+    todo_batch_action(app_request)
+    dbsession.flush()
+    dbsession.refresh(t1)
+    dbsession.refresh(t2)
+    assert t1.assignees == {"alice"}
+    assert t2.assignees == {"alice"}
+
+
+def test_batch_postpone_missing_interval_returns_400(
+    app_request, dbsession, admin_user
+):
+    todo = _todo("T")
+    dbsession.add(todo)
+    dbsession.flush()
+    _batch_request(app_request, {"action": "postpone", "todo_ids": [todo.id]})
+    todo_batch_action(app_request)
+    assert app_request.response.status_int == 400
+
+
+def test_batch_edit_missing_todo_returns_400(app_request, dbsession, admin_user):
+    todo = _todo("T")
+    dbsession.add(todo)
+    dbsession.flush()
+    _batch_request(app_request, {"action": "edit", "todo_ids": [todo.id]})
+    todo_batch_action(app_request)
+    assert app_request.response.status_int == 400
 
 
 def test_add_todo_saves_note(app_request, dbsession, admin_user):

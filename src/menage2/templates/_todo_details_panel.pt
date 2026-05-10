@@ -167,14 +167,32 @@
       </span>
     </div>
 
-    <!-- Attachments: only when present -->
-    <div tal:condition="todo.attachments" class="details-field-row details-field--attachments">
+    <!-- Attachments: drag-drop zone for adding, existing files with delete buttons -->
+    <div class="details-field-row details-field--attachments">
       <span class="details-field-label">Files</span>
-      <span class="details-field-value">
+      <span class="details-field-value d-flex gap-1 flex-wrap align-items-flex-start">
+        <!-- Existing attachments with delete buttons -->
         <tal:block tal:repeat="att todo.attachments">
-          <img tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
-                                  alt att.original_filename" class="todo-attachment-thumb me-1" style="height:2.5rem;width:auto;border-radius:0.25rem;">
+          <div class="position-relative" style="height:2.5rem;width:auto">
+            <img tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
+                                    alt att.original_filename"
+                 class="todo-attachment-thumb"
+                 style="height:2.5rem;width:auto;border-radius:0.25rem;display:block;">
+                   <!-- XXX
+            <button type="button"
+                    class="btn btn-link btn-sm p-0 position-absolute top-0 end-0 text-danger"
+                    style="transform:translate(50%, -50%);font-size:0.75rem;"
+                    _="on click fetch '${request.route_url('todo_attachment_delete', todo_id=todo.id, uuid=att.uuid)}' as POST then trigger todo-updated">
+              ✕
+            </button> -->
+          </div>
         </tal:block>
+        <!-- Drop zone indicator when empty or when dragging -->
+        <div tal:condition="not todo.attachments"
+             class="text-muted small p-2 border-2 border-dashed rounded"
+             style="width:100%;text-align:center;cursor:pointer;">
+          Drop files here to attach
+        </div>
       </span>
     </div>
 

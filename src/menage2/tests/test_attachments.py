@@ -79,7 +79,7 @@ def test_upload_jpeg_creates_db_row_and_two_disk_files(
     assert len(files) == 2
     assert any(f.name.endswith("_thumb.jpg") for f in files)
 
-    assert b"todo-attachment-thumb" in res.body
+    assert "todo-updated" in res.headers.get("HX-Trigger", "")
 
 
 def test_upload_multiple_files_creates_multiple_rows(
@@ -345,13 +345,9 @@ def test_edit_todo_removes_attachment_via_remove_attachments_param(
     dbsession.add(att)
     dbsession.flush()
 
-    authenticated_testapp.post(
-        f"/todos/{todo.id}/edit",
-        {
-            "text": "Updated text",
-            "next": "/todos",
-            "remove_attachments": uuid_str,
-        },
+    authenticated_testapp.put_json(
+        f"/todos/{todo.id}",
+        {"attachments": []},
         status=303,
     )
 

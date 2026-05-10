@@ -82,3 +82,13 @@
     </div>
   </div>
 </div>
+<div class="d-none">
+  <span
+    hx-get="${request.route_url('todo_details_panel')}"
+    hx-trigger="open-details from:#todo-list"
+    hx-target="#details-pane"
+    hx-include="#todo-list"
+    hx-swap="outerHTML"
+  />
+  <span _="on 'todo-closed' from body add .d-none to #details-pane" />
+</div>

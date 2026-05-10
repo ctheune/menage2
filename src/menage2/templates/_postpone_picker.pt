@@ -1,0 +1,150 @@
+<form hx-get="${request.route_url(request.matched_route.name)}">
+  <h2>Postpone</h2>
+
+  <div class="row">
+    <div class="col">
+      <input
+        type="text"
+        name="interval"
+        class="form-control"
+        placeholder="tomorrow / next wed / 2026-05-12 …"
+        hx-preserve
+      />
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <button type="button" class="btn btn-outline-primary btn-sm">Set</button>
+      <button
+        type="button"
+        class="btn btn-outline-secondary btn-sm"
+        _="on click close closest <dialog/>"
+      >
+        Cancel
+      </button>
+      <button type="button" class="btn btn-outline-danger btn-sm">
+        Remove due date
+      </button>
+    </div>
+  </div>
+
+  <div class="todo-popover-preview"></div>
+
+  <fieldset>
+    <legend>by ...</legend>
+
+    <div
+      _="on click
+        if target is me halt end
+        put target's textContent.trim() into the previous <input/>'s value"
+    >
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        1 day
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        2 days
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        3 days
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        1 week
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        2 weeks
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        1 month
+      </button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>to…</legend>
+
+    <div
+      _="on click
+        if target is me halt end
+        put target's textContent.trim() into the previous <input/>'s value"
+    >
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        Today
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        Tomorrow
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        Mon
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        Tue
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        Wed
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        Thu
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        Fri
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        Sat
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm">
+        Sun
+      </button>
+    </div>
+
+    <div>
+      <div>
+        <button
+          type="submit"
+          class="btn btn-outline-secondary btn-sm"
+          name="month"
+          value="${last_month}"
+        >
+          ‹
+        </button>
+        <span>${current_month}</span>
+        <button
+          type="submit"
+          class="btn btn-outline-secondary btn-sm"
+          name="month"
+          value="${next_month}"
+        >
+          ›
+        </button>
+      </div>
+      <div
+        class="todo-mini-cal"
+        _="on click
+        if target is me halt end
+        put target's @data-date into the previous <input/>'s value"
+      >
+        <div class="todo-mini-cal-cell todo-mini-cal-header">Mo</div>
+        <div class="todo-mini-cal-cell todo-mini-cal-header">Tu</div>
+        <div class="todo-mini-cal-cell todo-mini-cal-header">We</div>
+        <div class="todo-mini-cal-cell todo-mini-cal-header">Th</div>
+        <div class="todo-mini-cal-cell todo-mini-cal-header">Fr</div>
+        <div class="todo-mini-cal-cell todo-mini-cal-header">Sa</div>
+        <div class="todo-mini-cal-cell todo-mini-cal-header">Su</div>
+
+        <tal:block repeat="day days">
+          <div
+            tal:condition="day"
+            data-date="day.isoformat()"
+            class="todo-mini-cal-cell ${'today' if day == today else ''}"
+          >
+            ${day.day}
+          </div>
+          <div
+            tal:condition="day is None"
+            class="todo-mini-cal-cell muted"
+          ></div>
+        </tal:block>
+      </div>
+    </div>
+  </fieldset>
+</form>

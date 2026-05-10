@@ -137,12 +137,15 @@ def testapp(app, tm, dbsession):
 
 @pytest.fixture
 def app_request(app, tm, dbsession, admin_user):
+    from menage2.utils import HXTrigger
+
     with prepare(registry=app.registry) as env:
         request = env["request"]
         request.host = "example.com"
         request.dbsession = dbsession
         request.tm = tm
         type(request).identity = property(lambda self: admin_user)
+        request.response.hx_trigger = HXTrigger(request.response)
         yield request
 
 

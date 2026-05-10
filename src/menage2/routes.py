@@ -87,31 +87,38 @@ def includeme(config):
     config.add_route("timer", "/dashboard/{token}/timer/{id}")
     config.add_route("timer_pause", "/dashboard/{token}/timer/{id}/pause")
 
+    # TODOs / Tasks
+
     config.add_route("list_todos", "/todos")
-    config.add_route("add_todo", "/todos/add")
-    config.add_route("todos_done", "/todos/done-items")
-    config.add_route("todos_hold", "/todos/hold-items")
-    config.add_route("todos_postpone", "/todos/postpone-items")
     config.add_route("list_todo_groups", "/todos/groups")
     config.add_route("task_subnav", "/todos/subnav")
-    config.add_route("todos_activate_all_on_hold", "/todos/activate-on-hold")
-    config.add_route("todo_undo", "/todos/undo")
+
     config.add_route("todo_details_panel", "/todos/details-panel")
-    config.add_route("todo_update", "/todos/{id:\\d+}")
-    config.add_route("todo_batch_action", "/todos/batch-action")
-    config.add_route("set_due_date", "/todos/{id}/due-date")
-    config.add_route("parse_date_preview", "/todos/parse-date")
-    config.add_route("set_recurrence", "/todos/{id}/recurrence")
-    config.add_route("parse_recurrence_preview", "/todos/parse-recurrence")
     config.add_route("recurrence_history", "/todos/{id}/history")
-    config.add_route("todo_attachment_upload", "/todos/{id}/attachments")
     config.add_route(
-        "todo_attachment_thumbnail", "/todos/{todo_id}/attachment/{uuid}/thumb"
+        "todo_attachment_thumbnail",
+        "/todos/{todo_id}/attachment/{uuid}/thumb",
     )
     config.add_route("todo_attachment_full", "/todos/{todo_id}/attachment/{uuid}/full")
+
+    config.add_route("add_todo", "/todos/add")
+
+    config.add_route("todo_update", "/todos/{id:\\d+}")
+    config.add_route("todo_batch_action", "/todos/batch-action")
+    config.add_route("todo_attachment_upload", "/todos/{id}/attachments")
     config.add_route(
         "todo_attachment_delete", "/todos/{todo_id}/attachment/{uuid}/delete"
     )
+
+    config.add_route("todos_done", "/todos/done-items")
+    config.add_route("todos_hold", "/todos/hold-items")
+    config.add_route("todos_postpone", "/todos/postpone-items")
+    config.add_route("todos_activate_all_on_hold", "/todos/activate-on-hold")
+    config.add_route("todo_undo", "/todos/undo")
+
+    config.add_route("parse_date_preview", "/todos/parse-date")
+    config.add_route("parse_recurrence_preview", "/todos/parse-recurrence")
+    config.add_route("todo_picker_postpone", "/todos/pickers/postpone")
     config.add_route("list_tags_json", "/todos/tags.json")
     config.add_route("list_top_tags_json", "/todos/top-tags.json")
     config.add_route("list_principals_json", "/todos/principals.json")

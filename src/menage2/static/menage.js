@@ -248,6 +248,28 @@ document.addEventListener("keydown", function (e) {
   }
 });
 
+// Upload attachments to a todo
+function uploadAttachments(files, todoId) {
+  if (!files || files.length === 0) return;
+
+  var formData = new FormData();
+  for (var i = 0; i < files.length; i++) {
+    formData.append("files[]", files[i]);
+  }
+
+  return fetch("/todos/" + todoId + "/attachments", {
+    method: "POST",
+    body: formData,
+    headers: { "X-Requested-With": "XMLHttpRequest" },
+  }).then(function (r) {
+    if (!r.ok)
+      return r.text().then(function (msg) {
+        throw new Error(msg || "Upload failed");
+      });
+    return r;
+  });
+}
+
 // Drag-and-drop image upload onto todo list items
 document.addEventListener("dragover", function (e) {
   if (e.target.closest("#todo-form")) return;
@@ -278,51 +300,27 @@ document.addEventListener("drop", function (e) {
   var todoId = item.id.replace("todo-", "");
   if (!todoId) return;
 
-  var formData = new FormData();
-  for (var i = 0; i < files.length; i++) {
-    formData.append("files[]", files[i]);
-  }
-
   item.classList.add("todo-item--uploading");
 
-  fetch("/todos/" + todoId + "/attachments", {
-    method: "POST",
-    body: formData,
-    headers: { "X-Requested-With": "XMLHttpRequest" },
-  })
-    .then(function (r) {
-      if (!r.ok)
-        return r.text().then(function (msg) {
-          throw new Error(msg || "Upload failed");
-        });
-      return r.text();
-    })
-    .then(function (html) {
-      item.classList.remove("todo-item--uploading");
-      var tmp = document.createElement("template");
-      tmp.innerHTML = html.trim();
-      var newItem = tmp.content.firstElementChild;
-      if (newItem) item.replaceWith(newItem);
-    })
-    .catch(function (err) {
-      item.classList.remove("todo-item--uploading");
-      console.error("Attachment upload failed:", err);
-      var alert = document.createElement("div");
-      alert.className =
-        "alert alert-danger alert-dismissible py-1 px-2 small mt-1 mb-0";
-      alert.setAttribute("role", "alert");
-      alert.textContent = err.message;
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn-close btn-sm";
-      btn.setAttribute("data-bs-dismiss", "alert");
-      btn.setAttribute("aria-label", "Close");
-      alert.appendChild(btn);
-      item.after(alert);
-      setTimeout(function () {
-        if (alert.parentNode) alert.remove();
-      }, 6000);
-    });
+  uploadAttachments(files, todoId).catch(function (err) {
+    item.classList.remove("todo-item--uploading");
+    console.error("Attachment upload failed:", err);
+    var alert = document.createElement("div");
+    alert.className =
+      "alert alert-danger alert-dismissible py-1 px-2 small mt-1 mb-0";
+    alert.setAttribute("role", "alert");
+    alert.textContent = err.message;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn-close btn-sm";
+    btn.setAttribute("data-bs-dismiss", "alert");
+    btn.setAttribute("aria-label", "Close");
+    alert.appendChild(btn);
+    item.after(alert);
+    setTimeout(function () {
+      if (alert.parentNode) alert.remove();
+    }, 6000);
+  });
 });
 
 function initTagInput() {
@@ -366,9 +364,16 @@ function initTagInput() {
       e.detail.parameters["text"] = _pendingText;
       _pendingText = null;
     }
-    var removed = ci.getRemovedAttachments();
-    if (removed.length) {
-      e.detail.parameters["remove_attachments"] = removed.join(",");
+    var attachmentPills = form.querySelectorAll(".todo-attachment-pill");
+    if (attachmentPills.length > 0) {
+      var uuids = [];
+      attachmentPills.forEach(function (pill) {
+        var uuid = pill.dataset.uuid;
+        if (uuid) uuids.push(uuid);
+      });
+      if (uuids.length > 0) {
+        e.detail.parameters["attachments"] = uuids;
+      }
     }
   });
 
@@ -815,39 +820,101 @@ function closePopovers() {
 
 // --- Helpers wrapping openPicker for specific contexts ---
 
-function openPostponePicker(itemEl, ids) {
-  var list = document.getElementById("todo-list");
-  if (!list) return;
-  var trigger = list.querySelector(".postpone-trigger");
-  if (!trigger) return;
-  openPicker({
-    anchorEl: itemEl,
-    title: "Postpone\u2026",
-    role: "postpone-palette",
-    onCommit: function (iso) {
-      // Set a transient due_date hidden input on the trigger button so the
-      // form-driven hx-post serialises it. Cleaned up after dispatch.
-      var existing = trigger.parentNode.querySelector(
-        'input[name="due_date"][data-postpone-transient]',
-      );
-      if (existing) existing.remove();
-      var hidden = document.createElement("input");
-      hidden.type = "hidden";
-      hidden.name = "due_date";
-      hidden.value = iso || "";
-      hidden.dataset.postponeTransient = "true";
-      trigger.parentNode.insertBefore(hidden, trigger);
-      htmx.trigger(trigger, "postponeSelected");
-      // Remove after htmx has serialised the form (it does so synchronously
-      // inside the trigger handler, but defer to be safe).
-      setTimeout(function () {
-        if (hidden.parentNode) hidden.remove();
-      }, 0);
-    },
+var _POSTPONE_INTERVALS = [
+  { label: "+1d", value: "1d" },
+  { label: "+2d", value: "2d" },
+  { label: "+3d", value: "3d" },
+  { label: "+1 week", value: "1w" },
+  { label: "+2 weeks", value: "2w" },
+  { label: "+1 month", value: "1mo" },
+];
+
+function openPostponePicker(itemEl, ids, targetInput) {
+  var form = targetInput ? targetInput.closest("form") : null;
+
+  closePopovers();
+  var pop = document.createElement("div");
+  pop.className = "todo-popover";
+  pop.dataset.role = "postpone-palette";
+
+  // Section label: "Postpone by\u2026"
+  var byLabel = document.createElement("div");
+  byLabel.style.cssText =
+    "font-size:0.75rem;font-weight:600;color:var(--bs-secondary-color);margin-bottom:0.35rem;";
+  byLabel.textContent = "Postpone by\u2026";
+  pop.appendChild(byLabel);
+
+  var chips = document.createElement("div");
+  chips.className = "todo-popover-actions";
+  chips.style.marginTop = "0";
+  pop.appendChild(chips);
+
+  _POSTPONE_INTERVALS.forEach(function (opt) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = opt.label;
+    btn.addEventListener("click", function () {
+      closePopovers();
+      _commitPostponeInterval(opt.value, targetInput, form);
+    });
+    chips.appendChild(btn);
   });
+
+  // Section label: "Postpone to\u2026"
+  var toLabel = document.createElement("div");
+  toLabel.style.cssText =
+    "font-size:0.75rem;font-weight:600;color:var(--bs-secondary-color);margin:0.6rem 0 0.25rem;";
+  toLabel.textContent = "Postpone to\u2026";
+  pop.appendChild(toLabel);
+
+  var pickBtn = document.createElement("button");
+  pickBtn.type = "button";
+  pickBtn.textContent = "Pick specific date\u2026";
+  pickBtn.className = "todo-popover-pick-date";
+  pickBtn.addEventListener("click", function () {
+    closePopovers();
+    openPicker({
+      anchorEl: itemEl,
+      title: "Postpone to\u2026",
+      role: "postpone-date",
+      onCommit: function (iso) {
+        _commitPostponeDate(iso, form);
+      },
+    });
+  });
+  pop.appendChild(pickBtn);
+
+  anchorPopover(pop, itemEl);
 }
 
-function openPostponePickerForSelection() {
+function _commitPostponeInterval(intervalValue, intervalInput, form) {
+  if (intervalInput) {
+    intervalInput.value = intervalValue;
+    var f = form || intervalInput.closest("form");
+    if (f) f.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  var submitBtn = form
+    ? form.querySelector(
+        'button[name="action"][value="postpone"][type="submit"]',
+      )
+    : null;
+  if (submitBtn) submitBtn.click();
+}
+
+function _commitPostponeDate(iso, form) {
+  if (!form || !iso) return;
+  var editBtn = form.querySelector(
+    'button[name="action"][value="edit"][type="submit"]',
+  );
+  if (!editBtn) return;
+  editBtn.setAttribute("hx-vals", JSON.stringify({ "todo[due_date]": iso }));
+  editBtn.click();
+  setTimeout(function () {
+    editBtn.removeAttribute("hx-vals");
+  }, 0);
+}
+
+function openPostponePickerForSelection(targetInput) {
   var box = document.querySelector("input.todo-checkbox:checked");
   if (!box) return;
   var anchor = box.closest(".todo-item") || box;
@@ -856,7 +923,7 @@ function openPostponePickerForSelection() {
       return b.dataset.id;
     })
     .join(",");
-  openPostponePicker(anchor, ids);
+  openPostponePicker(anchor, ids, targetInput);
 }
 
 // --- Recurrence picker ----------------------------------------------------
@@ -2337,6 +2404,13 @@ function deleteProtocolItem(btn) {
     initProtocolItemInputs();
   });
   li.replaceWith(placeholder);
+}
+
+function uploadAttachmentsFromDrop(element, files, todoId) {
+  uploadAttachments(files, todoId).catch(function (err) {
+    console.error("Attachment upload failed:", err);
+    alert("Failed to upload: " + err.message);
+  });
 }
 
 function initProtocolTitleInput() {

@@ -1,77 +1,104 @@
 <form
   xmlns:hx-on="http://htmx.org/hx-on"
-  hx-get="${request.route_url('todo_details_panel')}"
-  hx-trigger="open-details"
-  hx-target="#details-pane"
-  hx-swap="outerHTML"
-  _="on keydown[key is 'h'] from body
-       if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-       if no <input.todo-checkbox:checked/> in me exit end
-       if no <.hold-trigger/> in me exit end
-       trigger holdSelected on the first <.hold-trigger/> in me
-     on keydown[key is 'c'] from body
-       if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-       if no <input.todo-checkbox:checked/> in me exit end
-       if no <.done-trigger/> in me exit end
-       trigger doneSelected on the first <.done-trigger/> in me
-     on keydown[key is 'p'] from body
-       if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-       if no <input.todo-checkbox:checked/> in me exit end
-       if no <.postponeChooser-trigger/> in me exit end
-       trigger postponeChooserSelected on the first <.postpone-trigger/> in me
-     on keydown[key is 'P'] from body
-       if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-       if no <input.todo-checkbox:checked/> in me exit end
-       if no <.postpone-trigger/> in me exit end
-       trigger postponeSelected on the first <.postpone-trigger/> in me
-      on keydown[key is 'a'] from body
+  hx-post="${request.route_url('todo_batch_action')}"
+  hx-ext="form-json"
+  hx-target="#todo-list"
+  _="on keydown[key is ']'] from body
         if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-        if no <input.todo-checkbox:checked/> in me exit end
-        if no <.activate-trigger/> in me exit end
-        trigger activateSelected on the first <.activate-trigger/> in me
-     on 'todo-closed' from body
-        add .d-none to #details-pane
+        call setAllGroups(true)
+      on keydown[key is '['] from body
+        if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+        call setAllGroups(false)
+      on keydown[key is 'u'] from body
+        if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+        if no #undo-toast exit end
+        trigger undoRequested on body
       "
 >
+  <!-- on htmx:afterSwap trigger change on me -->
   <button
+    class="hold-trigger"
+    name="action"
+    value="hold"
     tal:condition="python:status == 'active'"
-    class="hold-trigger d-none"
-    type="button"
-    hx-post="${request.route_url('todos_hold')}"
-    hx-trigger="holdSelected"
-    hx-swap="none"
+    type="submit"
     aria-hidden="true"
     tabindex="-1"
-  ></button>
+    _="on keydown[key is 'h'] from body
+         if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+         if no <input.todo-checkbox:checked/> in closest <form/> exit end
+         me.click()"
+  >
+    Hold
+  </button>
+
+  <tal:block condition="python:status != 'done'">
+    <input type="hidden" name="interval" value="1d" />
+
+    <button
+      class="postpone-trigger"
+      type="button"
+      hx-get="${request.route_url('todo_picker_postpone')}"
+      hx-trigger="click"
+      hx-target="#popOver"
+      aria-hidden="true"
+      tabindex="-1"
+      _="on keydown[key is 'p'] from body
+           if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+           if no <input.todo-checkbox:checked/> in closest <form/> exit end
+           me.click()"
+    >
+      Postpone
+    </button>
+
+    <button
+      name="action"
+      value="postpone"
+      type="submit"
+      aria-hidden="true"
+      tabindex="-1"
+      _="on keydown[key is 'P'] from body
+           if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+           if no <input.todo-checkbox:checked/> in closest <form/> exit end
+           me.click()"
+    >
+      Postpone 1 day
+    </button>
+
+    <button
+      name="action"
+      value="edit"
+      type="submit"
+      aria-hidden="true"
+      tabindex="-1"
+    >
+      Edit due date
+    </button>
+  </tal:block>
+
   <button
-    tal:condition="python:status not in ('done')"
-    class="postponeChooser-trigger d-none"
-    type="button"
-    hx-on:postponeChooserSelected="openPostponePickerForSelection()"
-    hx-swap="none"
+    class="activate-trigger d-none"
+    name="action"
+    value="activate"
     aria-hidden="true"
     tabindex="-1"
+    type="submit"
+    _="on keydown[key is 'a'] from body
+         if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+         if no <input.todo-checkbox:checked/> in closest <form/> exit end
+         me.click()"
   ></button>
+
   <button
     tal:condition="python:status != 'done'"
     class="done-trigger d-none"
     type="button"
-    hx-post="${request.route_url('todos_done')}"
     hx-trigger="doneSelected"
     hx-swap="none"
     aria-hidden="true"
     tabindex="-1"
   ></button>
-  <button
-    tal:condition="python:status != 'done'"
-    class="postpone-trigger d-none"
-    type="button"
-    hx-post="${request.route_url('todos_postpone')}"
-    hx-trigger="postponeSelected"
-    hx-swap="none"
-    aria-hidden="true"
-    tabindex="-1"
-  ></button>
+
   <button
     class="undo-trigger d-none"
     type="button"
@@ -82,24 +109,12 @@
       prev_status: (document.getElementById("undo-toast") || {dataset:{}}).dataset.prevStatus || ""
     }'
     hx-swap="none"
+    name="action"
+    value="done"
     aria-hidden="true"
     tabindex="-1"
   ></button>
-  <button
-    class="activate-trigger d-none"
-    type="button"
-    hx-post="${request.route_url('todo_batch_action')}"
-    hx-trigger="activateSelected"
-    hx-ext="form-json"
-    hx-vals='js:{
-      action: "activate",
-      todo_ids: Array.from(document.querySelectorAll(".todo-checkbox:checked")).map(cb => parseInt(cb.value))
-    }'
-    hx-target="#todo-list"
-    hx-swap="none"
-    aria-hidden="true"
-    tabindex="-1"
-  ></button>
+
   <tal:block tal:repeat="group groups">
     <div
       tal:condition="group['items']"
@@ -125,8 +140,6 @@
         id="todo-${todo.id}"
         class="todo-item"
         data-update-url="${request.route_url('todo_update', id=todo.id)}"
-        data-set-due-url="${request.route_url('set_due_date', id=todo.id)}"
-        data-set-rec-url="${request.route_url('set_recurrence', id=todo.id)}"
         data-todo-text="${todo.text}"
         data-todo-note="${python:todo.note or ''}"
         data-todo-tags="${python:','.join(sorted(todo.tags)) if todo.tags else ''}"
@@ -142,7 +155,7 @@
           <span class="flex-shrink-0">
             <input
               type="checkbox"
-              name="todo_ids"
+              name="todo_ids[]"
               value="${todo.id}"
               class="form-check-input todo-checkbox"
               style="margin-top: 0.11em"
@@ -239,18 +252,6 @@
               >@${a}
             </tal:block>
           </span>
-
-          <button
-            hx-post="${request.route_url('todo_batch_action')}"
-            hx-ext="form-json"
-            hx-vals='{"action": "activate", "todo_ids": [${todo.id}], "context": "${context}"}'
-            hx-target="#todo-list"
-            tal:condition="todo.status == 'on_hold'"
-            class="btn btn-link btn-sm p-0 text-muted flex-shrink-0"
-            title="Activate"
-          >
-            <i class="bi bi-play-fill"></i>
-          </button>
         </div>
       </li>
     </ul>

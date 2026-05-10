@@ -898,6 +898,32 @@ def todo_update(request):
             )
             request.dbsession.add(link)
 
+    if validated.attachments is not None:
+        from pathlib import Path
+
+        from menage2.models.todo import TodoAttachment
+        from menage2.views.attachment import _ext_for, _get_attachments_dir
+
+        attachments_dir = _get_attachments_dir(request)
+        existing_uuids = {att.uuid for att in todo.attachments}
+        to_keep = validated.attachments
+        to_remove = existing_uuids - to_keep
+
+        for uuid_str in to_remove:
+            att = request.dbsession.execute(
+                select(TodoAttachment).where(
+                    TodoAttachment.todo_id == todo.id,
+                    TodoAttachment.uuid == uuid_str,
+                )
+            ).scalar_one_or_none()
+            if att:
+                ext = _ext_for(att)
+                for suffix in ("", "_thumb"):
+                    path = attachments_dir / (uuid_str + suffix + ext)
+                    if path.exists():
+                        path.unlink()
+                request.dbsession.delete(att)
+
     response = HTTPSeeOther(
         request.route_url(
             "todo_details_panel", _query=dict(todo_ids=str(todo.id), updated="true")
@@ -957,7 +983,7 @@ def todo_batch_action(request):
                 todo.on_hold_at = now
         request.response.hx_trigger.undo(todo_ids, "todo", texts, "put on hold")
     elif action == "postpone":
-        interval = validated.postpone_interval
+        interval = validated.interval
         if not interval:
             request.response.status_int = 400
             return request.response
@@ -966,6 +992,30 @@ def todo_batch_action(request):
             todo = request.dbsession.get(Todo, todo_id)
             if todo and todo.status in (TodoStatus.on_hold, TodoStatus.todo):
                 todo.due_date = _bump_due_date(todo.due_date, today, interval)
+        # XXX support undo for postponing
+    elif action == "edit":
+        update = validated.todo
+        if update is None:
+            request.response.status_int = 400
+            return request.response
+
+        clear_fields = update.clear_fields
+        for todo_id in todo_ids:
+            todo = request.dbsession.get(Todo, todo_id)
+            if not todo:
+                continue
+            if "tags" in clear_fields:
+                todo.tags = set()
+            elif update.tags is not None:
+                todo.tags = update.tags
+            if "assignees" in clear_fields:
+                todo.assignees = set()
+            elif update.assignees is not None:
+                todo.assignees = update.assignees
+            if "due_date" in clear_fields:
+                todo.due_date = None
+            elif update.due_date is not None:
+                todo.due_date = update.due_date
     elif action == "activate":
         prev_status = None
         for todo_id in todo_ids:
@@ -1084,7 +1134,8 @@ def todo_date_picker(request):
 @view_config(route_name="todo_details_panel", request_method="GET")
 def todo_details_panel(request):
     """Render the details panel for selected todos."""
-    raw_ids = request.params.getall("todo_ids")
+    # XXX turn into form-json
+    raw_ids = request.params.getall("todo_ids[]")
     todo_ids = [int(x) for x in raw_ids]
 
     if request.params.get("updated", False):
@@ -1173,3 +1224,46 @@ def list_top_tags_json(request):
 def list_principals_json(request):
     """All principals (active users + teams) for @mention autocomplete."""
     return get_all_principals(request.dbsession)
+
+
+@view_config(
+    route_name="todo_picker_postpone",
+    request_method="GET",
+    renderer="menage2:templates/_postpone_picker.pt",
+)
+def postpone_picker_partial(request):
+    today = datetime.date.today()
+
+    if month_str := request.params.get("month"):
+        current_month = datetime.datetime.strptime(month_str, "%B %Y").date()
+    else:
+        current_month = today
+
+    current_month = current_month.replace(day=1)
+
+    # todo_id = int(request.matchdict["id"])
+    # todo = request.dbsession.get(Todo, todo_id)
+    # if not todo:
+    #     request.response.status_int = 404
+    #     return {}
+    #
+
+    last_month = current_month - relativedelta(months=1)
+    next_month = current_month + relativedelta(months=1)
+
+    days = []
+    cursor = current_month
+    while cursor.month == current_month.month:
+        days.append(cursor)
+        cursor += datetime.timedelta(days=1)
+
+    mute_days = [None for d in range(days[0].weekday())]
+    days = mute_days + days
+
+    return {
+        "days": days,
+        "today": today,
+        "current_month": current_month.strftime("%B %Y"),
+        "next_month": next_month.strftime("%B %Y"),
+        "last_month": last_month.strftime("%B %Y"),
+    }
