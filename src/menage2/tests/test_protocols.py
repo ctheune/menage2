@@ -319,6 +319,30 @@ def test_start_protocol_run_creates_run_and_todo(
     assert run.items == []  # snapshot deferred
 
 
+def test_start_protocol_run_copies_assignees_to_todo(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["a"])
+    p.assignees = {"alice", "bob"}
+    dbsession.flush()
+    authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
+    run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
+    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    assert todo.assignees == {"alice", "bob"}
+
+
+def test_start_protocol_run_copies_tags_to_todo(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["a"])
+    p.tags = {"maintenance", "weekly"}
+    dbsession.flush()
+    authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
+    run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
+    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    assert todo.tags == {"maintenance", "weekly"}
+
+
 def test_show_run_snapshots_items_on_first_open(
     authenticated_testapp, dbsession, admin_user
 ):
@@ -496,6 +520,46 @@ def test_run_all_done_spawns_next_for_after_rule(
     )
     runs = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).all()
     assert len(runs) == 2
+
+
+def test_automatic_protocol_run_copies_assignees_and_tags(
+    authenticated_testapp, dbsession, admin_user
+):
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.after,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    p = _make_protocol(dbsession, admin_user, items=["a"])
+    p.recurrence_id = rule.id
+    p.assignees = {"carol"}
+    p.tags = {"automated"}
+    dbsession.flush()
+    run = _start_and_open_run(authenticated_testapp, dbsession, p)
+    first_todo = run.todo
+    assert first_todo.assignees == {"carol"}
+    assert first_todo.tags == {"automated"}
+    # Now complete and spawn the next run
+    item = run.items[0]
+    authenticated_testapp.post(
+        f"/protocols/run/{run.id}/items/{item.id}/done", status=200
+    )
+    dbsession.flush()
+    runs = (
+        dbsession.query(ProtocolRun)
+        .filter(ProtocolRun.protocol_id == p.id)
+        .order_by(ProtocolRun.spawned_at)
+        .all()
+    )
+    assert len(runs) == 2
+    second_run = runs[1]
+    second_todo = (
+        dbsession.query(Todo).filter(Todo.protocol_run_id == second_run.id).one()
+    )
+    assert second_todo.assignees == {"carol"}
+    assert second_todo.tags == {"automated"}
 
 
 def test_completing_protocol_todo_with_after_rule_spawns_next(

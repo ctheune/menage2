@@ -299,7 +299,7 @@ def spawn_protocol_run(
     dbsession.flush()
     todo = Todo(
         text=protocol.title,
-        tags=set(),
+        tags=set(protocol.tags) if protocol.tags else set(),
         assignees=set(protocol.assignees) if protocol.assignees else set(),
         status=TodoStatus.todo,
         created_at=now_utc,
