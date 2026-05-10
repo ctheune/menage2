@@ -33,14 +33,14 @@
   </button>
 
   <tal:block condition="python:status != 'done'">
-    <input type="hidden" name="interval" value="1d" />
+    <input type="text" name="interval" id="interval" value="1d" />
 
     <button
       class="postpone-trigger"
       type="button"
       hx-get="${request.route_url('todo_picker_postpone')}"
       hx-trigger="click"
-      hx-target="#popOver"
+      hx-target="next .popover"
       aria-hidden="true"
       tabindex="-1"
       _="on keydown[key is 'p'] from body
@@ -50,6 +50,8 @@
     >
       Postpone
     </button>
+
+    <div class="popover bg-light p-2 w-50"></div>
 
     <button
       name="action"
@@ -72,7 +74,7 @@
       aria-hidden="true"
       tabindex="-1"
     >
-      Edit due date
+      Save (Batch)
     </button>
   </tal:block>
 

@@ -654,47 +654,47 @@ def todos_activate_all_on_hold(request):
     return HTTPSeeOther(request.route_url("list_todos"))
 
 
-# Postpone interval choices for the Shift+P palette.
-_POSTPONE_INTERVALS = {
-    "1d": ("days", 1),
-    "2d": ("days", 2),
-    "3d": ("days", 3),
-    "1w": ("days", 7),
-    "2w": ("days", 14),
-    "1mo": ("months", 1),
-}
-
-
 def _bump_due_date(
     current: datetime.date | None, today: datetime.date, interval: str
 ) -> datetime.date:
-    """Apply a postpone interval, snapping overdue items to today first."""
+    """Apply a postpone interval, snapping overdue items to today first.
+
+    Parses the interval using parse_date from menage2.dateparse, which handles
+    formats like "1d", "2w", "1mo", "tomorrow", etc.
+    """
     if current is None:
         base = today
     elif current >= today:
         base = current
     else:
-        # Items from the past getting postponed by 1 day end
-        # up with today first.
         base = today - datetime.timedelta(days=1)
-    unit, n = _POSTPONE_INTERVALS[interval]
-    if unit == "days":
-        return base + datetime.timedelta(days=n)
-    if unit == "months":
-        return base + relativedelta(months=n)
-    raise ValueError(f"Unknown postpone unit: {unit}")
+
+    result = parse_date(interval, base)
+    if result is None:
+        raise ValueError(f"Invalid postpone interval: {interval}")
+    return result.date
+
+
+def _batch_postpone(
+    dbsession, todo_ids: list[int], interval: str, today: datetime.date
+) -> None:
+    """Apply postpone interval to a batch of todos.
+
+    Updates due_date for each todo, snapping overdue items to today first.
+    """
+    for todo_id in todo_ids:
+        todo = dbsession.get(Todo, todo_id)
+        if todo and todo.status in (TodoStatus.on_hold, TodoStatus.todo):
+            todo.due_date = _bump_due_date(todo.due_date, today, interval)
+    dbsession.flush()
 
 
 @view_config(route_name="todos_postpone", request_method="POST")
-def todos_postpone(request):
-    """Bump or set due_date for one or more todos.
+def postpone_todos(request) -> None:
+    """Bump or set due_date for one or more todos via POST.
 
-    Accepts `todo_ids` either as a single comma-separated value (legacy keydown
-    handler) or as repeated values from the form-driven POST.
-
-    If ``due_date`` is provided (ISO date or empty string for "no date"), it
-    overrides any interval and applies absolutely. Otherwise the optional
-    ``interval`` (default ``1d``) bumps relative to the current date / today.
+    Accepts todo_ids as comma-separated or repeated form values. The optional
+    interval (default "1d") bumps relative to the current date / today.
     """
     todo_ids: list[int] = []
     for entry in request.params.getall("todo_ids"):
@@ -702,30 +702,10 @@ def todos_postpone(request):
             x = x.strip()
             if x:
                 todo_ids.append(int(x))
-    today = _today()
-
-    absolute_raw = request.params.get("due_date")
-    use_absolute = absolute_raw is not None
-    absolute_date: datetime.date | None = None
-    if use_absolute and absolute_raw.strip():
-        try:
-            absolute_date = datetime.date.fromisoformat(absolute_raw.strip())
-        except ValueError:
-            request.response.status_int = 422
-            return request.response
 
     interval = request.params.get("interval", "1d")
-    if interval not in _POSTPONE_INTERVALS:
-        interval = "1d"
-
-    for todo_id in todo_ids:
-        todo = request.dbsession.get(Todo, todo_id)
-        if not todo:
-            continue
-        if use_absolute:
-            todo.due_date = absolute_date
-        else:
-            todo.due_date = _bump_due_date(todo.due_date, today, interval)
+    today = _today()
+    _batch_postpone(request.dbsession, todo_ids, interval, today)
     request.dbsession.flush()
     response = request.response
     response.content_type = "text/html"
@@ -987,12 +967,7 @@ def todo_batch_action(request):
         if not interval:
             request.response.status_int = 400
             return request.response
-
-        for todo_id in todo_ids:
-            todo = request.dbsession.get(Todo, todo_id)
-            if todo and todo.status in (TodoStatus.on_hold, TodoStatus.todo):
-                todo.due_date = _bump_due_date(todo.due_date, today, interval)
-        # XXX support undo for postponing
+        _batch_postpone(request.dbsession, todo_ids, interval, today)
     elif action == "edit":
         update = validated.todo
         if update is None:

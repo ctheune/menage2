@@ -7,6 +7,7 @@
         type="text"
         name="interval"
         class="form-control"
+        _="bind #interval to me"
         placeholder="tomorrow / next wed / 2026-05-12 …"
         hx-preserve
       />
@@ -15,16 +16,25 @@
 
   <div class="row">
     <div class="col">
-      <button type="button" class="btn btn-outline-primary btn-sm">Set</button>
+      <button
+        type="button"
+        class="btn btn-outline-primary btn-sm"
+        _="on click
+        set innerForm to the closest <form/>
+        set outerForm to innerForm.parentElement.closest('form')
+        set postponeButton to the <button[type='submit'][value='postpone']/> in outerForm
+        log postponeButton
+        send click to postponeButton
+        remove closest <form/>"
+      >
+        Postpone
+      </button>
       <button
         type="button"
         class="btn btn-outline-secondary btn-sm"
-        _="on click close closest <dialog/>"
+        _="on click remove closest <form/>"
       >
         Cancel
-      </button>
-      <button type="button" class="btn btn-outline-danger btn-sm">
-        Remove due date
       </button>
     </div>
   </div>
@@ -37,7 +47,9 @@
     <div
       _="on click
         if target is me halt end
-        put target's textContent.trim() into the previous <input/>'s value"
+        set input to the previous <input/>
+        put target's textContent.trim() into input's value
+        then send change to input"
     >
       <button type="button" class="btn btn-outline-secondary btn-sm">
         1 day

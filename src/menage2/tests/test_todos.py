@@ -15,6 +15,7 @@ from menage2.models.todo import (
 )
 from menage2.recurrence import spawn_after
 from menage2.views.todo import (
+    _batch_postpone,
     _bump_due_date,
     _format_date_group,
     add_todo,
@@ -29,7 +30,6 @@ from menage2.views.todo import (
     todos_activate_all_on_hold,
     todos_done,
     todos_hold,
-    todos_postpone,
 )
 
 
@@ -489,45 +489,30 @@ def test_todos_hold_sets_status(app_request, dbsession, admin_user):
     assert todo.on_hold_at.tzinfo is not None
 
 
-def test_todos_postpone_sets_due_date_one_day_default(
-    app_request, dbsession, admin_user
-):
+def test_todos_postpone_sets_due_date_one_day_default(dbsession, admin_user):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
-    app_request.method = "POST"
-    app_request.POST["todo_ids"] = str(todo.id)
-    todos_postpone(app_request)
-    dbsession.flush()
+    _batch_postpone(dbsession, [todo.id], "1d", _today())
     dbsession.refresh(todo)
     assert todo.due_date == _today() + datetime.timedelta(days=1)
     assert todo.status == TodoStatus.todo  # status untouched
 
 
-def test_todos_postpone_with_interval(app_request, dbsession, admin_user):
+def test_todos_postpone_with_interval(dbsession, admin_user):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
-    app_request.method = "POST"
-    app_request.POST["todo_ids"] = str(todo.id)
-    app_request.POST["interval"] = "1w"
-    todos_postpone(app_request)
-    dbsession.flush()
+    _batch_postpone(dbsession, [todo.id], "1w", _today())
     dbsession.refresh(todo)
     assert todo.due_date == _today() + datetime.timedelta(days=7)
 
 
-def test_todos_postpone_overdue_snaps_to_today_first(
-    app_request, dbsession, admin_user
-):
+def test_todos_postpone_overdue_snaps_to_today_first(dbsession, admin_user):
     todo = _todo(due_date=_today() - datetime.timedelta(days=5))
     dbsession.add(todo)
     dbsession.flush()
-    app_request.method = "POST"
-    app_request.POST["todo_ids"] = str(todo.id)
-    app_request.POST["interval"] = "1d"
-    todos_postpone(app_request)
-    dbsession.flush()
+    _batch_postpone(dbsession, [todo.id], "1d", _today())
     dbsession.refresh(todo)
     # Overdue items snap to today, then +1 day.
     assert todo.due_date == _today()
@@ -764,34 +749,22 @@ def _batch_request(app_request, body: dict):
     return app_request
 
 
-def test_batch_postpone_single_item_relative(app_request, dbsession, admin_user):
+def test_batch_postpone_single_item_relative(dbsession, admin_user):
     todo = _todo("Bump me", due_date=_today())
     dbsession.add(todo)
     dbsession.flush()
-    _batch_request(
-        app_request,
-        {"action": "postpone", "todo_ids": [todo.id], "interval": "1w"},
-    )
-    todo_batch_action(app_request)
-    dbsession.flush()
+    _batch_postpone(dbsession, [todo.id], "1w", _today())
     dbsession.refresh(todo)
     assert todo.due_date == _today() + datetime.timedelta(days=7)
 
 
-def test_batch_postpone_multiple_items_each_bumped_individually(
-    app_request, dbsession, admin_user
-):
+def test_batch_postpone_multiple_items_each_bumped_individually(dbsession, admin_user):
     today = _today()
     t1 = _todo("A", due_date=today)
     t2 = _todo("B", due_date=today + datetime.timedelta(days=3))
     dbsession.add_all([t1, t2])
     dbsession.flush()
-    _batch_request(
-        app_request,
-        {"action": "postpone", "todo_ids": [t1.id, t2.id], "interval": "2d"},
-    )
-    todo_batch_action(app_request)
-    dbsession.flush()
+    _batch_postpone(dbsession, [t1.id, t2.id], "2d", today)
     dbsession.refresh(t1)
     dbsession.refresh(t2)
     assert t1.due_date == today + datetime.timedelta(days=2)
