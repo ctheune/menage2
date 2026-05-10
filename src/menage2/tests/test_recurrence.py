@@ -129,7 +129,6 @@ def test_spawn_every_on_completion_creates_next_instance(dbsession, admin_user):
         owner=admin_user,
     )
     spawned = spawn_every_on_completion(todo, today, _now(), dbsession)
-    assert spawned == 1
     pending = (
         dbsession.query(Todo)
         .filter(
@@ -141,6 +140,7 @@ def test_spawn_every_on_completion_creates_next_instance(dbsession, admin_user):
     assert len(pending) == 1
     assert pending[0].due_date == datetime.date(2026, 5, 6)
     assert pending[0].recurred_from_id == todo.id
+    assert pending[0] is spawned
 
 
 def test_spawn_every_on_completion_skips_if_future_already_active(
@@ -166,7 +166,7 @@ def test_spawn_every_on_completion_skips_if_future_already_active(
         owner=admin_user,
     )
     spawned = spawn_every_on_completion(completed, today, _now(), dbsession)
-    assert spawned == 0
+    assert spawned is None
 
 
 def test_spawn_every_on_completion_no_op_for_after_rule(dbsession, admin_user):

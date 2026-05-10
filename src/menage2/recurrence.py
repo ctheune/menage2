@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import datetime
 import threading
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, Optional
 
 from sqlalchemy import select
 
@@ -163,38 +163,30 @@ def _has_today_or_future_active(dbsession, rule_id: int, today: datetime.date) -
 
 def _spawn_every_chain(
     dbsession, anchor_todo: Todo, today: datetime.date, now_utc: datetime.datetime
-) -> int:
-    """Materialise occurrences for one ``every`` rule.
+) -> Optional[Todo]:
+    """Materialise at least one current or future todo for every recurrence rule.
 
     Guarantees: after a successful sweep the chain has at least one active
     todo with ``due_date >= today``. Walks forward from the latest known
     ``due_date`` (active or done), spawning one Todo per occurrence until the
     next one is ``>= today``. Idempotent: skips entirely if such an active
     instance already exists.
+
     """
     rule = anchor_todo.recurrence
     if rule is None or rule.kind != RecurrenceKind.every:
-        return 0
+        return None
     if _has_today_or_future_active(dbsession, rule.id, today):
-        return 0
+        return None
     spec = rule_to_spec(rule)
     anchor = _latest_due_for_rule(dbsession, rule.id) or anchor_todo.due_date or today
-    spawned = 0
     parent = anchor_todo
-    while True:
-        nxt = next_occurrence(spec, anchor)
-        new_todo = _clone_for_recurrence(parent, nxt, now_utc)
-        dbsession.add(new_todo)
-        dbsession.flush()
-        spawned += 1
-        if nxt >= today:
-            # Chain now has a today-or-future active instance — done.
-            break
+    while (nxt := next_occurrence(spec, anchor)) < today:
         anchor = nxt
-        parent = new_todo
-        if spawned > 50:  # safety bound for pathological catch-ups
-            break
-    return spawned
+    new_todo = _clone_for_recurrence(parent, nxt, now_utc)
+    dbsession.add(new_todo)
+    dbsession.flush()
+    return new_todo
 
 
 def _today_marker(today: datetime.date) -> str:
@@ -272,7 +264,7 @@ def _sweep_every_rules(
         ).scalar_one_or_none()
         if anchor is None:
             continue
-        total += _spawn_every_chain(dbsession, anchor, today, now_utc)
+        total += 1 if _spawn_every_chain(dbsession, anchor, today, now_utc) else 0
     return total
 
 
