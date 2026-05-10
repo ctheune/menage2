@@ -9,8 +9,11 @@ from menage2.models.todo import (
     RecurrenceRule,
     RecurrenceUnit,
     Todo,
+    TodoAttachment,
+    TodoLink,
     TodoStatus,
 )
+from menage2.recurrence import spawn_after
 from menage2.views.todo import (
     _bump_due_date,
     _format_date_group,
@@ -853,6 +856,58 @@ def test_todos_done_spawns_every_instance(app_request, dbsession, admin_user):
     assert len(pending) == 1
     assert pending[0].due_date == _today() + datetime.timedelta(days=7)
     assert pending[0].recurred_from_id == todo.id
+
+
+def test_recurrence_clone_preserves_assignees(app_request, dbsession, admin_user):
+    """Spawning a recurrence preserves assignees."""
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.after,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    parent = _todo("Task", recurrence_id=rule.id, assignees={"alice", "bob"})
+    dbsession.add(parent)
+    dbsession.flush()
+
+    child = spawn_after(parent, _today(), _now(), dbsession)
+    dbsession.flush()
+
+    assert child is not None
+    assert child.assignees == {"alice", "bob"}
+
+
+def test_recurrence_clone_preserves_links(app_request, dbsession, admin_user):
+    """Spawning a recurrence preserves TodoLink rows."""
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.after,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    parent = _todo("Task", recurrence_id=rule.id)
+    dbsession.add(parent)
+    dbsession.flush()
+
+    # Add a link to the parent
+    link = TodoLink(
+        todo_id=parent.id,
+        label="Docs",
+        url="https://example.com/docs",
+        position=0,
+    )
+    dbsession.add(link)
+    dbsession.flush()
+
+    child = spawn_after(parent, _today(), _now(), dbsession)
+    dbsession.flush()
+
+    assert child is not None
+    assert len(child.links_rel) == 1
+    assert child.links_rel[0].label == "Docs"
+    assert child.links_rel[0].url == "https://example.com/docs"
 
 
 def test_parse_recurrence_preview_endpoint(authenticated_testapp):

@@ -28,6 +28,8 @@ from menage2.models.todo import (
     RecurrenceRule,
     RecurrenceUnit,
     Todo,
+    TodoAttachment,
+    TodoLink,
     TodoStatus,
 )
 
@@ -74,6 +76,7 @@ def _clone_for_recurrence(
     return Todo(
         text=parent.text,
         tags=set(parent.tags),
+        assignees=set(parent.assignees),
         note=parent.note,
         status=TodoStatus.todo,
         created_at=now_utc,
@@ -81,6 +84,19 @@ def _clone_for_recurrence(
         recurrence_id=parent.recurrence_id,
         recurred_from_id=parent.id,
         owner_id=parent.owner_id,
+        links_rel=[
+            TodoLink(label=lnk.label, url=lnk.url, position=lnk.position)
+            for lnk in parent.links_rel
+        ],
+        attachments=[
+            TodoAttachment(
+                uuid=att.uuid,
+                original_filename=att.original_filename,
+                mimetype=att.mimetype,
+                created_at=att.created_at,
+            )
+            for att in parent.attachments
+        ],
     )
 
 

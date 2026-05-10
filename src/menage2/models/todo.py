@@ -175,7 +175,7 @@ class TodoAttachment(Base):
         ForeignKey("todos.id", ondelete="CASCADE"),
         nullable=False,
     )
-    uuid = Column(Text, nullable=False, unique=True)
+    uuid = Column(Text, nullable=False)
     original_filename = Column(Text, nullable=False)
     mimetype = Column(Text, nullable=False)
     created_at = Column(
@@ -186,4 +186,7 @@ class TodoAttachment(Base):
 
     todo = relationship("Todo", back_populates="attachments")
 
-    __table_args__ = (Index("ix_todo_attachments_todo_id", "todo_id"),)
+    __table_args__ = (
+        Index("ix_todo_attachments_todo_id", "todo_id"),
+        Index("ix_todo_attachments_uuid", "uuid"),
+    )

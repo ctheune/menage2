@@ -8,7 +8,7 @@ from PIL import Image
 from pyramid.httpexceptions import HTTPNotFound
 from pyramid.renderers import render
 from pyramid.view import view_config
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from menage2.models.todo import Todo, TodoAttachment
 from menage2.principals import get_user_team_memberships, todo_matches_filter
@@ -211,15 +211,17 @@ def delete_attachment(request):
     if att is None:
         raise HTTPNotFound()
 
-    attachments_dir = _get_attachments_dir(request)
-    ext = _ext_for(att)
-    for suffix in ("", "_thumb"):
-        path = attachments_dir / (uuid_str + suffix + ext)
-        if path.exists():
-            path.unlink()
-
     request.dbsession.delete(att)
     request.dbsession.flush()
+
+    still_referenced = request.dbsession.execute(
+        select(func.count()).where(TodoAttachment.uuid == uuid_str)
+    ).scalar()
+    if not still_referenced:
+        attachments_dir = _get_attachments_dir(request)
+        ext = _ext_for(att)
+        for suffix in ("", "_thumb"):
+            (attachments_dir / (uuid_str + suffix + ext)).unlink(missing_ok=True)
     request.dbsession.expire(todo)
 
     request.response.content_type = "text/html"

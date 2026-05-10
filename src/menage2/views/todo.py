@@ -1,5 +1,4 @@
 import datetime
-import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -11,9 +10,8 @@ from pydantic import BaseModel
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.renderers import render, render_to_response
 from pyramid.request import Request
-from pyramid.response import Response
 from pyramid.view import view_config
-from sqlalchemy import asc, func, nulls_last, or_, select
+from sqlalchemy import asc, nulls_last, or_, select
 from sqlalchemy.orm import joinedload
 
 from menage2.dateparse import (
@@ -955,7 +953,7 @@ def todo_batch_action(request):
     elif action == "hold":
         for todo_id in todo_ids:
             todo = request.dbsession.get(Todo, todo_id)
-            if todo and todo.status == "todo":
+            if todo and todo.status == TodoStatus.todo:
                 texts.append(todo.text)
                 todo.status = TodoStatus.on_hold
                 todo.on_hold_at = now
