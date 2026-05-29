@@ -6,8 +6,8 @@
     <title>${base_name}</title>
     <link rel="icon" type="image/svg+xml" href="${request.static_url('menage2:static/logo.svg')}" />
     <link rel="apple-touch-icon" href="${request.static_url('menage2:static/logo.png')}">
-    <meta name="apple-mobile-web-app-title" tal:attributes="content base_name">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-title" tal:attributes="content base_name">
+    <meta name="mobile-web-app-capable" content="yes">
 
     <link href="${request.static_url('menage2:static/bootstrap.min.css')}" rel="stylesheet">
     <link href="${request.static_url('menage2:static/bootstrap-icons.min.css')}" rel="stylesheet">
@@ -121,7 +121,7 @@
           hx-trigger="load, todo-updated from:window, focus from:window">
       </ul>
 
-      <ul class="nav nav-tabs border-0" tal:condition="in_food">s
+      <ul class="nav nav-tabs border-0" tal:condition="in_operations">
         <li class="nav-item">
           <a class="nav-link" tal:attributes="class python:'nav-link active' if sub_crew else 'nav-link'"
               href="${request.route_url('admin_users')}">Crew</a>

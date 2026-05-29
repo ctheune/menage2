@@ -351,7 +351,7 @@ def test_show_run_snapshots_items_on_first_open(
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
     todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
     res = authenticated_testapp.get(
-        f"/todos/details-panel?todo_ids={todo.id}", status=200
+        f"/todos/details-panel?todo_ids[]={todo.id}", status=200
     )
     assert b"alpha" in res.body
     assert b"beta" in res.body
@@ -370,7 +370,7 @@ def test_show_run_reuses_snapshot_after_template_edit(
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
     todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
-    authenticated_testapp.get(f"/todos/details-panel?todo_ids={todo.id}", status=200)
+    authenticated_testapp.get(f"/todos/details-panel?todo_ids[]={todo.id}", status=200)
     # Now mutate the template
     authenticated_testapp.post(
         f"/protocols/{p.id}/items",
@@ -378,7 +378,7 @@ def test_show_run_reuses_snapshot_after_template_edit(
         status=303,
     )
     res = authenticated_testapp.get(
-        f"/todos/details-panel?todo_ids={todo.id}", status=200
+        f"/todos/details-panel?todo_ids[]={todo.id}", status=200
     )
     assert b"leak-attempt" not in res.body
     assert b"original-1" in res.body
@@ -393,7 +393,7 @@ def _start_and_open_run(testapp, dbsession, p):
     testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
     todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
-    testapp.get(f"/todos/details-panel?todo_ids={todo.id}", status=200)
+    testapp.get(f"/todos/details-panel?todo_ids[]={todo.id}", status=200)
     dbsession.flush()
     dbsession.refresh(run)
     return run
@@ -533,7 +533,7 @@ def test_automatic_protocol_run_copies_assignees_and_tags(
     dbsession.add(rule)
     dbsession.flush()
     p = _make_protocol(dbsession, admin_user, items=["a"])
-    p.recurrence_id = rule.id
+    p.recurrence = rule
     p.assignees = {"carol"}
     p.tags = {"automated"}
     dbsession.flush()

@@ -79,7 +79,7 @@
   </tal:block>
 
   <button
-    class="activate-trigger d-none"
+    tal:condition="python:status in ['done', 'on_hold']"
     name="action"
     value="activate"
     aria-hidden="true"
@@ -89,17 +89,25 @@
          if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
          if no <input.todo-checkbox:checked/> in closest <form/> exit end
          me.click()"
-  ></button>
+  >
+    Activate
+  </button>
 
   <button
     tal:condition="python:status != 'done'"
-    class="done-trigger d-none"
-    type="button"
-    hx-trigger="doneSelected"
-    hx-swap="none"
+    class="done-trigger"
+    name="action"
+    value="done"
+    type="submit"
     aria-hidden="true"
     tabindex="-1"
-  ></button>
+    _="on keydown[key is 'c'] from body
+         if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+         if no <input.todo-checkbox:checked/> in closest <form/> exit end
+         me.click()"
+  >
+    Done
+  </button>
 
   <button
     class="undo-trigger d-none"

@@ -6,10 +6,10 @@
 
   tasks."menage:upgrade-db".exec = "uv run alembic -c development.ini upgrade head";
 
-  processes.menage = {
-    after = [ "menage:upgrade-db@succeeded" ];
-    exec = "uv run pserve --reload development.ini";
-  };
+  # processes.menage = {
+  #   after = [ "menage:upgrade-db@succeeded" ];
+  #   exec = "uv run pserve --reload development.ini";
+  # };
 
   services.postgres = {
     enable = true;

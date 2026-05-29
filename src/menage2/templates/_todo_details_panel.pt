@@ -156,14 +156,14 @@
               </button>
               <input type="hidden" tal:attributes="name string:links.${idx}.url" value="${link.url}"/>
               <input type="hidden" tal:attributes="name string:links.${idx}.label" value="${python:link.label or ''}"/>
-              <a href="#"  _="on click
-                  call openLinkPickerForDetails(me) then halt
-                on keydown[key is 'l'] from body
-                  if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-                  call openLinkPickerForDetails(me)">+</a>
             </span>
           </tal:block>
         </tal:block>
+        <a href="#"  _="on click
+            call openLinkPickerForDetails(me) then halt
+          on keydown[key is 'l'] from body
+            if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+            call openLinkPickerForDetails(me)">+</a>
       </span>
     </div>
 

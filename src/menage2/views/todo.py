@@ -27,6 +27,7 @@ from menage2.models.todo import (
     RecurrenceUnit,
     Todo,
     TodoAttachment,
+    TodoLink,
     TodoStatus,
 )
 from menage2.principals import (
@@ -106,7 +107,7 @@ class ParsedTodoInput:
     due_date: datetime.date | None = None
     recurrence: RecurrenceSpec | None = None
     note: str = ""
-    links: list[str] = field(default_factory=list)
+    links: list[TodoLink] = field(default_factory=list)
 
 
 def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodoInput:
@@ -145,8 +146,8 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
         text = text[: m.start()] + text[m.end() :]
 
     links = [
-        f"[{lm.group(1)}]({_normalize_url(lm.group(2))})"
-        for lm in _LINK_RE.finditer(text)
+        TodoLink(label=lm.group(1), url=_normalize_url(lm.group(2)), position=i)
+        for i, lm in enumerate(_LINK_RE.finditer(text))
     ]
     text = _LINK_RE.sub("", text)
 
@@ -555,8 +556,8 @@ def add_todo(request):
         tags=parsed.tags,
         assignees=parsed.assignees,
         note=parsed.note,
-        links=parsed.links,
         due_date=parsed.due_date,
+        links_rel=parsed.links,
         owner_id=owner_id,
         status=TodoStatus.todo,
         created_at=_now_utc(),

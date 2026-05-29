@@ -1,6 +1,7 @@
 """Browser tests for the todo feature."""
 
 import pytest
+from playwright.sync_api import expect
 
 from ._browser_helpers import fill_composite
 
@@ -58,7 +59,7 @@ def _add_todo(page, text: str) -> None:
 
 def _select_item(page, selector: str) -> None:
     """Check an item's checkbox so keyboard shortcuts target it."""
-    page.locator(selector).locator(".todo-checkbox").click()
+    page.locator(selector).click()
     page.evaluate(
         "document.activeElement && document.activeElement.blur && document.activeElement.blur()"
     )
@@ -104,17 +105,13 @@ def _check_and_blur(page, nth=0):
 
 
 def test_keyboard_c_marks_done(page):
+    page.on("console", lambda msg: print(msg.text))
     page.goto("/todos")
     _add_todo(page, "Keyboard test item")
     page.wait_for_selector(".todo-checkbox")
-    count_before = page.locator(".todo-checkbox").count()
     _check_and_blur(page)
     page.keyboard.press("c")
-    page.wait_for_function(
-        f"document.querySelectorAll('.todo-checkbox').length < {count_before}",
-        timeout=5000,
-    )
-    assert page.locator(".todo-checkbox").count() == count_before - 1
+    expect(page.locator(".todo-checkbox")).to_have_count(0)
 
 
 def test_undo_toast_appears_after_done(page):
@@ -123,8 +120,7 @@ def test_undo_toast_appears_after_done(page):
     page.wait_for_selector(".todo-checkbox")
     _check_and_blur(page)
     page.keyboard.press("c")
-    page.wait_for_selector("#undo-toast", timeout=3000)
-    assert page.locator("#undo-toast").is_visible()
+    expect(page.locator("#undo-toast")).to_be_visible()
 
 
 def test_undo_restores_item(page):
@@ -151,18 +147,14 @@ def test_done_view_shows_completed_items(page):
     page.goto("/todos")
     _add_todo(page, "Done view test")
     page.wait_for_selector('.todo-item[data-todo-text="Done view test"]')
-    count_before = page.locator(".todo-checkbox").count()
     page.locator(
         '.todo-item[data-todo-text="Done view test"] .todo-checkbox'
     ).first.check()
     page.evaluate("document.activeElement.blur()")
     page.keyboard.press("c")
-    page.wait_for_function(
-        f"document.querySelectorAll('.todo-checkbox').length < {count_before}",
-        timeout=5000,
-    )
-    page.goto("/todos/done")
-    assert page.locator("text=Done view test").count() >= 1
+    expect(page.locator(".todo-checkbox")).to_have_count(0)
+    page.get_by_role("link", name="Done").click()
+    expect(page.locator("text=Done view test")).to_have_count(1)
 
 
 def test_d_key_opens_date_picker(page):

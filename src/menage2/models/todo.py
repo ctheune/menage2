@@ -113,8 +113,6 @@ class Todo(Base):
     on_hold_at = Column(DateTime(timezone=True))
     due_date = Column(Date)
     note = Column(Text)
-    # Deprecated: Use TodoLink relationship instead. Kept for migration purposes.
-    links = Column(LinkList, nullable=False, server_default="{}")
 
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     assignees = Column(TagSet, nullable=False, server_default="{}")

@@ -19,7 +19,9 @@ from typing import Optional
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, object_session, relationship
 
+from menage2.models.user import User
 from menage2.recurrence import (
+    RecurrenceRule,
     ensure_protocol_has_run,
     rule_to_spec,
     spawn_protocol_after,
@@ -40,35 +42,38 @@ class ProtocolRunItemStatus(enum.Enum):
 class Protocol(Base):
     __tablename__ = "protocols"
 
-    id = Column(Integer, primary_key=True)
-    title = Column(Text, nullable=False)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    tags = Column(TagSet, nullable=False, server_default="{}")
-    note = Column(Text)
-    assignees = Column(TagSet, nullable=False, server_default="{}")
-    recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
-    created_at = Column(
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column()
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    tags: Mapped[set] = mapped_column(TagSet, server_default="{}")
+    note: Mapped[str] = mapped_column()
+    assignees: Mapped[set] = mapped_column(TagSet, server_default="{}")
+    recurrence_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("recurrence_rules.id")
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
-        nullable=False,
         default=lambda: datetime.datetime.now(datetime.timezone.utc),
     )
-    archived_at: Mapped[Optional[datetime.datetime]] = Column(
-        DateTime(timezone=True), nullable=True
+    archived_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True)
     )
 
-    owner = relationship("User", foreign_keys=[owner_id])
-    items = relationship(
+    owner: Mapped["User"] = relationship("User", foreign_keys=[owner_id])
+    items: Mapped[list["ProtocolItem"]] = relationship(
         "ProtocolItem",
         back_populates="protocol",
         order_by="ProtocolItem.position",
         cascade="all, delete-orphan",
     )
-    runs = relationship(
+    runs: Mapped[list["ProtocolRun"]] = relationship(
         "ProtocolRun",
         back_populates="protocol",
         order_by="ProtocolRun.spawned_at.desc()",
     )
-    recurrence = relationship("RecurrenceRule", lazy="joined")
+    recurrence: Mapped[Optional["RecurrenceRule"]] = relationship(
+        "RecurrenceRule", lazy="joined"
+    )
 
 
 class ProtocolItem(Base):
