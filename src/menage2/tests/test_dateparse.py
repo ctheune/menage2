@@ -253,12 +253,12 @@ def test_invalid_day_in_month_returns_none():
         ("2026-04-29", "today"),
         ("2026-04-30", "tomorrow"),
         ("2026-04-28", "yesterday"),
-        ("2026-05-01", "Fri"),  # +2 days, same week
-        ("2026-05-02", "Sat"),  # +3 days
-        ("2026-05-04", "Mon"),  # +5 days, still in 1..6 range
-        ("2026-05-06", "Wed, 6 May"),  # +7 days, switches to date form
-        ("2026-12-25", "Fri, 25 Dec"),
-        ("2027-01-01", "1 Jan 2027"),
+        ("2026-05-01", "Friday"),  # +2 days, same week
+        ("2026-05-02", "Saturday"),  # +3 days
+        ("2026-05-04", "Monday"),  # +5 days, still in 1..6 range
+        ("2026-05-06", "Wednesday, 6 May"),  # +7 days, switches to date form
+        ("2026-12-25", "Friday, 25 December"),
+        ("2027-01-01", "1 January 2027"),
     ],
 )
 def test_label_date(d, expected):

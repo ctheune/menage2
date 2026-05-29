@@ -19,6 +19,7 @@ from __future__ import annotations
 import datetime
 import re
 from dataclasses import dataclass
+from typing import Any
 
 from dateutil.relativedelta import relativedelta
 
@@ -62,85 +63,53 @@ _RECURRENCE_UNITS = {
 
 
 _WEEKDAYS = {
-    "monday": 0,
-    "mon": 0,
-    "tuesday": 1,
-    "tue": 1,
-    "tues": 1,
-    "wednesday": 2,
-    "wed": 2,
-    "thursday": 3,
-    "thu": 3,
-    "thur": 3,
-    "thurs": 3,
-    "friday": 4,
-    "fri": 4,
-    "saturday": 5,
-    "sat": 5,
-    "sunday": 6,
-    "sun": 6,
+    "Monday": 0,
+    "Tuesday": 1,
+    "Wednesday": 2,
+    "Thursday": 3,
+    "Friday": 4,
+    "Saturday": 5,
+    "Sunday": 6,
 }
 
 _MONTHS = {
-    "january": 1,
-    "jan": 1,
-    "february": 2,
-    "feb": 2,
-    "march": 3,
-    "mar": 3,
-    "april": 4,
-    "apr": 4,
-    "may": 5,
-    "june": 6,
-    "jun": 6,
-    "july": 7,
-    "jul": 7,
-    "august": 8,
-    "aug": 8,
-    "september": 9,
-    "sep": 9,
-    "sept": 9,
-    "october": 10,
-    "oct": 10,
-    "november": 11,
-    "nov": 11,
-    "december": 12,
-    "dec": 12,
+    "January": 1,
+    "February": 2,
+    "March": 3,
+    "April": 4,
+    "May": 5,
+    "June": 6,
+    "July": 7,
+    "August": 8,
+    "September": 9,
+    "October": 10,
+    "November": 11,
+    "December": 12,
 }
 
 # Canonical unit deltas: (days, months, years)
 _UNITS = {
-    "day": (1, 0, 0),
     "days": (1, 0, 0),
-    "d": (1, 0, 0),
-    "week": (7, 0, 0),
     "weeks": (7, 0, 0),
-    "w": (7, 0, 0),
-    "month": (0, 1, 0),
     "months": (0, 1, 0),
-    "mo": (0, 1, 0),
-    "mon": (0, 1, 0),
-    "year": (0, 0, 1),
     "years": (0, 0, 1),
-    "y": (0, 0, 1),
-    "yr": (0, 0, 1),
 }
 
-_WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-_MONTH_LABELS = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-]
+_KEYWORDS = {
+    "today": datetime.timedelta(0),
+    "now": datetime.timedelta(0),
+    "tomorrow": datetime.timedelta(days=1),
+    "yesterday": datetime.timedelta(days=-1),
+}
+
+_WEEKDAY_LABELS = list(_WEEKDAYS)
+_MONTH_LABELS = list(_MONTHS)
+
+
+def prefix(d: dict[str, Any], candidate: str) -> str | None:
+    """Return the unique key that candidate is a case-insensitive prefix of, or None."""
+    matches = [k for k in d if k.lower().startswith(candidate)]
+    return matches[0] if len(matches) == 1 else None
 
 
 def label_date(d: datetime.date, today: datetime.date) -> str:
@@ -220,30 +189,30 @@ def _try_relative(text: str, today: datetime.date) -> datetime.date | None:
 
     # "in a week" / "a week" / "one month" / "an hour" (rejected)
     m = re.fullmatch(r"(?:in\s+)?(?:a|an|one)\s+(\w+)", text)
-    if m and m[1] in _UNITS:
-        return _add_units(today, 1, m[1])
+    if m and (key := prefix(_UNITS, m[1])) is not None:
+        return _add_units(today, 1, key)
 
     # "in 7 days" / "7 days" / "2w" / "3 mo"
     m = re.fullmatch(r"(?:in\s+)?(\d+)\s*(\w+)", text)
-    if m and m[2] in _UNITS:
-        return _add_units(today, int(m[1]), m[2])
+    if m and (key := prefix(_UNITS, m[2])) is not None:
+        return _add_units(today, int(m[1]), key)
 
     return None
 
 
 def _try_weekday(text: str, today: datetime.date) -> datetime.date | None:
     m = re.fullmatch(r"(?:(next|this)\s+)?(\w+)", text)
-    if not m or m[2] not in _WEEKDAYS:
+    if not m or (key := prefix(_WEEKDAYS, m[2])) is None:
         return None
     extra = 1 if m[1] == "next" else 0
-    return _soonest_weekday(today, _WEEKDAYS[m[2]], extra_weeks=extra)
+    return _soonest_weekday(today, _WEEKDAYS[key], extra_weeks=extra)
 
 
 def _try_month(text: str, today: datetime.date) -> datetime.date | None:
     # "march", "next march", "march 2026"
     m = re.fullmatch(r"(?:(next)\s+)?(\w+)(?:\s+(\d{4}))?", text)
-    if m and m[2] in _MONTHS:
-        month = _MONTHS[m[2]]
+    if m and (key := prefix(_MONTHS, m[2])) is not None:
+        month = _MONTHS[key]
         if m[3]:
             year = int(m[3])
         else:
@@ -254,13 +223,13 @@ def _try_month(text: str, today: datetime.date) -> datetime.date | None:
 
     # "15 march", "15 march 2026"
     m = re.fullmatch(r"(\d{1,2})\s+(\w+)(?:\s+(\d{4}))?", text)
-    if m and m[2] in _MONTHS:
-        return _build_day_month(int(m[1]), _MONTHS[m[2]], m[3], today)
+    if m and (key := prefix(_MONTHS, m[2])) is not None:
+        return _build_day_month(int(m[1]), _MONTHS[key], m[3], today)
 
     # "march 15", "march 15 2026"
     m = re.fullmatch(r"(\w+)\s+(\d{1,2})(?:\s+(\d{4}))?", text)
-    if m and m[1] in _MONTHS:
-        return _build_day_month(int(m[2]), _MONTHS[m[1]], m[3], today)
+    if m and (key := prefix(_MONTHS, m[1])) is not None:
+        return _build_day_month(int(m[2]), _MONTHS[key], m[3], today)
 
     return None
 
@@ -290,13 +259,8 @@ def parse_date(text: str, today: datetime.date) -> ParsedDate | None:
         return None
     s = _normalize(text)
 
-    if s in ("today", "now"):
-        return ParsedDate(today, label_date(today, today))
-    if s == "tomorrow":
-        d = today + datetime.timedelta(days=1)
-        return ParsedDate(d, label_date(d, today))
-    if s == "yesterday":
-        d = today - datetime.timedelta(days=1)
+    if (key := prefix(_KEYWORDS, s)) is not None:
+        d = today + _KEYWORDS[key]
         return ParsedDate(d, label_date(d, today))
 
     d = (
@@ -355,7 +319,7 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
 
     # "every second friday" / "every 2nd friday" / "every other monday"
     m = re.fullmatch(r"every\s+(\w+)\s+(\w+)", s)
-    if m and m.group(2) in _WEEKDAYS:
+    if m and (key := prefix(_WEEKDAYS, m.group(2))) is not None:
         ord_str = m.group(1)
         n = _ORDINAL_WORDS.get(ord_str) or _ordinal_to_int(ord_str)
         if n is not None and n >= 1:
@@ -363,17 +327,17 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
                 kind="every",
                 interval_value=n,
                 interval_unit="week",
-                weekday=_WEEKDAYS[m.group(2)],
+                weekday=_WEEKDAYS[key],
             )
 
     # "every <weekday>"
     m = re.fullmatch(r"every\s+(\w+)", s)
-    if m and m.group(1) in _WEEKDAYS:
+    if m and (key := prefix(_WEEKDAYS, m.group(1))) is not None:
         return RecurrenceSpec(
             kind="every",
             interval_value=1,
             interval_unit="week",
-            weekday=_WEEKDAYS[m.group(1)],
+            weekday=_WEEKDAYS[key],
         )
 
     # "every <ordinal>"
