@@ -15,53 +15,62 @@
   </span>
 
   <div metal:fill-slot="content" class="container-fluid px-0 px-md-3 pt-3">
-    <!-- Status navigation (active / hold / scheduled / done) -->
-    <div class="d-flex gap-1 mb-2 align-items-center flex-wrap">
-      <a
-        href="${request.route_url('list_todos')}?filter=${filter_mode}&status=active"
-        class="btn btn-sm rounded-pill ${'btn-dark' if status == 'active' else 'btn-outline-secondary'}"
-        >Active</a
-      >
-      <a
-        href="${request.route_url('list_todos')}?filter=${filter_mode}&status=on_hold"
-        class="btn btn-sm rounded-pill ${'btn-dark' if status == 'on_hold' else 'btn-outline-secondary'}"
-        >On Hold</a
-      >
-      <a
-        href="${request.route_url('list_todos')}?filter=${filter_mode}&status=scheduled"
-        class="btn btn-sm rounded-pill ${'btn-dark' if status == 'scheduled' else 'btn-outline-secondary'}"
-        >Scheduled</a
-      >
-      <a
-        href="${request.route_url('list_todos')}?filter=${filter_mode}&status=done"
-        class="btn btn-sm rounded-pill ${'btn-dark' if status == 'done' else 'btn-outline-secondary'}"
-        >Done</a
-      >
-    </div>
-
     <!-- Add / edit todo form (shared across views; rendered server-side) -->
     <tal:block tal:replace="structure form_html" />
 
-    <div class="todo-stage">
+    <div class="row">
       <!-- Todo list -->
-      <div class="todo-pane">
-        <div class="todo-list-wrap">
+      <div class="col-md-6">
+        <div class="card">
+          <!-- Status tabs -->
+          <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs">
+              <li class="nav-item">
+                <a
+                  href="${request.route_url('list_todos')}?filter=${filter_mode}&status=active"
+                  class="nav-link ${'active' if status == 'active' else ''}"
+                  >Active</a
+                >
+              </li>
+              <li class="nav-item">
+                <a
+                  href="${request.route_url('list_todos')}?filter=${filter_mode}&status=on_hold"
+                  class="nav-link ${'active' if status == 'on_hold' else ''}"
+                  >On Hold</a
+                >
+              </li>
+              <li class="nav-item">
+                <a
+                  href="${request.route_url('list_todos')}?filter=${filter_mode}&status=scheduled"
+                  class="nav-link ${'active' if status == 'scheduled' else ''}"
+                  >Scheduled</a
+                >
+              </li>
+              <li class="nav-item">
+                <a
+                  href="${request.route_url('list_todos')}?filter=${filter_mode}&status=done"
+                  class="nav-link ${'active' if status == 'done' else ''}"
+                  >Done</a
+                >
+              </li>
+            </ul>
+          </div>
           <div
             id="todo-list"
             data-status="${status}"
             hx-trigger="load, todo-updated from:body, focus from:window"
             hx-get="${request.route_url('list_todo_groups', _query=dict(filter=filter_mode, status=status))}"
             _="on htmx:afterSwap trigger change on the first <form/> in me
-               on keydown[key is ']'] from body
-                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-                 call setAllGroups(true)
-               on keydown[key is '['] from body
-                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-                 call setAllGroups(false)
-               on keydown[key is 'u'] from body
-                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-                 if no #undo-toast exit end
-                 trigger undoRequested on body"
+                 on keydown[key is ']'] from body
+                   if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                   call setAllGroups(true)
+                 on keydown[key is '['] from body
+                   if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                   call setAllGroups(false)
+                 on keydown[key is 'u'] from body
+                   if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                   if no #undo-toast exit end
+                   trigger undoRequested on body"
           ></div>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import calendar as _cal
 import datetime
 import re
 from dataclasses import dataclass, field
@@ -861,10 +862,7 @@ def todo_update(request):
         todo.assignees = set()
     elif validated.assignees is not None:
         todo.assignees = validated.assignees
-    if "due_date" in clear_fields:
-        todo.due_date = None
-    elif validated.due_date is not None:
-        todo.due_date = validated.due_date
+    todo.due_date = validated.due_date
     if "note" in clear_fields:
         todo.note = None
     elif validated.note is not None:
@@ -994,6 +992,93 @@ def todo_batch_action(request):
     request.response.content_type = "text/html"
     request.response.text = ""
     return request.response
+
+
+@view_config(
+    route_name="todo_date_picker",
+    request_method="GET",
+    renderer="menage2:templates/_todo_date_picker.pt",
+)
+def todo_date_picker(request):
+    """Render a picker for a date.
+
+    This automatically binds to the closest, previous input field.
+
+    """
+    today = datetime.date.today()
+    value = request.params.get("value")
+    parsed = parse_date(value, today)
+
+    options = [
+        parse_date("today", today),
+        parse_date("tomorrow", today),
+        parse_date("2d", today),
+        parse_date("3d", today),
+        parse_date("4d", today),
+        parse_date("5d", today),
+        parse_date("6d", today),
+        parse_date("1w", today),
+        parse_date("2w", today),
+        parse_date("1m", today),
+    ]
+
+    month_param = request.params.get("month")
+    display_year: int
+    display_month: int
+    if month_param:
+        try:
+            display_year = int(month_param[:4])
+            display_month = int(month_param[5:7])
+        except (ValueError, IndexError):
+            month_param = None
+    if not month_param:
+        ref = parsed.date if parsed else today
+        display_year, display_month = ref.year, ref.month
+
+    first = datetime.date(display_year, display_month, 1)
+    start_weekday = first.weekday()
+    days_in_month = _cal.monthrange(display_year, display_month)[1]
+    selected_iso = parsed.date.isoformat() if parsed else None
+
+    cells: list[dict[str, object] | None] = [None] * start_weekday
+    for d in range(1, days_in_month + 1):
+        date_obj = datetime.date(display_year, display_month, d)
+        cells.append(
+            {
+                "day": d,
+                "iso": date_obj.isoformat(),
+                "is_today": date_obj == today,
+                "is_selected": date_obj.isoformat() == selected_iso,
+            }
+        )
+    while len(cells) % 7:
+        cells.append(None)
+    weeks = [cells[i : i + 7] for i in range(0, len(cells), 7)]
+
+    if display_month == 1:
+        prev_y, prev_m = display_year - 1, 12
+    else:
+        prev_y, prev_m = display_year, display_month - 1
+    if display_month == 12:
+        next_y, next_m = display_year + 1, 1
+    else:
+        next_y, next_m = display_year, display_month + 1
+
+    def _nav_url(y: int, m: int) -> str:
+        q: dict[str, str] = {"month": f"{y:04d}-{m:02d}"}
+        if value:
+            q["value"] = value
+        return request.route_url("todo_date_picker", _query=q)
+
+    calendar = {
+        "month_label": first.strftime("%B %Y"),
+        "day_headers": ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+        "weeks": weeks,
+        "prev_url": _nav_url(prev_y, prev_m),
+        "next_url": _nav_url(next_y, next_m),
+    }
+
+    return {"value": value, "parsed": parsed, "options": options, "calendar": calendar}
 
 
 @view_config(route_name="todo_details_panel", request_method="GET")

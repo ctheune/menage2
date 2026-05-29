@@ -388,6 +388,21 @@ function initTagInput() {
   }
 }
 
+document.body.addEventListener("showValidationError", function (e) {
+  var existing = document.getElementById("error-toast");
+  if (existing) existing.remove();
+
+  var toast = document.createElement("div");
+  toast.id = "error-toast";
+  toast.style.cssText =
+    "position:fixed;bottom:1.5rem;left:1.5rem;z-index:9999;background:#dc2626;color:#fff;padding:0.875rem 1.25rem;border-radius:0.75rem;box-shadow:0 8px 32px rgba(0,0,0,0.45);pointer-events:none;font-weight:600;";
+  toast.textContent = (e.detail && e.detail.message) || "Validation error.";
+  document.body.appendChild(toast);
+  setTimeout(function () {
+    toast.remove();
+  }, 5000);
+});
+
 // Show error toast when todo text is empty (only tags entered)
 document.body.addEventListener("showAddTodoError", function (e) {
   var existing = document.getElementById("error-toast");
@@ -573,10 +588,6 @@ function openPicker(opts) {
   preview.className = "todo-popover-preview";
   pop.appendChild(preview);
 
-  // --- Calendar ---
-  var cal = document.createElement("div");
-  pop.appendChild(cal);
-
   // --- Footer actions ---
   var footer = document.createElement("div");
   footer.className = "todo-popover-actions";
@@ -594,10 +605,6 @@ function openPicker(opts) {
 
   // --- State ---
   var pendingISO = opts.initialISO || null;
-  var pendingMonth = pendingISO
-    ? new Date(pendingISO + "T00:00:00")
-    : new Date();
-  pendingMonth.setDate(1);
 
   function commit(iso) {
     if (typeof opts.onCommit === "function") opts.onCommit(iso);
@@ -619,84 +626,6 @@ function openPicker(opts) {
     });
     chips.appendChild(btn);
   });
-
-  // --- Render calendar ---
-  function renderCalendar() {
-    cal.innerHTML = "";
-
-    var nav = document.createElement("div");
-    nav.style.cssText =
-      "display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;font-weight:600;color:var(--bs-secondary-color);margin:0.25rem 0;";
-    var prev = document.createElement("button");
-    prev.type = "button";
-    prev.textContent = "\u2039";
-    prev.style.cssText =
-      "background:none;border:none;cursor:pointer;font-size:1rem;color:inherit;padding:0 0.5rem;";
-    prev.addEventListener("click", function () {
-      pendingMonth.setMonth(pendingMonth.getMonth() - 1);
-      renderCalendar();
-    });
-    var next = document.createElement("button");
-    next.type = "button";
-    next.textContent = "\u203a";
-    next.style.cssText = prev.style.cssText;
-    next.addEventListener("click", function () {
-      pendingMonth.setMonth(pendingMonth.getMonth() + 1);
-      renderCalendar();
-    });
-    var navLabel = document.createElement("span");
-    navLabel.textContent = pendingMonth.toLocaleDateString(undefined, {
-      month: "long",
-      year: "numeric",
-    });
-    nav.appendChild(prev);
-    nav.appendChild(navLabel);
-    nav.appendChild(next);
-    cal.appendChild(nav);
-
-    var grid = document.createElement("div");
-    grid.className = "todo-mini-cal";
-    ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].forEach(function (d) {
-      var hCell = document.createElement("div");
-      hCell.className = "todo-mini-cal-cell todo-mini-cal-header";
-      hCell.textContent = d;
-      grid.appendChild(hCell);
-    });
-
-    var first = new Date(pendingMonth);
-    first.setDate(1);
-    var startWeekday = (first.getDay() + 6) % 7; // Mon=0
-    var daysInMonth = new Date(
-      first.getFullYear(),
-      first.getMonth() + 1,
-      0,
-    ).getDate();
-    var todayISO = _isoDate(new Date());
-
-    for (var i = 0; i < startWeekday; i++) {
-      var blank = document.createElement("div");
-      blank.className = "todo-mini-cal-cell muted";
-      grid.appendChild(blank);
-    }
-    for (var d = 1; d <= daysInMonth; d++) {
-      var cell = document.createElement("div");
-      cell.className = "todo-mini-cal-cell";
-      cell.textContent = d;
-      var iso = _isoDate(new Date(first.getFullYear(), first.getMonth(), d));
-      if (iso === todayISO) cell.classList.add("today");
-      if (iso === pendingISO) cell.classList.add("selected");
-      cell.addEventListener(
-        "click",
-        (function (iso) {
-          return function () {
-            commit(iso);
-          };
-        })(iso),
-      );
-      grid.appendChild(cell);
-    }
-    cal.appendChild(grid);
-  }
 
   // --- Live preview from custom input ---
   var previewTimer = null;
@@ -720,16 +649,6 @@ function openPicker(opts) {
             preview.textContent =
               "\u2192 " + data.label + " (" + data.date + ")";
             preview.classList.remove("todo-popover-preview--invalid");
-            // Re-render calendar to month containing the new date
-            var newMonth = new Date(data.date + "T00:00:00");
-            if (
-              newMonth.getMonth() !== pendingMonth.getMonth() ||
-              newMonth.getFullYear() !== pendingMonth.getFullYear()
-            ) {
-              pendingMonth = newMonth;
-              pendingMonth.setDate(1);
-            }
-            renderCalendar();
           } else {
             pendingISO = null;
             preview.textContent = "? cannot parse";
@@ -755,7 +674,6 @@ function openPicker(opts) {
   });
   cancelBtn.addEventListener("click", cancel);
 
-  renderCalendar();
   if (opts.initialISO) updatePreview();
   setTimeout(function () {
     input.focus();
@@ -895,26 +813,7 @@ function closePopovers() {
   });
 }
 
-// Click-outside closes any open popover.
-document.addEventListener("mousedown", function (e) {
-  if (e.target.closest(".todo-popover")) return;
-  if (e.target.closest(".todo-due")) return;
-  if (e.target.closest(".todo-date-pill")) return;
-  closePopovers();
-});
-
 // --- Helpers wrapping openPicker for specific contexts ---
-
-function openSetDuePicker(itemEl, anchorEl) {
-  openPicker({
-    anchorEl: anchorEl || itemEl,
-    initialISO: _readDueFromDetailsPanel() || itemEl.dataset.dueDate || null,
-    title: "Due date",
-    onCommit: function (iso) {
-      _renderDueIntoDetailsPanel(iso || "");
-    },
-  });
-}
 
 function openPostponePicker(itemEl, ids) {
   var list = document.getElementById("todo-list");
@@ -959,16 +858,6 @@ function openPostponePickerForSelection() {
     .join(",");
   openPostponePicker(anchor, ids);
 }
-
-// Click on the due-date chip opens the set-due picker for that row.
-document.addEventListener("click", function (e) {
-  var chip = e.target.closest(".todo-due");
-  if (!chip) return;
-  var item = chip.closest(".todo-item");
-  if (!item || !item.dataset.setDueUrl) return;
-  e.stopPropagation();
-  openSetDuePicker(item);
-});
 
 // --- Recurrence picker ----------------------------------------------------
 //
@@ -1505,31 +1394,6 @@ function _renderAssigneesIntoDetailsPanel(items) {
   _submitDetailsForm();
 }
 
-function _renderDueIntoDetailsPanel(iso) {
-  var panel = _detailsPanel();
-  if (!panel) return;
-  _setClearMarker("due_date", !iso);
-  var row = panel.querySelector(".details-field--due");
-  if (!iso) {
-    if (row) row.remove();
-  } else {
-    row = row || _findOrCreateDetailsRow("details-field--due", "Due");
-    var value = row.querySelector(".details-field-value");
-    value.textContent = iso;
-    Array.from(row.querySelectorAll('input[name="due_date"]')).forEach(
-      function (i) {
-        i.remove();
-      },
-    );
-    var hidden = document.createElement("input");
-    hidden.type = "hidden";
-    hidden.name = "due_date";
-    hidden.value = iso;
-    row.appendChild(hidden);
-  }
-  _submitDetailsForm();
-}
-
 function _renderNoteIntoDetailsPanel(text) {
   var panel = _detailsPanel();
   if (!panel) return;
@@ -1668,13 +1532,6 @@ function _readNoteFromDetailsPanel() {
   var panel = _detailsPanel();
   if (!panel) return "";
   var input = panel.querySelector('input[type="hidden"][name="note"]');
-  return input ? input.value : "";
-}
-
-function _readDueFromDetailsPanel() {
-  var panel = _detailsPanel();
-  if (!panel) return "";
-  var input = panel.querySelector('input[type="hidden"][name="due_date"]');
   return input ? input.value : "";
 }
 

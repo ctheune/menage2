@@ -116,6 +116,9 @@ def includeme(config):
     config.add_route("list_top_tags_json", "/todos/top-tags.json")
     config.add_route("list_principals_json", "/todos/principals.json")
 
+    # Helpers
+    config.add_route("todo_date_picker", "/todos/pickers/date")
+
     # Protocols
     config.add_route("list_protocols", "/protocols")
     config.add_route("list_protocols_palette", "/protocols/palette.json")

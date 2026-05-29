@@ -1,10 +1,13 @@
 """Pydantic schemas for request/response validation."""
 
+import datetime as _dt
 from datetime import date, datetime
 from enum import Enum
 from typing import List, Literal, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from menage2.dateparse import parse_date as _parse_date
 
 
 class TodoStatus(str, Enum):
@@ -65,6 +68,19 @@ class TodoUpdate(BaseModel):
     note: Optional[str] = None
     links: Optional[List[TodoLinkCreate]] = None
     clear_fields: Set[str] = Field(default_factory=set)
+
+    @field_validator("due_date", mode="before")
+    @classmethod
+    def parse_due_date(cls, v: object) -> date | None:
+        if not v:
+            return None
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str):
+            parsed = _parse_date(v, _dt.date.today())
+            if parsed:
+                return parsed.date
+        raise ValueError(f"Cannot parse date: {v!r}")
 
 
 class TodoCreate(BaseModel):

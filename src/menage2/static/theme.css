@@ -289,6 +289,12 @@ body {
     color: var(--bs-secondary-color);
 }
 
+/* Keyboard-focused quick option in the date picker */
+.list-group-item.picker-selected {
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary);
+}
+
 /* Date picker / postpone palette popover */
 .todo-popover {
     position: absolute;
@@ -719,6 +725,48 @@ body {
     opacity: 0;
 }
 
+/* Card wrapper: tabs + list as one connected unit */
+.todo-list-card {
+    max-width: 42.5em;
+    border-radius: 0.5rem 0.5rem 0 0;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Status tabs sitting on top of the list */
+.todo-tabs {
+    display: flex;
+    border: none;
+    margin: 0;
+    padding: 0.25rem 0.5rem 0;
+    list-style: none;
+    background-color: #fff;
+}
+
+.todo-tabs .nav-link {
+    padding: 0.35rem 0.85rem;
+    font-size: 0.825rem;
+    color: #6c757d;
+    border: none;
+    border-radius: 0.35rem;
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+        color 0.15s ease,
+        background-color 0.15s ease;
+}
+
+.todo-tabs .nav-link:hover {
+    color: #344054;
+    background-color: #f0f0f0;
+}
+
+.todo-tabs .nav-link.active {
+    color: #fff;
+    font-weight: 600;
+    background-color: #344054;
+}
+
 /* Max-width list wrapper — desktop cap, full width on tablets/mobile */
 .todo-list-wrap {
     max-width: 42.5em;
@@ -730,15 +778,21 @@ body {
         rgba(0, 0, 0, 0.09) calc(2rem - 1px),
         rgba(0, 0, 0, 0.09) 2rem
     );
-    border-radius: 0.5rem 0.5rem 0 0;
     overflow: hidden;
-    min-height: calc(100vh - 12rem);
+    min-height: calc(100vh - 13rem);
     padding-bottom: 1rem;
 }
 
 @media (max-width: 768px) {
+    .todo-list-card {
+        max-width: 100%;
+    }
     .todo-list-wrap {
         max-width: 100%;
+    }
+    .todo-tabs .nav-link {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
     }
 }
 
@@ -763,6 +817,11 @@ body {
         max-height: calc(100vh - 5rem);
         overflow-y: auto;
     }
+    .details-pane .todo-list-wrap {
+        background-color: #fff;
+        border-radius: 0.5rem 0.5rem 0 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
 }
 
 /* Mobile (<lg): details pane slides up as a fixed bottom sheet */
@@ -780,6 +839,11 @@ body {
         border-radius: 0.75rem 0.75rem 0 0 !important;
         box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
         min-height: 0 !important;
+        background-color: #fff;
+    }
+    .details-pane .todo-list-card {
+        border-radius: 0.75rem 0.75rem 0 0 !important;
+        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
     }
 
     /* Show backdrop whenever the details pane is visible on mobile */

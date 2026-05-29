@@ -1,0 +1,88 @@
+<div
+  class="position-absolute card shadow"
+  style="font-size: 0.75rem"
+  _="on mousedown halt"
+>
+  <ul class="list-group list-group-flush">
+    <li
+      class="list-group-item bg-light d-flex justify-content-between align-items-center"
+      tal:condition="parsed"
+    >
+      ${parsed.label}
+      <small style="font-variant-numeric: tabular-nums"
+        >${parsed.date.isoformat()}</small
+      >
+    </li>
+    <li
+      class="list-group-item bg-light d-flex justify-content-between align-items-center"
+      tal:condition="not parsed"
+    >
+      ${value} &nbsp;
+      <small class="text-danger-emphasis">invalid date</small>
+    </li>
+    <li
+      class="list-group-item d-flex justify-content-between align-items-center"
+      tal:repeat="option options"
+      data-picker-value="${option.label}"
+      _="on click
+          set (previous <input/>)'s value to my @data-picker-value
+          blur (previous <input/>)
+          "
+    >
+      ${option.label}
+      <small style="font-variant-numeric: tabular-nums"
+        >${option.date.isoformat()}</small
+      >
+    </li>
+  </ul>
+  <div class="card-body">
+    <div
+      class="d-flex justify-content-between align-items-center"
+      style="font-weight: 600; color: var(--bs-secondary-color)"
+    >
+      <button
+        type="button"
+        class="btn btn-sm border-0 p-0 px-1"
+        hx-get="${calendar['prev_url']}"
+        hx-target="closest .picker"
+      >
+        &#x2039;
+      </button>
+      <span>${calendar['month_label']}</span>
+      <button
+        type="button"
+        class="btn btn-sm border-0 p-0 px-1"
+        hx-get="${calendar['next_url']}"
+        hx-target="closest .picker"
+      >
+        &#x203a;
+      </button>
+    </div>
+    <div class="todo-mini-cal">
+      <div
+        tal:repeat="h calendar['day_headers']"
+        class="todo-mini-cal-cell todo-mini-cal-header"
+      >
+        ${h}
+      </div>
+      <tal:block tal:repeat="week calendar['weeks']">
+        <tal:block tal:repeat="cell week">
+          <div
+            tal:condition="cell is None"
+            class="todo-mini-cal-cell muted"
+          ></div>
+          <div
+            tal:condition="cell is not None"
+            class="todo-mini-cal-cell${' today' if cell['is_today'] else ''}${' selected' if cell['is_selected'] else ''}"
+            data-iso="${cell['iso']}"
+            _="on click
+                  set (previous <input/>)'s value to my @data-iso
+                  blur (previous <input/>)"
+          >
+            ${cell['day']}
+          </div>
+        </tal:block>
+      </tal:block>
+    </div>
+  </div>
+</div>
