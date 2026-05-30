@@ -22,27 +22,62 @@ from dataclasses import dataclass
 from typing import Any
 
 from dateutil.relativedelta import relativedelta
+from pydantic import BaseModel
 
 
-@dataclass(frozen=True)
-class ParsedDate:
-    date: datetime.date
-    label: str  # short, human-friendly form for the live preview popover
-
-
-@dataclass(frozen=True)
-class RecurrenceSpec:
-    """Plain-data representation of a parsed recurrence rule.
-
-    Mirrors RecurrenceRule columns. Kept here (not in models/) so the parser
-    stays import-free of SQLAlchemy and remains trivially testable.
-    """
+class RecurrenceSpec(BaseModel):
+    """Schema for recurrence specification."""
 
     kind: str  # 'after' | 'every'
     interval_value: int
     interval_unit: str  # 'day' | 'week' | 'month' | 'year'
     weekday: int | None = None  # 0=Mon..6=Sun
     month_day: int | None = None  # 1..31
+
+    def __init__(self, kind, interval_value, interval_unit, **kw):
+        super().__init__(
+            kind=kind, interval_value=interval_value, interval_unit=interval_unit, **kw
+        )
+
+    def label(self) -> str:
+        """Render a short, human-friendly label like 'every Wednesday'."""
+        if self.weekday is not None:
+            names = [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday",
+            ]
+            day = names[self.weekday]
+            n = self.interval_value
+            if n == 1:
+                return f"every {day}"
+            if n == 2:
+                return f"every other {day}"
+            suffix = "th"
+            if n % 100 not in (11, 12, 13):
+                suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+            return f"every {n}{suffix} {day}"
+        if self.month_day is not None:
+            suffix = "th"
+            if self.month_day % 100 not in (11, 12, 13):
+                suffix = {1: "st", 2: "nd", 3: "rd"}.get(self.month_day % 10, "th")
+            return f"every {self.month_day}{suffix}"
+        n, unit = self.interval_value, self.interval_unit
+        if n == 1:
+            # "every day" reads naturally; "after a day" needs the article.
+            article = "" if self.kind == "every" else "a "
+            return f"{self.kind} {article}{unit}"
+        return f"{self.kind} {n} {unit}s"
+
+
+@dataclass(frozen=True)
+class ParsedDate:
+    date: datetime.date
+    label: str  # short, human-friendly form for the live preview popover
 
 
 _RECURRENCE_UNITS = {
@@ -375,41 +410,6 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
         )
 
     return None
-
-
-def label_recurrence(spec: RecurrenceSpec) -> str:
-    """Render a short, human-friendly label like 'every Wednesday'."""
-    if spec.weekday is not None:
-        names = [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-        ]
-        day = names[spec.weekday]
-        n = spec.interval_value
-        if n == 1:
-            return f"every {day}"
-        if n == 2:
-            return f"every other {day}"
-        suffix = "th"
-        if n % 100 not in (11, 12, 13):
-            suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-        return f"every {n}{suffix} {day}"
-    if spec.month_day is not None:
-        suffix = "th"
-        if spec.month_day % 100 not in (11, 12, 13):
-            suffix = {1: "st", 2: "nd", 3: "rd"}.get(spec.month_day % 10, "th")
-        return f"every {spec.month_day}{suffix}"
-    n, unit = spec.interval_value, spec.interval_unit
-    if n == 1:
-        # "every day" reads naturally; "after a day" needs the article.
-        article = "" if spec.kind == "every" else "a "
-        return f"{spec.kind} {article}{unit}"
-    return f"{spec.kind} {n} {unit}s"
 
 
 def next_occurrence(spec: RecurrenceSpec, anchor_date: datetime.date) -> datetime.date:

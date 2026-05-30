@@ -37,7 +37,6 @@
       <input
         type="text"
         class="form-control picker-target"
-        placeholder="today"
         name="due_date"
         value="${due_date.isoformat() if due_date else ''}"
         hx-get="${request.route_url('todo_date_picker')}"
@@ -45,7 +44,7 @@
         hx-trigger="focus, input changed delay:100ms"
         hx-vals="js:{value: this.value}"
         hx-params="value"
-        _="on keydown[key is 'd' and not target.matches('input, textarea, select, [contenteditable]')] from body
+        _="on keydown[key is 'd' and target.matches('body')] from body
             remove .d-none from me
             focus halt
            on keydown[key is 'Escape'] blur
@@ -94,19 +93,65 @@
       <div class="picker"></div>
     </div>
 
-    <div tal:condition="recurrence" class="mb-3"
-      _="on click call openSetRecurrencePicker(me, me)
-        on keydown[key is 'f'] from body
-          if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-          call openSetRecurrencePicker(me, me)">
-      <label class="form-label">Repeat</label>
-      <input type="text" class="form-control" value="${_recurrence_label(todo)}" />
-
-      <input type="hidden" name="recurrence.kind" value="${python:recurrence.kind.value if hasattr(recurrence.kind, 'value') else recurrence.kind}"/>
-      <input type="hidden" name="recurrence.interval_value" value="${recurrence.interval_value}"/>
-      <input type="hidden" name="recurrence.interval_unit" value="${python:recurrence.interval_unit.value if hasattr(recurrence.interval_unit, 'value') else recurrence.interval_unit}"/>
-      <input tal:condition="python:recurrence.weekday is not None" type="hidden" name="recurrence.weekday" value="${recurrence.weekday}"/>
-      <input tal:condition="python:recurrence.month_day is not None" type="hidden" name="recurrence.month_day" value="${recurrence.month_day}"/>
+    <div class="mb-3 ${'d-none' if not recurrence else ''}" hx-disinherit="*" id="field-recurrence">
+      <label for="recurrence" class="form-label">Repeat</label>
+      <input
+        type="text"
+        class="form-control picker-target"
+        name="recurrence"
+        value="${_recurrence_label(todo)}"
+        hx-get="${request.route_url('todo_recurrence_picker')}"
+        hx-target="next .picker"
+        hx-trigger="focus, input changed delay:100ms"
+        hx-vals="js:{value: this.value}"
+        hx-params="value"
+        _="on keydown[key is 'f' and target.matches('body')] from body
+            remove .d-none from me
+            focus halt
+           on keydown[key is 'Escape'] blur
+           on keydown[key is 'ArrowDown']
+             set items to <li[data-picker-value]/> in next .picker
+             if items
+               set active to first <li.picker-selected/> in next .picker
+               if active
+                 remove .picker-selected from active
+                 set nxt to next <li[data-picker-value]/> from active
+                 if nxt add .picker-selected to nxt
+                 else add .picker-selected to first in items end
+               else
+                 add .picker-selected to first in items
+               end
+             end
+           halt
+           on keydown[key is 'ArrowUp']
+             set items to <li[data-picker-value]/> in next .picker
+             if items
+               set active to first <li.picker-selected/> in next .picker
+               if active
+                 remove .picker-selected from active
+                 set prv to previous <li[data-picker-value]/> from active
+                 if prv add .picker-selected to prv
+                 else add .picker-selected to last in items end
+               else
+                 add .picker-selected to last in items
+               end
+             end
+           halt
+           on keydown[key is 'Enter']
+             set active to first <li.picker-selected/> in next .picker
+             if active
+               set my value to active's @data-picker-value
+               blur me
+             else
+               send submit to closest <form/>
+             end
+           halt
+           on focus
+            remove .d-none from me
+            show next .picker
+           on blur hide next .picker"
+      />
+      <div class="picker"></div>
     </div>
 
     <!-- Note: only when non-empty -->

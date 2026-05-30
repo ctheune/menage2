@@ -13,7 +13,6 @@ from pyramid.response import Response
 from pyramid.view import view_config
 from sqlalchemy import select
 
-from menage2.dateparse import label_recurrence
 from menage2.models.protocol import (
     Protocol,
     ProtocolItem,
@@ -48,7 +47,7 @@ def _today():
 def _rule_label(protocol):
     if not protocol.recurrence:
         return None
-    return label_recurrence(rule_to_spec(protocol.recurrence))
+    return rule_to_spec(protocol.recurrence).label()
 
 
 def _get_or_404(request, model, id_param="id"):

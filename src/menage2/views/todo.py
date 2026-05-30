@@ -17,7 +17,6 @@ from sqlalchemy.orm import joinedload
 
 from menage2.dateparse import (
     RecurrenceSpec,
-    label_recurrence,
     parse_date,
     parse_recurrence,
 )
@@ -715,6 +714,7 @@ def postpone_todos(request) -> None:
     return request.response
 
 
+# XXX
 @view_config(route_name="parse_date_preview", request_method="GET", renderer="json")
 def parse_date_preview(request):
     """Live-preview endpoint: ``GET /todos/parse-date?q=tomorrow`` → JSON."""
@@ -739,7 +739,7 @@ def parse_recurrence_preview(request):
         return {"ok": False}
     return {
         "ok": True,
-        "label": label_recurrence(spec),
+        "label": spec.label(),
         "kind": spec.kind,
         "interval_value": spec.interval_value,
         "interval_unit": spec.interval_unit,
@@ -763,7 +763,7 @@ def recurrence_history(request):
     return {
         "chain": chain,
         "current_id": todo.id,
-        "rule_label": label_recurrence(rule_to_spec(todo.recurrence))
+        "rule_label": rule_to_spec(todo.recurrence).label()
         if todo.recurrence
         else None,
     }
@@ -1105,6 +1105,37 @@ def todo_date_picker(request):
     }
 
     return {"value": value, "parsed": parsed, "options": options, "calendar": calendar}
+
+
+@view_config(
+    route_name="todo_recurrence_picker",
+    request_method="GET",
+    renderer="menage2:templates/_todo_recurrence_picker.pt",
+)
+def todo_recurrence_picker(request):
+    """Render a picker for a recurrence.
+
+    This automatically binds to the closest, previous input field.
+
+    """
+    value = request.params.get("value")
+
+    # ensure we can parse and provide a preview what the
+    # next date would be
+    parsed = parse_recurrence(value)
+
+    options = [
+        parse_recurrence("every day"),
+        parse_recurrence("every week"),
+        parse_recurrence("every month"),
+        parse_recurrence("every year"),
+        parse_recurrence("after a day"),
+        parse_recurrence("after a week"),
+        parse_recurrence("after a month"),
+        parse_recurrence("after a year"),
+    ]
+
+    return {"value": value, "parsed": parsed, "options": options}
 
 
 @view_config(route_name="todo_details_panel", request_method="GET")

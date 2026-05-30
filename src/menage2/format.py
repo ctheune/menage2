@@ -96,10 +96,11 @@ def globals_factory(event):
         """Short label for the ↻ badge — empty string when no rule."""
         if not getattr(todo, "recurrence", None):
             return ""
-        from menage2.dateparse import label_recurrence
         from menage2.recurrence import rule_to_spec
 
-        return label_recurrence(rule_to_spec(todo.recurrence))
+        if not (spec := rule_to_spec(todo.recurrence)):
+            return ""
+        return spec.label()
 
     event["format_timedelta"] = format_timedelta
     event["date_ago"] = date_ago

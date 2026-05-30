@@ -7,7 +7,9 @@ from typing import List, Literal, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from menage2.dateparse import RecurrenceSpec
 from menage2.dateparse import parse_date as _parse_date
+from menage2.dateparse import parse_recurrence
 
 
 class TodoStatus(str, Enum):
@@ -41,16 +43,6 @@ class TodoLink(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class RecurrenceSpec(BaseModel):
-    """Schema for recurrence specification."""
-
-    kind: str
-    interval_value: int
-    interval_unit: str
-    weekday: Optional[int] = None
-    month_day: Optional[int] = None
-
-
 class TodoUpdate(BaseModel):
     """Schema for updating a todo - all fields optional for partial updates.
 
@@ -82,6 +74,19 @@ class TodoUpdate(BaseModel):
             if parsed:
                 return parsed.date
         raise ValueError(f"Cannot parse date: {v!r}")
+
+    @field_validator("recurrence", mode="before")
+    @classmethod
+    def parse_recurrence(cls, v: object) -> RecurrenceSpec | None:
+        if not v:
+            return None
+        if isinstance(v, RecurrenceSpec):
+            return v
+        if isinstance(v, str):
+            parsed = parse_recurrence(v)
+            if parsed:
+                return parsed
+        raise ValueError(f"Cannot parse recurrence: {v!r}")
 
 
 class TodoCreate(BaseModel):
