@@ -117,21 +117,6 @@ def list_protocols(request):
     }
 
 
-@view_config(route_name="list_protocols_palette", renderer="json")
-def list_protocols_palette(request):
-    """JSON used by the r-key palette on the todo list."""
-    rows = (
-        request.dbsession.execute(
-            select(Protocol)
-            .where(Protocol.archived_at.is_(None))
-            .order_by(Protocol.title)
-        )
-        .scalars()
-        .all()
-    )
-    return [{"id": p.id, "title": p.title} for p in rows]
-
-
 # ---------------------------------------------------------------------------
 # Create / archive
 # ---------------------------------------------------------------------------

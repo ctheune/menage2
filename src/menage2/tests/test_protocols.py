@@ -283,25 +283,6 @@ def test_delete_protocol_item(authenticated_testapp, dbsession, admin_user):
 
 
 # ---------------------------------------------------------------------------
-# Palette endpoint
-# ---------------------------------------------------------------------------
-
-
-def test_palette_json_returns_active_protocols(
-    authenticated_testapp, dbsession, admin_user
-):
-    _make_protocol(dbsession, admin_user, title="Active")
-    archived = _make_protocol(dbsession, admin_user, title="Archived")
-    archived.archived_at = _now()
-    dbsession.flush()
-    res = authenticated_testapp.get("/protocols/palette.json", status=200)
-    body = res.json
-    titles = [p["title"] for p in body]
-    assert "Active" in titles
-    assert "Archived" not in titles
-
-
-# ---------------------------------------------------------------------------
 # Start run + snapshot
 # ---------------------------------------------------------------------------
 

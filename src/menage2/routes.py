@@ -129,7 +129,6 @@ def includeme(config):
 
     # Protocols
     config.add_route("list_protocols", "/protocols")
-    config.add_route("list_protocols_palette", "/protocols/palette.json")
     config.add_route("new_protocol", "/protocols/new")
     config.add_route("edit_protocol", "/protocols/{id}/edit")
     config.add_route("archive_protocol", "/protocols/{id}/archive")

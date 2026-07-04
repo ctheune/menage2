@@ -1546,7 +1546,6 @@ function ensureHelpOverlay() {
     _kbdRow("s", "Edit tags"),
     _kbdRow("P", "Postpone"),
     _kbdRow("Shift+P", "Postpone selected by 1 day"),
-    _kbdRow("r", "Open protocol palette \u2014 start a run"),
     _kbdRow("[", "Collapse all groups"),
     _kbdRow("]", "Expand all groups"),
     _kbdRow("u", "Undo last action"),
@@ -1956,127 +1955,6 @@ document.addEventListener("touchend", function (e) {
     inner.style.transform = "translateX(0)";
     delete item.dataset.swipeDir;
   }
-});
-
-// --- Protocol palette (r key on /todos) ---
-var _palette = null;
-
-function openProtocolPalette() {
-  if (_palette) return;
-  _palette = document.createElement("div");
-  _palette.className = "protocol-palette";
-  var input = document.createElement("input");
-  input.type = "text";
-  input.className = "protocol-palette-input";
-  input.placeholder = "Start a protocol \u2014 type to filter";
-  var list = document.createElement("ul");
-  list.className = "protocol-palette-list";
-  _palette.appendChild(input);
-  _palette.appendChild(list);
-  document.body.appendChild(_palette);
-  input.focus();
-
-  var protocols = [];
-  var selected = 0;
-
-  function render(filter) {
-    list.innerHTML = "";
-    var q = filter.trim().toLowerCase();
-    var matches = q
-      ? protocols.filter(function (p) {
-          return p.title.toLowerCase().includes(q);
-        })
-      : protocols;
-    if (!matches.length) {
-      var empty = document.createElement("li");
-      empty.className = "protocol-palette-empty";
-      empty.textContent = q ? "No matches." : "No protocols defined yet.";
-      list.appendChild(empty);
-      return;
-    }
-    selected = Math.min(selected, matches.length - 1);
-    matches.forEach(function (p, i) {
-      var li = document.createElement("li");
-      li.className =
-        "protocol-palette-item" + (i === selected ? " is-selected" : "");
-      li.textContent = p.title;
-      li.dataset.id = p.id;
-      li.addEventListener("click", function () {
-        startRun(p.id);
-      });
-      list.appendChild(li);
-    });
-  }
-
-  function startRun(id) {
-    closeProtocolPalette();
-    var form = document.createElement("form");
-    form.method = "post";
-    form.action = "/protocols/" + id + "/start";
-    document.body.appendChild(form);
-    form.submit();
-  }
-
-  fetch("/protocols/palette.json")
-    .then(function (r) {
-      return r.json();
-    })
-    .then(function (data) {
-      protocols = data;
-      render("");
-    });
-
-  input.addEventListener("input", function () {
-    selected = 0;
-    render(input.value);
-  });
-  input.addEventListener("keydown", function (e) {
-    var items = list.querySelectorAll(".protocol-palette-item");
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      selected = Math.min(items.length - 1, selected + 1);
-      render(input.value);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      selected = Math.max(0, selected - 1);
-      render(input.value);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      var current = items[selected];
-      if (current) startRun(current.dataset.id);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      closeProtocolPalette();
-    }
-  });
-}
-
-function closeProtocolPalette() {
-  if (_palette) {
-    _palette.remove();
-    _palette = null;
-  }
-}
-
-document.addEventListener("mousedown", function (e) {
-  if (!_palette) return;
-  if (e.target.closest(".protocol-palette")) return;
-  closeProtocolPalette();
-});
-
-document.addEventListener("keydown", function (e) {
-  if (e.key !== "r") return;
-  if (
-    e.target.tagName === "INPUT" ||
-    e.target.tagName === "TEXTAREA" ||
-    e.target.contentEditable === "true"
-  )
-    return;
-  // Only on the todo list page (avoid interfering with the done page's r=restore)
-  if (!document.getElementById("todo-list")) return;
-  if (document.getElementById("done-list")) return; // /todos/done page
-  e.preventDefault();
-  openProtocolPalette();
 });
 
 // --- Protocol item editor — uses CompositeInput (tags + note only) -----------

@@ -128,20 +128,6 @@ def test_run_navigation_with_j_k(page):
     )
 
 
-def test_palette_opens_with_r_and_starts_run(page):
-    _make_protocol_via_ui(page, "PaletteProto", ["only one"])
-    page.goto("/todos")
-    page.evaluate("document.activeElement && document.activeElement.blur()")
-    page.keyboard.press("r")
-    page.wait_for_selector(".protocol-palette", timeout=2000)
-    page.fill(".protocol-palette-input", "Palette")
-    page.locator(".protocol-palette-input").press("Enter")
-    todo = page.locator('.todo-item[data-todo-text="PaletteProto"]').first
-    todo.click()
-    page.wait_for_selector("#protocol-run", timeout=5000)
-    assert page.locator(".protocol-run-item").count() == 1
-
-
 def test_linked_todo_badge_opens_run(page):
     _make_protocol_via_ui(page, "Linked", ["only"])
     # Start a run, navigate back to todo list, click the clipboard badge
