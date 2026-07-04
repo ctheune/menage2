@@ -362,80 +362,20 @@ def test_parse_recurrence_ordinal_weekday(raw, wd, n):
 @pytest.mark.parametrize(
     "spec,expected",
     [
-        (
-            RecurrenceSpec(kind="every", interval_value=1, interval_unit="day"),
-            "every day",
-        ),
-        (
-            RecurrenceSpec(kind="every", interval_value=1, interval_unit="week"),
-            "every week",
-        ),
-        (
-            RecurrenceSpec(kind="every", interval_value=2, interval_unit="week"),
-            "every 2 weeks",
-        ),
-        (
-            RecurrenceSpec(kind="after", interval_value=1, interval_unit="month"),
-            "after a month",
-        ),
-        (
-            RecurrenceSpec(kind="after", interval_value=3, interval_unit="day"),
-            "after 3 days",
-        ),
-        (
-            RecurrenceSpec(
-                kind="every", interval_value=1, interval_unit="week", weekday=2
-            ),
-            "every Wednesday",
-        ),
-        (
-            RecurrenceSpec(
-                kind="every", interval_value=2, interval_unit="week", weekday=4
-            ),
-            "every other Friday",
-        ),
-        (
-            RecurrenceSpec(
-                kind="every", interval_value=3, interval_unit="week", weekday=4
-            ),
-            "every 3rd Friday",
-        ),
-        (
-            RecurrenceSpec(
-                kind="every", interval_value=1, interval_unit="month", month_day=1
-            ),
-            "every 1st",
-        ),
-        (
-            RecurrenceSpec(
-                kind="every", interval_value=1, interval_unit="month", month_day=2
-            ),
-            "every 2nd",
-        ),
-        (
-            RecurrenceSpec(
-                kind="every", interval_value=1, interval_unit="month", month_day=3
-            ),
-            "every 3rd",
-        ),
-        (
-            RecurrenceSpec(
-                kind="every", interval_value=1, interval_unit="month", month_day=4
-            ),
-            "every 4th",
-        ),
-        (
-            RecurrenceSpec(
-                kind="every", interval_value=1, interval_unit="month", month_day=11
-            ),
-            "every 11th",
-        ),
-        (
-            RecurrenceSpec(
-                kind="every", interval_value=1, interval_unit="month", month_day=21
-            ),
-            "every 21st",
-        ),
+        (RecurrenceSpec("every", 1, "day"), "every day"),
+        (RecurrenceSpec("every", 1, "week"), "every week"),
+        (RecurrenceSpec("every", 2, "week"), "every 2 weeks"),
+        (RecurrenceSpec("after", 1, "month"), "after a month"),
+        (RecurrenceSpec("after", 3, "day"), "after 3 days"),
+        (RecurrenceSpec("every", 1, "week", weekday=2), "every Wednesday"),
+        (RecurrenceSpec("every", 2, "week", weekday=4), "every other Friday"),
+        (RecurrenceSpec("every", 3, "week", weekday=4), "every 3rd Friday"),
+        (RecurrenceSpec("every", 1, "month", month_day=1), "every 1st"),
+        (RecurrenceSpec("every", 1, "month", month_day=2), "every 2nd"),
+        (RecurrenceSpec("every", 1, "month", month_day=3), "every 3rd"),
+        (RecurrenceSpec("every", 1, "month", month_day=4), "every 4th"),
+        (RecurrenceSpec("every", 1, "month", month_day=11), "every 11th"),
+        (RecurrenceSpec("every", 1, "month", month_day=21), "every 21st"),
     ],
 )
 def test_recurrence_label(spec, expected):

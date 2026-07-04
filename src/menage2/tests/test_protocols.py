@@ -577,39 +577,3 @@ def test_completing_protocol_todo_with_after_rule_spawns_next(
         .one()
     )
     assert new_todo.due_date == _today() + datetime.timedelta(days=7)
-
-
-# ---------------------------------------------------------------------------
-# Tag JSON endpoints
-# ---------------------------------------------------------------------------
-
-
-def test_list_tags_json_includes_protocol_tags(
-    authenticated_testapp, dbsession, admin_user
-):
-    p = _make_protocol(dbsession, admin_user)
-    p.tags = {"maintenance", "weekly"}
-    dbsession.flush()
-    res = authenticated_testapp.get("/todos/tags.json", status=200)
-    data = res.json
-    assert "maintenance" in data
-    assert "weekly" in data
-
-
-def test_list_tags_json_includes_protocol_item_tags(
-    authenticated_testapp, dbsession, admin_user
-):
-    p = _make_protocol(dbsession, admin_user, items=["check fridge"])
-    item = p.items[0]
-    item.tags = {"cold", "kitchen"}
-    dbsession.flush()
-    res = authenticated_testapp.get("/todos/tags.json", status=200)
-    data = res.json
-    assert "cold" in data
-    assert "kitchen" in data
-
-
-def test_list_top_tags_json_returns_list(authenticated_testapp):
-    res = authenticated_testapp.get("/todos/top-tags.json", status=200)
-    assert isinstance(res.json, list)
-    assert len(res.json) <= 5

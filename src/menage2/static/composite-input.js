@@ -72,7 +72,6 @@ function _ciParseText(canonical) {
 //   form: Element,          — nearest form (default: containerEl.closest('form'))
 //   canonical: string,      — initial canonical value (default: hiddenInput.value)
 //   placeholder: string,
-//   tagsUrl: string,        — /todos/tags.json or body[data-tags-url]
 //   principalsUrl: string,  — /todos/principals.json
 //   sessionKey: string,     — if set, tags persist in sessionStorage across HTMX reloads
 // }

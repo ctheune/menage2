@@ -12,7 +12,7 @@ from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.renderers import render, render_to_response
 from pyramid.request import Request
 from pyramid.view import view_config
-from sqlalchemy import asc, nulls_last, or_, select
+from sqlalchemy import asc, nulls_last, or_, select, text
 from sqlalchemy.orm import joinedload
 
 from menage2.dateparse import (
@@ -20,6 +20,7 @@ from menage2.dateparse import (
     parse_date,
     parse_recurrence,
 )
+from menage2.fuzzy import fuzzy_filter, fuzzy_highlight
 from menage2.models.todo import (
     RecurrenceKind,
     RecurrenceRule,
@@ -820,6 +821,8 @@ def todo_update(request):
         request.response.status_int = 400
         return request.response
 
+    print(update_data)
+
     from menage2.schemas import TodoUpdate
 
     try:
@@ -1138,6 +1141,64 @@ def todo_recurrence_picker(request):
     return {"value": value, "parsed": parsed, "options": options}
 
 
+@view_config(
+    route_name="todo_tag_picker",
+    request_method="GET",
+    renderer="menage2:templates/_todo_tag_picker.pt",
+)
+def todo_tag_picker(request):
+    """Render a picker for tags.
+
+    This automatically binds to the closest, previous input field.
+
+    """
+    value = request.params.get("value")
+
+    if not value:
+        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+            days=30
+        )
+        rows = request.dbsession.execute(
+            text(
+                "SELECT tag, count(*) AS cnt"
+                " FROM todos, unnest(tags) AS tag"
+                " WHERE created_at >= :cutoff AND owner_id = :uid"
+                " GROUP BY tag ORDER BY cnt DESC, tag LIMIT 5"
+            ),
+            {"cutoff": cutoff, "uid": request.identity.id},
+        ).fetchall()
+        tags = [row[0] for row in rows]
+    else:
+        # filtered by substring
+        from menage2.models.protocol import Protocol, ProtocolItem
+
+        user = request.identity
+        all_tags: set[str] = set()
+
+        for row in request.dbsession.execute(
+            select(Todo.tags).where(Todo.owner_id == user.id)
+        ).scalars():
+            all_tags.update(row or set())
+
+        for row in request.dbsession.execute(
+            select(Protocol.tags).where(Protocol.owner_id == user.id)
+        ).scalars():
+            all_tags.update(row or set())
+
+        for row in request.dbsession.execute(
+            select(ProtocolItem.tags).join(Protocol).where(Protocol.owner_id == user.id)
+        ).scalars():
+            all_tags.update(row or set())
+
+        tags = fuzzy_filter(all_tags, value)
+
+    new = None
+    if value and value not in tags:
+        new = value
+
+    return {"value": value, "options": tags, "new": new, "highlight": fuzzy_highlight}
+
+
 @view_config(route_name="todo_details_panel", request_method="GET")
 def todo_details_panel(request):
     """Render the details panel for selected todos."""
@@ -1181,50 +1242,6 @@ def todo_details_panel(request):
         response=request.response,
     )
     return response
-
-
-@view_config(route_name="list_tags_json", renderer="json")
-def list_tags_json(request):
-    """All known tags visible to the current user (todos + protocols + protocol items)."""
-    from menage2.models.protocol import Protocol, ProtocolItem
-
-    user = request.identity
-    tags: set[str] = set()
-
-    for row in request.dbsession.execute(
-        select(Todo.tags).where(Todo.owner_id == user.id)
-    ).scalars():
-        tags.update(row or set())
-
-    for row in request.dbsession.execute(
-        select(Protocol.tags).where(Protocol.owner_id == user.id)
-    ).scalars():
-        tags.update(row or set())
-
-    for row in request.dbsession.execute(
-        select(ProtocolItem.tags).join(Protocol).where(Protocol.owner_id == user.id)
-    ).scalars():
-        tags.update(row or set())
-
-    return sorted(tags)
-
-
-@view_config(route_name="list_top_tags_json", renderer="json")
-def list_top_tags_json(request):
-    """Top 5 most-used tags from todos created in the last 30 days."""
-    from sqlalchemy import text
-
-    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=30)
-    rows = request.dbsession.execute(
-        text(
-            "SELECT tag, count(*) AS cnt"
-            " FROM todos, unnest(tags) AS tag"
-            " WHERE created_at >= :cutoff AND owner_id = :uid"
-            " GROUP BY tag ORDER BY cnt DESC, tag LIMIT 5"
-        ),
-        {"cutoff": cutoff, "uid": request.identity.id},
-    ).fetchall()
-    return [row[0] for row in rows]
 
 
 @view_config(route_name="list_principals_json", renderer="json")

@@ -119,13 +119,12 @@ def includeme(config):
     config.add_route("parse_date_preview", "/todos/parse-date")  # xxx
     config.add_route("parse_recurrence_preview", "/todos/parse-recurrence")  # xxx
     config.add_route("todo_picker_postpone", "/todos/pickers/postpone")  # xxx
-    config.add_route("list_tags_json", "/todos/tags.json")
-    config.add_route("list_top_tags_json", "/todos/top-tags.json")
     config.add_route("list_principals_json", "/todos/principals.json")
 
     # Helpers
     config.add_route("todo_date_picker", "/todos/pickers/date")
     config.add_route("todo_recurrence_picker", "/todos/pickers/recurrence")
+    config.add_route("todo_tag_picker", "/todos/pickers/tag")
 
     # Protocols
     config.add_route("list_protocols", "/protocols")

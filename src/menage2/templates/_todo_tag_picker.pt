@@ -1,0 +1,33 @@
+<div
+  class="position-absolute card shadow w-50"
+  style="font-size: 0.75rem"
+  _="on mousedown halt"
+>
+  <ul class="list-group list-group-flush">
+    <li
+      class="list-group-item d-flex justify-content-between align-items-center"
+      tal:repeat="option options"
+      data-picker-value="${option}"
+      _="on click
+          take .picker-selected from <li/> in closest <ul/> for me
+          log previous <.new-tag/>
+          send tagSelected to previous <.new-tag/>
+          "
+    >
+      <span tal:content="structure highlight(option, value)"></span>
+    </li>
+    <li
+      class="list-group-item d-flex justify-content-between align-items-center"
+      tal:condition="new"
+      data-picker-value="${new}"
+      _="on click
+          take .picker-selected from <li/> in closest <ul/> for me
+          log previous <.new-tag/>
+          send tagSelected to previous <.new-tag/>
+          "
+    >
+      ${new}
+      <small style="font-variant-numeric: tabular-nums">(new tag)</small>
+    </li>
+  </ul>
+</div>

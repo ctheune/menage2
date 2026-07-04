@@ -22,8 +22,7 @@
     <meta name="theme-color" content="#04081A">
   </head>
 
-  <body data-tags-url="${request.route_url('list_tags_json')}"
-        data-top-tags-url="${request.route_url('list_top_tags_json')}">
+  <body>
 
   <tal:block tal:define="
     route_name python:request.matched_route.name if request.matched_route else '';

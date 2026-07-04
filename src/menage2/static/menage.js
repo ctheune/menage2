@@ -2106,3 +2106,12 @@ initProtocolItemInputs();
 initProtocolTitleInput();
 initProtocolNewItemInput();
 if (document.getElementById("protocol-run")) _runHighlight();
+
+function isCaretAtStart(element) {
+  // Works only in contentEditable with plaintext-only
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return false;
+
+  const range = selection.getRangeAt(0);
+  return range.collapsed && range.startOffset === 0;
+}

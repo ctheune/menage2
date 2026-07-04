@@ -5,7 +5,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import List, Literal, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, constr, field_validator
 
 from menage2.dateparse import RecurrenceSpec
 from menage2.dateparse import parse_date as _parse_date
@@ -43,6 +43,9 @@ class TodoLink(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+TagString = constr(strip_whitespace=True, pattern=r"^[\p{Letter}0-9:\-]+$")
+
+
 class TodoUpdate(BaseModel):
     """Schema for updating a todo - all fields optional for partial updates.
 
@@ -53,7 +56,7 @@ class TodoUpdate(BaseModel):
     """
 
     text: Optional[str] = None
-    tags: Optional[Set[str]] = None
+    tags: Optional[Set[TagString]] = None
     assignees: Optional[Set[str]] = None
     due_date: Optional[date] = None
     recurrence: Optional[RecurrenceSpec] = None
