@@ -3,9 +3,16 @@
 import datetime as _dt
 from datetime import date, datetime
 from enum import Enum
-from typing import List, Literal, Optional, Set
+from typing import Annotated, List, Literal, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, constr, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    constr,
+    field_validator,
+)
 
 from menage2.dateparse import RecurrenceSpec
 from menage2.dateparse import parse_date as _parse_date
@@ -43,7 +50,9 @@ class TodoLink(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-TagString = constr(strip_whitespace=True, pattern=r"^[\p{Letter}0-9:\-]+$")
+TagString = Annotated[
+    str, StringConstraints(strip_whitespace=True, pattern=r"^[\p{Letter}0-9:\-]+$")
+]
 
 
 class TodoUpdate(BaseModel):
