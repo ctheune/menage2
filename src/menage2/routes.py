@@ -125,6 +125,7 @@ def includeme(config):
     config.add_route("todo_date_picker", "/todos/pickers/date")
     config.add_route("todo_recurrence_picker", "/todos/pickers/recurrence")
     config.add_route("todo_tag_picker", "/todos/pickers/tag")
+    config.add_route("todo_assignee_picker", "/todos/pickers/assignee")
 
     # Protocols
     config.add_route("list_protocols", "/protocols")

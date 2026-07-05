@@ -21,6 +21,7 @@ from menage2.dateparse import (
     parse_recurrence,
 )
 from menage2.fuzzy import fuzzy_filter, fuzzy_highlight
+from menage2.models.team import Team
 from menage2.models.todo import (
     RecurrenceKind,
     RecurrenceRule,
@@ -30,6 +31,7 @@ from menage2.models.todo import (
     TodoLink,
     TodoStatus,
 )
+from menage2.models.user import User
 from menage2.principals import (
     get_all_principals,
     get_user_team_memberships,
@@ -1197,6 +1199,34 @@ def todo_tag_picker(request):
         new = value
 
     return {"value": value, "options": tags, "new": new, "highlight": fuzzy_highlight}
+
+
+@view_config(
+    route_name="todo_assignee_picker",
+    request_method="GET",
+    renderer="menage2:templates/_todo_assignee_picker.pt",
+)
+def todo_assignee_picker(request):
+    """Render a picker for assignees.
+
+    This automatically binds to the closest, previous input field.
+
+    """
+
+    names: set[str] = set()
+
+    names.update(request.dbsession.execute(select(User.username)).scalars())
+    names.update(request.dbsession.execute(select(Team.name)).scalars())
+
+    value = request.params.get("value")
+    if value:
+        names = set(fuzzy_filter(names, value))
+
+    new = None
+    if value and value not in names:
+        new = value
+
+    return {"value": value, "options": names, "new": new, "highlight": fuzzy_highlight}
 
 
 @view_config(route_name="todo_details_panel", request_method="GET")

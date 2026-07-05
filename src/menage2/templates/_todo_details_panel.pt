@@ -1,8 +1,6 @@
 <div class="col-md-6" id="details-pane">
 <div class="card" id="details-panel">
-<tal:block tal:define="assignees python:sorted(todo.assignees) if todo.assignees else [];
-                       recurrence todo.recurrence;
-                       links_rel todo.links_rel">
+<tal:block tal:define="recurrence todo.recurrence">
   <form hx-put="${request.route_url('todo_update', id=todo.id)}" hx-target="#details-pane" hx-swap="outerHTML" hx-ext="form-json">
     <input type="hidden" name="text" id="input-todo-text" value="${todo.text}"/>
 
@@ -263,20 +261,128 @@
         </div>
     </div>
 
-    <!-- Assignees: only when non-empty -->
-    <div tal:condition="assignees" class="details-field-row details-field--assignees"
-      _="on click call openAssigneesPicker(me, me)
-        on keydown[key is '@'] from body
-          if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-          call openAssigneesPicker(me, me)">
-      <span class="details-field-label">Assigned</span>
-      <span class="details-field-value">
-        <tal:block tal:repeat="a assignees">
-          <span class="details-assignee-pill">@${a}</span>
-          <input type="hidden" name="assignees.${repeat.a.index}" value="${a}"/>
-        </tal:block>
-      </span>
-    </div>
+    <!-- assignees -->
+    <div class="mb-3" hx-disinherit="*" id="field-assignees"
+      data-assignees="${' '.join(sorted(todo.assignees) if todo.assignees else [])}"
+      _="init
+          set $assignees to my @data-assignees split by ' ' as Array
+          if not $assignees then set $assignees to [] end
+          ">
+
+        <label>Assignees</label>
+
+        <div class="form-control"
+          _="on click or keydown[key is '@' and target is body] from body
+            focus first <span.new-assignee/> in me
+            then halt
+            ">
+          <script type="text/hyperscript-template" live>
+          #for assignee in $assignees
+            <input type="hidden" name="assignees[]" value="$${assignee}"/>
+            <span class="badge rounded-pill text-bg-secondary">$${assignee}
+              <i class="bi bi-x" role="button" aria-label="Remove assignee" _="on click remove previous <input/>'s value from $assignees"></i>
+            </span>
+          #else
+            <input type="hidden" name="clear_fields[]" value="assignees"/>
+          #end
+          </script>
+
+          <span class="new-assignee" contentEditable="plaintext-only"
+            hx-get="${request.route_url('todo_assignee_picker')}"
+            hx-target="next .picker"
+            hx-trigger="focus, input delay:100ms"
+            hx-vals="js:{value: this.textContent}"
+            hx-params="value"
+            _="on focus
+                 show next .picker
+
+               on blur
+                 hide next .picker
+
+               on keydown[key is 'Escape']
+                 blur me
+                 halt
+
+               on keydown[key is 'Backspace']
+                 if isCaretAtStart(me) and $assignees then
+                    remove $assignees[-1]
+                 end
+               end
+
+               on keydown[key is 'ArrowDown']
+                 set items to <li[data-picker-value]/> in next .picker
+                 if items
+                   set active to first <li.picker-selected/> in next .picker
+                   if active
+                     remove .picker-selected from active
+                     set nxt to next <li[data-picker-value]/> from active
+                     if nxt add .picker-selected to nxt
+                     else add .picker-selected to first in items end
+                   else
+                     add .picker-selected to first in items
+                   end
+                 end
+                halt
+
+                on keydown[key is 'ArrowUp']
+                 set items to <li[data-picker-value]/> in next .picker
+                 if items
+                   set active to first <li.picker-selected/> in next .picker
+                   if active
+                     remove .picker-selected from active
+                     set prv to previous <li[data-picker-value]/> from active
+                     if prv add .picker-selected to prv
+                     else add .picker-selected to last in items end
+                   else
+                     add .picker-selected to last in items
+                   end
+                 end
+               halt
+
+               on keydown[key is ' ']
+                set active to first <li.picker-selected/> in next .picker
+                if active
+                  append active's @data-picker-value to $assignees
+                else
+                  if my textContent then
+                    append my textContent to $assignees
+                  end
+                end
+                clear me
+                focus me
+              halt
+
+               on keydown[key is 'Enter']
+                 set active to first <li.picker-selected/> in next .picker
+                 log active
+                 if active and not ($assignees contains active's @data-picker-value) then
+                   append active's @data-picker-value to $assignees
+                 else
+                   if my textContent then
+                     if not ($assignees contains my textContent) then
+                       append my textContent to $assignees
+                     end
+                   else
+                     send submit to closest <form/>
+                   end
+                 end
+                 clear me
+                 blur me
+                 focus me
+                 halt
+
+               on assigneeSelected
+                 set active to first <li.picker-selected/> in next .picker
+                 if active and not ($assignees contains active's @data-picker-value) then
+                   append active's @data-picker-value to $assignees
+                 end
+                 clear me
+                 blur me
+              "
+          ></span>&ZeroWidthSpace;<!-- ensure from control height -->
+          <div class="picker"></div>
+        </div>
+  </div>
 
     <!-- Links: only when non-empty, with per-link edit/remove -->
     <div tal:condition="links_rel" class="details-field-row details-field--links">
@@ -337,7 +443,7 @@
 
     <!-- "Add field" row: chips for each absent field -->
     <div tal:define="missing python:[]"
-          tal:condition="python:missing or not recurrence or not todo.note or not assignees or not links_rel"
+          tal:condition="python:missing or not recurrence or not todo.note"
           class="details-add-fields-row px-3 py-1 d-flex flex-wrap gap-1">
       <!--
       <button tal:condition="not due_date" type="button" class="details-add-field-btn btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;border-radius:9999px;"
@@ -364,11 +470,12 @@
           on keydown[key is '~'] from body
             if target does not match '.card-header' and (the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target) exit end
             call openNotePickerForDetails(me) then halt">+ note</button>
+      <!--
       <button tal:condition="not assignees" type="button" class="details-add-field-btn btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;border-radius:9999px;"
         _="on click call openAssigneesPicker(me, me)
           on keydown[key is '@'] from body
             if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-            call openAssigneesPicker(me, me)">+ assign</button>
+            call openAssigneesPicker(me, me)">+ assign</button> -->
       <button tal:condition="not links_rel" type="button" class="details-add-field-btn btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;border-radius:9999px;"
         _="on click call openLinkPickerForDetails(me)
           on keydown[key is 'l'] from body
