@@ -28,6 +28,21 @@
       data-todo-tags="${python:','.join(sorted(todo.tags)) if todo.tags else ''}"
       data-todo-assignees="${python:','.join(sorted(todo.assignees)) if todo.assignees else ''}"
       data-due-date="${python:todo.due_date.isoformat() if todo.due_date else ''}"
+      _="on click
+           if target matches '.todo-checkbox'
+             trigger 'open-details'
+             exit
+           end
+           if closest <a, button, img/> to target exit end
+           set selected to <input.todo-checkbox:checked/> in #todo-list
+           set mine to the first <input.todo-checkbox/> in me
+           set wasSelected to mine.checked
+           set othersSelected to (selected.length > 1) or (selected.length is 1 and wasSelected is false)
+           repeat for box in selected
+             if box is not mine set box.checked to false end
+           end
+           set mine.checked to (othersSelected or (wasSelected is false))
+           trigger 'open-details'"
       tal:attributes="data-recurrence python:_recurrence_label(todo);
                         data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else '';
                         data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments]);
