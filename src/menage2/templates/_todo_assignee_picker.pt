@@ -10,7 +10,6 @@
       data-picker-value="${option}"
       _="on click
           take .picker-selected from <li/> in closest <ul/> for me
-          log previous <.new-assignee/>
           send assigneeSelected to previous <.new-assignee/>
           "
     >
@@ -22,7 +21,6 @@
       data-picker-value="${new}"
       _="on click
           take .picker-selected from <li/> in closest <ul/> for me
-          log previous <.new-assignee/>
           send assigneeSelected to previous <.new-assignee/>
           "
     >
