@@ -98,7 +98,7 @@ class Todo(Base):
 
     id = Column(Integer, primary_key=True)
     text = Column(Text, nullable=False)
-    tags = Column(TagSet, nullable=False, server_default="{}")
+    tags: set[str] = Column(TagSet, nullable=False, server_default="{}")
     status = Column(
         Enum(TodoStatus, name="todostatus"),
         nullable=False,

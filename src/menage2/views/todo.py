@@ -1,5 +1,6 @@
 import calendar as _cal
 import datetime
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1258,14 +1259,21 @@ def todo_details_panel(request):
             response=request.response,
         )
 
-    todo = todos[0]
+    todo: Todo = todos[0]
     if todo.protocol_run:
         todo.protocol_run.ensure_snapshot_run_items()
 
     response = render_to_response(
         "menage2:templates/_todo_details_panel.pt",
         {
-            "todo": todos[0],
+            "todo": todo,
+            "tags_json": json.dumps(list(todo.tags)),
+            "links_json": json.dumps(
+                [
+                    {"label": t.label, "url": t.url}
+                    for t in sorted(todo.links_rel, key=lambda t: t.position)
+                ]
+            ),
             "render_note_html": render_note_html,
         },
         request=request,
