@@ -1,9 +1,19 @@
 import datetime
 import enum
 
-from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Index, Integer, Text
+from sqlalchemy import (
+    Column,
+    Constraint,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
 from .meta import Base
@@ -63,9 +73,9 @@ class RecurrenceRule(Base):
       ``month_day`` anchors monthly rules ("every 15th").
     """
 
-    __tablename__ = "recurrence_rules"
+    __tablename__: str = "recurrence_rules"
 
-    id = Column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     kind = Column(Enum(RecurrenceKind, name="recurrencekind"), nullable=False)
     interval_value = Column(Integer, nullable=False, default=1)
     interval_unit = Column(Enum(RecurrenceUnit, name="recurrenceunit"), nullable=False)
@@ -123,7 +133,7 @@ class Todo(Base):
     # 1-to-1 link to a ProtocolRun. Set when this todo was spawned for a
     # protocol run (the user's calendar trigger). UNIQUE so each run has
     # exactly one todo.
-    protocol_run_id = Column(
+    protocol_run_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("protocol_runs.id"),
         unique=True,
@@ -131,7 +141,7 @@ class Todo(Base):
     )
 
     owner = relationship("User", foreign_keys=[owner_id])
-    attachments = relationship(
+    attachments: Mapped[list["TodoAttachment"]] = relationship(
         "TodoAttachment",
         back_populates="todo",
         cascade="all, delete-orphan",
@@ -165,26 +175,25 @@ class Todo(Base):
 
 
 class TodoAttachment(Base):
-    __tablename__ = "todo_attachments"
+    __tablename__: str = "todo_attachments"
+    __table_args__: tuple[Index | Constraint, ...] = (
+        Index("ix_todo_attachments_todo_id", "todo_id"),
+        Index("ix_todo_attachments_uuid", "uuid"),
+    )
 
-    id = Column(Integer, primary_key=True)
-    todo_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    todo_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("todos.id", ondelete="CASCADE"),
         nullable=False,
     )
-    uuid = Column(Text, nullable=False)
-    original_filename = Column(Text, nullable=False)
-    mimetype = Column(Text, nullable=False)
-    created_at = Column(
+    uuid: Mapped[str] = mapped_column(Text, nullable=False)
+    original_filename: Mapped[str] = mapped_column(Text, nullable=False)
+    mimetype: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.datetime.now(datetime.timezone.utc),
     )
 
-    todo = relationship("Todo", back_populates="attachments")
-
-    __table_args__ = (
-        Index("ix_todo_attachments_todo_id", "todo_id"),
-        Index("ix_todo_attachments_uuid", "uuid"),
-    )
+    todo: Mapped[list[Todo]] = relationship("Todo", back_populates="attachments")

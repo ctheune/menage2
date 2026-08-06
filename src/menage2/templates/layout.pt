@@ -15,7 +15,6 @@
 
     <script src="${request.static_url('menage2:static/htmx.min.js')}" defer></script>
     <script src="${request.static_url('menage2:static/hyperscript.min.js')}" defer></script>
-    <script src="${request.static_url('menage2:static/composite-input.js')}" defer></script>
     <script src="${request.static_url('menage2:static/menage.js')}" defer></script>
     <script src="${request.static_url('menage2:static/bootstrap.bundle.min.js')}" defer></script>
     <script src="${request.static_url('menage2:static/form-json.js')}" defer></script>

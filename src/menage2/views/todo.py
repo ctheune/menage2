@@ -3,8 +3,6 @@ import datetime
 import json
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Literal
 from urllib.parse import urlparse as _urlparse
 
 from dateutil.relativedelta import relativedelta
@@ -49,6 +47,7 @@ from menage2.recurrence import (
     spec_to_rule,
 )
 
+HEADER_MOBILE_DEVICE = r"User-Agent:.*(iPhone|Android).*"
 _TAG_RE = re.compile(r"#(\S+)")
 _ASSIGNEE_RE = re.compile(r"@(\S+)")
 # Match ^...  up to next marker or end-of-string. Lookahead never consumes.
@@ -223,6 +222,7 @@ def _flatten(node: dict, result: list, depth: int) -> None:
             {
                 "name": name,
                 "full_tag": full_tag,
+                "breadcrumbs": " / ".join(full_tag.split(":")),
                 "parent_tag": parent_tag,
                 "depth": depth,
                 "items": data["items"],
@@ -253,7 +253,8 @@ def build_tag_tree(todos: list) -> list[dict]:
         result.append(
             {
                 "name": "(untagged)",
-                "full_tag": "__untagged__",
+                "full_tag": "(untagged)",
+                "breadcrumbs": "(untagged)",
                 "parent_tag": "",
                 "depth": 0,
                 "items": untagged,
@@ -478,12 +479,7 @@ def task_subnav_partial(request: Request):
     return {"sections": sections}
 
 
-@view_config(
-    route_name="list_todo_groups",
-    request_method="GET",
-    renderer="menage2:templates/_todo_groups.pt",
-)
-def list_todo_groups(request):
+def _list_todo_groups(request):
     today = _today()
     status = request.params.get("status", "active")
     if status not in _VALID_STATUS_FILTERS:
@@ -522,8 +518,25 @@ def list_todo_groups(request):
     }
 
 
-@view_config(route_name="list_todos", renderer="menage2:templates/list_todos.pt")
-def list_todos(request):
+@view_config(
+    route_name="list_todo_groups",
+    request_method="GET",
+    renderer="menage2:templates/_todo_groups.pt",
+)
+def list_todo_groups(request):
+    return _list_todo_groups(request)
+
+
+@view_config(
+    route_name="list_todo_groups",
+    header=HEADER_MOBILE_DEVICE,
+    renderer="menage2:templates/mobile/_todo_groups.pt",
+)
+def list_todo_groups_mobile(request):
+    return _list_todo_groups(request)
+
+
+def _list_todos(request):
     today = _today()
     # XXX
     spawn_due_every_if_needed(request.dbsession, today, _now_utc())
@@ -539,6 +552,20 @@ def list_todos(request):
         "filter_mode": filter_mode,
         "form_html": _render_todo_form(request, request.route_url("list_todos")),
     }
+
+
+@view_config(route_name="list_todos", renderer="menage2:templates/list_todos.pt")
+def list_todos(request):
+    return _list_todos(request)
+
+
+@view_config(
+    route_name="list_todos",
+    header=HEADER_MOBILE_DEVICE,
+    renderer="menage2:templates/mobile/list_todos.pt",
+)
+def list_todos_mobile(request):
+    return _list_todos(request)
 
 
 @view_config(route_name="add_todo", request_method="POST")
@@ -1231,7 +1258,7 @@ def todo_assignee_picker(request):
 
 
 @view_config(route_name="todo_details_panel", request_method="GET")
-def todo_details_panel(request):
+def todo_details_panel(request: Request):
     """Render the details panel for selected todos."""
     # XXX turn into form-json
     raw_ids = request.params.getall("todo_ids[]")
@@ -1248,7 +1275,7 @@ def todo_details_panel(request):
             response=request.response,
         )
 
-    todos = [request.dbsession.get(Todo, todo_id) for todo_id in todo_ids]
+    todos: list[Todo] = [request.dbsession.get(Todo, todo_id) for todo_id in todo_ids]
     if len(todos) > 1:
         return render_to_response(
             "menage2:templates/_todo_details_panel_multiple.pt",
@@ -1259,7 +1286,7 @@ def todo_details_panel(request):
             response=request.response,
         )
 
-    todo: Todo = todos[0]
+    todo = todos[0]
     if todo.protocol_run:
         todo.protocol_run.ensure_snapshot_run_items()
 
@@ -1267,6 +1294,17 @@ def todo_details_panel(request):
         "menage2:templates/_todo_details_panel.pt",
         {
             "todo": todo,
+            "attachments_json": json.dumps(
+                [
+                    {
+                        "url": request.route_url(
+                            "todo_attachment_thumbnail", todo_id=todo.id, uuid=att.uuid
+                        ),
+                        "filename": att.original_filename,
+                    }
+                    for att in todo.attachments
+                ]
+            ),
             "tags_json": json.dumps(list(todo.tags)),
             "links_json": json.dumps(
                 [

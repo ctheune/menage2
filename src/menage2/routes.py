@@ -90,6 +90,7 @@ def includeme(config):
     # TODOs / Tasks
 
     config.add_route("list_todos", "/todos")
+
     config.add_route("list_todo_groups", "/todos/groups")
     config.add_route("task_subnav", "/todos/subnav")
 

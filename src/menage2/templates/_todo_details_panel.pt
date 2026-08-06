@@ -115,7 +115,7 @@
                    blur me
                    clear me
                    focus me
-                 halt
+                   halt
                 "></span>&ZeroWidthSpace;<!-- ensure from control height -->
             <div class="picker"></div>
           </div>
@@ -475,30 +475,51 @@
           </div>
         </div>
 
-        <!-- Attachments: drag-drop zone for adding, existing files with delete buttons -->
-        <div class="mb-3">
+        <div class="mb-3" hx-disinherit="*" id="field-attachments" data-attachments="${attachments_json}"
+          _="init set $attachments to ((my @data-attachments) as JSON)">
           <label>Files</label>
 
-          <div class="form-control d-flex gap-1 flex-wrap align-items-flex-start">
-            <!-- Existing attachments with delete buttons -->
-            <tal:block tal:repeat="att todo.attachments">
-              <div class="position-relative" style="height:2.5rem;width:auto">
-                <img tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
-                                    alt att.original_filename" class="todo-attachment-thumb"
-                  style="height:2.5rem;width:auto;border-radius:0.25rem;display:block;">
-                <!-- XXX
-            <button type="button"
-                    class="btn btn-link btn-sm p-0 position-absolute top-0 end-0 text-danger"
-                    style="transform:translate(50%, -50%);font-size:0.75rem;"
-                    _="on click fetch '${request.route_url('todo_attachment_delete', todo_id=todo.id, uuid=att.uuid)}' as POST then trigger todo-updated">
-              ✕
-            </button> -->
+          <div class="form-control container">
+            <div class="row">
+              <script type="text/hyperscript-template" live>
+              #for attachment in $attachments
+                <div class="col-lg-4 col-md-12 mb-4">
+                  <img src="$${attachment.url}" alt="$${attachment.filename}" class="w-100 shadow-1-strong rounded mb-4"/>
+                </div>
+              #end
+              </script>
+              <div class="col-lg-4 col-md-12 mb-4" _="on drop(dataTransfer)
+                   log 'drop'
+                   halt the event
+                   remove .bg-info
+                   if dataTransfer.files.length > 0 then
+                     add .bg-info-subtle
+                     make a FormData called fd
+                     repeat for file in dataTransfer.files indexed by i
+                       log file
+                       log 'file' + i
+                       call fd.append('file' + i, file)
+                     end
+                     log fd
+                     fetch ${request.route_url('todo_attachment_upload', id=todo.id)} with method:'POST', body: fd
+                     remove .bg-info-subtle
+                   end
+
+                 on dragover(dataTransfer)
+                   log 'over'
+                   set dataTransfer's dropEffect to 'copy'
+                   halt
+
+                 on dragenter
+                   add .bg-info
+                   log 'enter'
+
+                 on dragleave
+                   remove .bg-info
+                   log 'leave'
+              ">
+                <i class="bi bi-images"></i>
               </div>
-            </tal:block>
-            <!-- Drop zone indicator when empty or when dragging -->
-            <div tal:condition="not todo.attachments" class="text-muted small p-2 border-2 border-dashed rounded"
-              style="width:100%;text-align:center;cursor:pointer;">
-              Drop files here to attach
             </div>
           </div>
         </div>

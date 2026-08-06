@@ -1,52 +1,3 @@
-function isGroupCollapsed(tag) {
-  if (!tag) return false;
-  var header = document.querySelector(
-    '.tag-group-header[data-tag="' + tag + '"]',
-  );
-  if (header && header.dataset.open === "false") return true;
-  var colon = tag.lastIndexOf(":");
-  if (colon > -1) return isGroupCollapsed(tag.slice(0, colon));
-  return false;
-}
-
-function applyGroupVisibility() {
-  document.querySelectorAll("[data-parent-tag]").forEach(function (el) {
-    el.style.display = isGroupCollapsed(el.dataset.parentTag) ? "none" : "";
-  });
-}
-
-function toggleGroup(tag) {
-  var header = document.querySelector(
-    '.tag-group-header[data-tag="' + tag + '"]',
-  );
-  if (!header) return;
-  header.dataset.open = header.dataset.open === "false" ? "true" : "false";
-  applyGroupVisibility();
-}
-
-function setAllGroups(open) {
-  document.querySelectorAll(".tag-group-header").forEach(function (h) {
-    h.dataset.open = open ? "true" : "false";
-  });
-  applyGroupVisibility();
-}
-
-document.addEventListener("click", function (e) {
-  var header = e.target.closest(".tag-group-header");
-  if (header) toggleGroup(header.dataset.tag);
-});
-
-function swipePost(url, todoId, list) {
-  // The done/hold endpoints respond with empty body + HX-Trigger
-  // (todo-updated reloads #todo-list); the swipe transform animates while
-  // the request is in flight.
-  htmx.ajax("POST", url, {
-    target: list,
-    swap: "none",
-    values: { todo_ids: todoId },
-  });
-}
-
 function initSortables(content) {
   var sortables = content.querySelectorAll(".sortable");
   for (var i = 0; i < sortables.length; i++) {
@@ -58,107 +9,6 @@ function initSortables(content) {
     });
   }
 }
-
-var _swipeTouchState = new WeakMap();
-var _SWIPE_THRESHOLD = 80;
-
-document.addEventListener(
-  "touchstart",
-  function (e) {
-    var item = e.target.closest(".todo-item");
-    if (!item) return;
-    var inner = item.querySelector(".todo-content");
-    if (!inner) return;
-    inner.style.transition = "none";
-    _swipeTouchState.set(item, { startX: e.touches[0].clientX, dx: 0 });
-  },
-  { passive: true },
-);
-
-document.addEventListener(
-  "touchmove",
-  function (e) {
-    var item = e.target.closest(".todo-item");
-    if (!item) return;
-    var state = _swipeTouchState.get(item);
-    if (!state) return;
-    var inner = item.querySelector(".todo-content");
-    if (!inner) return;
-    state.dx = e.touches[0].clientX - state.startX;
-
-    var todoList = document.getElementById("todo-list");
-    var currentStatus = todoList ? todoList.dataset.status : null;
-
-    // Don't preview right swipe on done list
-    if (state.dx > 0 && currentStatus === "done") {
-      return;
-    }
-
-    // Don't preview left swipe on scheduled list
-    if (state.dx < 0 && currentStatus === "scheduled") {
-      return;
-    }
-
-    inner.style.transform =
-      "translateX(" + Math.max(-150, Math.min(150, state.dx)) + "px)";
-    item.dataset.swipeDir = state.dx > 0 ? "right" : state.dx < 0 ? "left" : "";
-    item.dataset.swipeStatus = currentStatus || "";
-  },
-  { passive: true },
-);
-
-document.addEventListener("touchend", function (e) {
-  var item = e.target.closest(".todo-item");
-
-  if (!item) return;
-  var state = _swipeTouchState.get(item);
-  if (!state) return;
-  _swipeTouchState.delete(item);
-  var inner = item.querySelector(".todo-content");
-  if (!inner) return;
-  inner.style.transition = "transform 0.2s ease";
-  var dx = state.dx;
-  var checkbox = item.querySelector(".todo-checkbox");
-  var todoList = document.getElementById("todo-list");
-  var status = todoList ? todoList.dataset.status : null;
-
-  if (
-    dx >= _SWIPE_THRESHOLD &&
-    checkbox &&
-    document.querySelector(".done-trigger")
-  ) {
-    inner.style.transform = "translateX(100vw)";
-    checkbox.checked = true;
-    htmx.trigger(".done-trigger", "doneSelected");
-  } else if (dx <= -_SWIPE_THRESHOLD && checkbox) {
-    inner.style.transform = "translateX(-100vw)";
-
-    // Choose action based on status
-    if (status === "on_hold" || status === "done") {
-      // Use activate for on_hold and done lists
-      document.querySelectorAll(".todo-checkbox").forEach(function (cb) {
-        cb.checked = false;
-      });
-      checkbox.checked = true;
-      htmx.trigger(".activate-trigger", "activateSelected");
-    } else if (status === "active") {
-      // Use hold for active list only
-      checkbox.checked = true;
-      htmx.trigger(".hold-trigger", "holdSelected");
-    } else {
-      // No action for other statuses (e.g., scheduled)
-      inner.style.transform = "translateX(0)";
-      delete item.dataset.swipeDir;
-    }
-  } else {
-    inner.style.transform = "translateX(0)";
-    delete item.dataset.swipeDir;
-  }
-});
-
-function initTodoSwipe() {} // kept for htmx.onLoad call below; delegation handles all items
-
-// parseTagsFromRaw and fetch helpers live in composite-input.js
 
 // Full-screen image modal with prev/next navigation
 var _modalImages = [];
@@ -253,59 +103,6 @@ function uploadAttachments(files, todoId) {
     return r;
   });
 }
-
-// Drag-and-drop image upload onto todo list items
-document.addEventListener("dragover", function (e) {
-  if (e.target.closest("#todo-form")) return;
-  var item = e.target.closest(".todo-item");
-  if (!item) return;
-  e.preventDefault();
-  item.classList.add("todo-item--drag-over");
-});
-
-document.addEventListener("dragleave", function (e) {
-  var item = e.target.closest(".todo-item");
-  if (!item) return;
-  if (!item.contains(e.relatedTarget)) {
-    item.classList.remove("todo-item--drag-over");
-  }
-});
-
-document.addEventListener("drop", function (e) {
-  if (e.target.closest("#todo-form")) return;
-  var item = e.target.closest(".todo-item");
-  if (!item) return;
-  e.preventDefault();
-  item.classList.remove("todo-item--drag-over");
-
-  var files = e.dataTransfer && e.dataTransfer.files;
-  if (!files || files.length === 0) return;
-
-  var todoId = item.id.replace("todo-", "");
-  if (!todoId) return;
-
-  item.classList.add("todo-item--uploading");
-
-  uploadAttachments(files, todoId).catch(function (err) {
-    item.classList.remove("todo-item--uploading");
-    console.error("Attachment upload failed:", err);
-    var alert = document.createElement("div");
-    alert.className =
-      "alert alert-danger alert-dismissible py-1 px-2 small mt-1 mb-0";
-    alert.setAttribute("role", "alert");
-    alert.textContent = err.message;
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn-close btn-sm";
-    btn.setAttribute("data-bs-dismiss", "alert");
-    btn.setAttribute("aria-label", "Close");
-    alert.appendChild(btn);
-    item.after(alert);
-    setTimeout(function () {
-      if (alert.parentNode) alert.remove();
-    }, 6000);
-  });
-});
 
 document.body.addEventListener("showValidationError", function (e) {
   var existing = document.getElementById("error-toast");
@@ -799,61 +596,6 @@ document.addEventListener("keydown", function (e) {
   }
 });
 
-// --- Swipe for run items ---
-var _runSwipeState = new WeakMap();
-document.addEventListener(
-  "touchstart",
-  function (e) {
-    var item = e.target.closest(".protocol-run-item");
-    if (!item) return;
-    var inner = item.querySelector(".todo-content");
-    if (!inner) return;
-    inner.style.transition = "none";
-    _runSwipeState.set(item, { startX: e.touches[0].clientX, dx: 0 });
-  },
-  { passive: true },
-);
-document.addEventListener(
-  "touchmove",
-  function (e) {
-    var item = e.target.closest(".protocol-run-item");
-    if (!item) return;
-    var s = _runSwipeState.get(item);
-    if (!s) return;
-    var inner = item.querySelector(".todo-content");
-    if (!inner) return;
-    s.dx = e.touches[0].clientX - s.startX;
-    inner.style.transform =
-      "translateX(" + Math.max(-150, Math.min(150, s.dx)) + "px)";
-    item.dataset.swipeDir = s.dx > 0 ? "right" : s.dx < 0 ? "left" : "";
-  },
-  { passive: true },
-);
-document.addEventListener("touchend", function (e) {
-  var item = e.target.closest(".protocol-run-item");
-  if (!item) return;
-  var s = _runSwipeState.get(item);
-  if (!s) return;
-  _runSwipeState.delete(item);
-  var inner = item.querySelector(".todo-content");
-  if (!inner) return;
-  inner.style.transition = "transform 0.2s ease";
-  var dx = s.dx;
-  if (dx >= 80) {
-    inner.style.transform = "translateX(100vw)";
-    var btn = item.querySelector('.protocol-run-action[data-action="done"]');
-    if (btn) btn.click();
-  } else if (dx <= -80) {
-    inner.style.transform = "translateX(-100vw)";
-    var sendBtn = item.querySelector(
-      '.protocol-run-action[data-action="send"]',
-    );
-    if (sendBtn) sendBtn.click();
-  } else {
-    inner.style.transform = "translateX(0)";
-    delete item.dataset.swipeDir;
-  }
-});
 
 // --- Protocol item editor — uses CompositeInput (tags + note only) -----------
 
@@ -960,13 +702,6 @@ function deleteProtocolItem(btn) {
   li.replaceWith(placeholder);
 }
 
-function uploadAttachmentsFromDrop(element, files, todoId) {
-  uploadAttachments(files, todoId).catch(function (err) {
-    console.error("Attachment upload failed:", err);
-    alert("Failed to upload: " + err.message);
-  });
-}
-
 function initProtocolTitleInput() {
   var container = document.getElementById("proto-title-ci");
   if (!container) return;
@@ -989,7 +724,6 @@ function initProtocolTitleInput() {
 htmx.onLoad(function (content) {
   ensureHelpOverlay();
   initSortables(content);
-  initTodoSwipe(content);
   initProtocolItemInputs();
   initProtocolTitleInput();
   initProtocolNewItemInput();
@@ -997,7 +731,6 @@ htmx.onLoad(function (content) {
 });
 ensureHelpOverlay();
 initSortables(document);
-initTodoSwipe(document);
 initProtocolItemInputs();
 initProtocolTitleInput();
 initProtocolNewItemInput();

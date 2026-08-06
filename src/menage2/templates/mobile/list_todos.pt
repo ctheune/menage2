@@ -1,0 +1,35 @@
+<div metal:use-macro="load: layout.pt">
+
+
+  <div metal:fill-slot="content">
+    <form xmlns:hx-on="http://htmx.org/hx-on" hx-post="${request.route_url('todo_batch_action')}" hx-ext="form-json"
+      hx-target="#todo-list" _="on keydown[key is ']'] from body
+                if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                call setAllGroups(true)
+              on keydown[key is '['] from body
+                if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                call setAllGroups(false)
+              on keydown[key is 'u'] from body
+                if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                if no #undo-toast exit end
+                trigger undoRequested on body
+              ">
+      <div class="card">
+        <div id="todo-list" data-status="${status}" hx-trigger="load, todo-updated from:body, focus from:window"
+          hx-get="${request.route_url('list_todo_groups', _query=dict(filter=filter_mode, status=status))}" _="on htmx:afterSwap trigger change on closest <form/>
+                 on keydown[key is ']'] from body
+                   if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                   call setAllGroups(true)
+                 on keydown[key is '['] from body
+                   if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                   call setAllGroups(false)
+                 on keydown[key is 'u'] from body
+                   if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                   if no #undo-toast exit end
+                   trigger undoRequested on body"></div>
+      </div>
+    </form>
+  </div>
+
+
+</div>

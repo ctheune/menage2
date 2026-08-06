@@ -1,0 +1,138 @@
+<!--
+
+  touchstart
+  tochmove
+  tochend
+
+  toggle
+
+-->
+
+<tal:block tal:repeat="group groups">
+  <div class="tag-group-header">
+    <span class="tag-toggle">▾</span>
+    <span class="tag-breadcrumb">${group['breadcrumbs']}</span>
+  </div>
+
+  <ul class="todo-group-list mb-0 list-unstyled">
+    <li tal:repeat="todo group['items']" id="todo-${todo.id}" class="todo-item" _="
+         init
+            set :swipe to 0
+            set :origin to 0
+         live
+            set *transform to 'translateX(' + :swipe + 'px)'
+         on touchstart(changedTouches)
+            set :origin to (first of changedTouches)'s pageX
+            set *background-color to 'var(--bs-warning-bg-subtle)'
+         on touchcancel
+            transition :swipe to 0 over 200ms
+            remove {background-color}
+         on touchend
+            transition :swipe to 0 over 200ms
+            remove {background-color}
+         on touchmove(changedTouches)
+            set :swipe to ((first of changedTouches)'s pageX - :origin)
+            measure my width
+            set :threshold to it's width / 3
+            if :swipe > :threshold then
+              set *background-color to 'var(--bs-success-bg-subtle)'
+            else
+              if :swipe < -2*:threshold then
+                set *background-color to 'var(--bs-info-bg-subtle)'
+              else
+                if :swipe < -:threshold then
+                  set *background-color to 'var(--bs-secondary-bg-subtle)'
+                else
+                  set *background-color to 'var(--bs-warning-bg-subtle)'
+                end
+              end
+            end
+          ">
+      <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2">
+        <span class="flex-grow-1 d-flex align-items-center gap-2 small" style="min-width: 0">
+          <span class="text-truncate" style="min-width: 0">
+            <span class="todo-title">${todo.text}</span>
+            <span class="d-block" tal:condition="todo.note or todo.links_rel">
+              <span tal:condition="todo.note" class="todo-note-display text-muted"
+                tal:content="structure render_note_html(todo.note)"></span>
+              <tal:block tal:condition="todo.links_rel" tal:repeat="link todo.links_rel">
+                <a tal:attributes="href link.url" target="_blank" rel="noopener noreferrer"
+                  class="todo-link-badge d-inline-block text-decoration-none me-1">
+                  <i class="bi bi-link-45deg"></i>
+                  <tal:block tal:condition="link.label">
+                    ${link.label}</tal:block>
+                </a>
+              </tal:block>
+            </span>
+          </span>
+          <span tal:condition="todo.attachments" class="todo-attachment-thumbs flex-shrink-0">
+            <tal:block tal:repeat="att todo.attachments">
+              <img class="todo-attachment-thumb" loading="lazy" tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
+                                   data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);
+                                   alt att.original_filename" />
+            </tal:block>
+          </span>
+        </span>
+
+        <span tal:condition="todo.protocol_run_id" class="todo-protocol-link flex-shrink-0 small">
+          <i class="bi bi-clipboard-check"></i>
+        </span>
+
+        <tal:block tal:condition="python:todo.due_date and todo.due_date != today">
+          <span tal:define="overdue python:todo.due_date < today" tal:attributes="class python: 'todo-due small flex-shrink-0 ' + ('todo-due--overdue' if overdue else 'todo-due--future');
+                                title python: format.date(todo.due_date, format='full')">
+            ${python:date_ago(todo.due_date, today) if overdue else
+            format.date(todo.due_date, format='medium')}
+          </span>
+        </tal:block>
+
+        <span tal:condition="todo.recurrence_id" class="todo-recurrence flex-shrink-0 small"
+          tal:attributes="title python:_recurrence_label(todo)">
+          ↻
+          <span class="todo-recurrence-label d-none d-sm-inline">${_recurrence_label(todo)}</span>
+        </span>
+
+        <span tal:condition="todo.assignees" class="d-inline d-sm-none">
+          @
+        </span>
+
+        <span tal:condition="todo.assignees" class="todo-assignees flex-shrink-0 small text-muted d-none d-sm-inline">
+          <tal:block tal:repeat="a python:sorted(todo.assignees)">@${a}
+          </tal:block>
+        </span>
+      </div>
+    </li>
+  </ul>
+</tal:block>
+
+<div tal:condition="not groups" class="todo-list-empty">
+  <span>Nothing to do!</span>
+</div>
+
+<div class="offcanvas offcanvas-bottom" tabindex="-1" id="offcanvasBottom" aria-labelledby="offcanvasBottomLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="offcanvasBottomLabel">Offcanvas bottom</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body small">
+    ...
+  </div>
+</div>
+
+
+<nav class="nav navbar nav-pills bg-body-tertiary fixed-bottom">
+
+  <a href="#offcanvasBottom" class="nav-link link-secondary" data-bs-toggle="offcanvas" role="button"
+    aria-controls="offcanvasBottom">
+    <i class="bi bi-list fs-1"></i>
+  </a>
+  <a href="asdf" class="nav-link active">
+    <i class="bi bi-check2-square fs-1"></i>
+  </a>
+  <a href="#" class="nav-link link-secondary">
+    <i class="bi bi-pencil-square fs-1"></i>
+  </a>
+  <a href="#" class="nav-link link-secondary">
+    <i class="bi bi-plus-square fs-1"></i>
+  </a>
+</nav>
