@@ -4,13 +4,7 @@
         hx-target="body"
         class="mb-2">
     <div class="input-group">
-      <div class="todo-tag-input flex-grow-1" id="todo-tag-input">
-        <div id="todo-text"
-             style="flex:1;min-width:6rem;cursor:text;word-break:break-word;min-height:1.5em;"></div>
-      </div>
+        <input name="text" class="flex-grow-1" style="flex:1;min-width:6rem;cursor:text;word-break:break-word;min-height:1.5em;" id="input-add-todo-text" />
     </div>
-    <input type="hidden" name="text" id="todo-hidden-text" />
-    <input type="hidden" name="next" value="${next_url}" />
-    <input type="hidden" name="remove_attachments" id="todo-remove-attachments" value="" />
   </form>
 </tal:block>
