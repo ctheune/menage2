@@ -208,6 +208,7 @@ def send_to_shopping_list(request):
                     tags=tags,
                     status=TodoStatus.todo,
                     owner=request.identity,
+                    assignees={"haushalt"},
                     created_at=now,
                     note=note,
                 )
