@@ -371,7 +371,7 @@
                  end
                  clear me
                  blur me
-              "></span>&ZeroWidthSpace;<!-- ensure from control height -->
+              "></span>&ZeroWidthSpace;<!-- ensure form control height -->
             <div class="picker"></div>
           </div>
         </div>
