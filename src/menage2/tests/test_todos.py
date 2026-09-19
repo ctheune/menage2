@@ -141,17 +141,21 @@ def test_parse_todo_input_no_note():
 # ---------------------------------------------------------------------------
 
 
+def _link_pairs(parsed):
+    """parse_todo_input returns TodoLink rows; compare them as (label, url) pairs."""
+    return [(link.label, link.url) for link in parsed.links]
+
+
 def test_parse_todo_input_extracts_single_link():
     parsed = parse_todo_input("task [My Link](https://a.com)")
-    assert parsed.links == ["[My Link](https://a.com)"]
+    assert _link_pairs(parsed) == [("My Link", "https://a.com")]
     assert parsed.text == "task"
 
 
 def test_parse_todo_input_extracts_multiple_links():
     parsed = parse_todo_input("task [A](https://a.com) [B](https://b.com)")
-    assert len(parsed.links) == 2
-    assert "[A](https://a.com)" in parsed.links
-    assert "[B](https://b.com)" in parsed.links
+    assert _link_pairs(parsed) == [("A", "https://a.com"), ("B", "https://b.com")]
+    assert [link.position for link in parsed.links] == [0, 1]
     assert parsed.text == "task"
 
 
@@ -163,31 +167,31 @@ def test_parse_todo_input_inline_note_link_not_extracted():
 
 def test_parse_todo_input_standalone_link_and_note_inline_link():
     parsed = parse_todo_input("task [L](https://l.com) ~note [i](https://i.com)")
-    assert parsed.links == ["[L](https://l.com)"]
+    assert _link_pairs(parsed) == [("L", "https://l.com")]
     assert parsed.note == "note [i](https://i.com)"
 
 
 def test_parse_todo_input_url_fragment_not_a_tag():
     parsed = parse_todo_input("task [X](https://x.com#anchor)")
     assert parsed.tags == set()
-    assert parsed.links == ["[X](https://x.com#anchor)"]
+    assert _link_pairs(parsed) == [("X", "https://x.com#anchor")]
 
 
 def test_parse_todo_input_link_label_empty():
     parsed = parse_todo_input("task [](https://a.com)")
-    assert parsed.links == ["[](https://a.com)"]
+    assert _link_pairs(parsed) == [("", "https://a.com")]
     assert parsed.text == "task"
 
 
 def test_parse_todo_input_custom_scheme_link():
     parsed = parse_todo_input("task [Note](obsidian://open?vault=x)")
-    assert parsed.links == ["[Note](obsidian://open?vault=x)"]
+    assert _link_pairs(parsed) == [("Note", "obsidian://open?vault=x")]
     assert parsed.text == "task"
 
 
 def test_parse_todo_input_bare_domain_gets_http():
     parsed = parse_todo_input("task [Site](example.org/path)")
-    assert parsed.links == ["[Site](http://example.org/path)"]
+    assert _link_pairs(parsed) == [("Site", "http://example.org/path")]
     assert parsed.text == "task"
 
 
@@ -340,7 +344,7 @@ def test_build_tag_tree_parent_tag():
 def test_build_tag_tree_untagged_has_stable_full_tag():
     t = _todo("X", set())
     flat = build_tag_tree([t])
-    assert flat[-1]["full_tag"] == "__untagged__"
+    assert flat[-1]["full_tag"] == "(untagged)"
     assert flat[-1]["parent_tag"] == ""
 
 
@@ -658,7 +662,7 @@ def test_list_todos_sorted_due_first_then_undated(app_request, dbsession, admin_
 def test_get_todos_page(authenticated_testapp):
     res = authenticated_testapp.get("/todos", status=200)
     assert b'id="todo-form"' in res.body
-    assert b'id="todo-text"' in res.body
+    assert b'id="input-add-todo-text"' in res.body
 
 
 def test_add_todo_workflow(authenticated_testapp, dbsession):

@@ -1,8 +1,12 @@
-"""Browser-based tests for the Protocols feature."""
+"""Browser-based tests for the Protocols feature.
+
+Protocols are set up through the server's own form endpoints rather than
+through the edit page: the edit page's title/item widgets are JS-driven and
+are exercised separately.  What these tests cover is the *run* — how a started
+protocol shows up in the todo list and behaves in the details pane.
+"""
 
 import pytest
-
-from ._browser_helpers import fill_composite
 
 
 @pytest.fixture(scope="session")
@@ -40,38 +44,56 @@ def login(page, context, browser_admin_user, live_server):
     )
 
 
-def _make_protocol_via_ui(page, title, items):
-    page.goto("/protocols")
-    page.click('button:has-text("New protocol")')
-    page.wait_for_url("**/protocols/*/edit")
-    fill_composite(page.locator("#proto-title-ci"), title)
-    page.wait_for_load_state("networkidle")
-    for i, txt in enumerate(items, start=1):
-        fill_composite(page.locator(".proto-new-item-ci"), txt)
-        page.wait_for_function(
-            f"document.querySelectorAll(\"li[id^='item-']\").length >= {i}",
-            timeout=5000,
+def _make_protocol(context, live_server, title, items):
+    """Create a protocol with `items` via the form endpoints; return its id."""
+    resp = context.request.post(
+        f"{live_server}/protocols/new", form={"title": title}, max_redirects=0
+    )
+    assert resp.status == 303, f"Creating the protocol failed: {resp.status}"
+    protocol_id = resp.headers["location"].rstrip("/").split("/")[-2]
+    for text in items:
+        resp = context.request.post(
+            f"{live_server}/protocols/{protocol_id}/items",
+            form={"text": text},
+            max_redirects=0,
         )
+        assert resp.status == 303, f"Adding item {text!r} failed: {resp.status}"
+    return protocol_id
 
 
-def test_create_protocol_and_start_run(page):
-    _make_protocol_via_ui(page, "Browser inv", ["check fridge", "check pantry"])
+def _start_run(page, protocol_id):
+    """Open the protocol and start a run, landing on the todo list."""
+    page.goto(f"/protocols/{protocol_id}/edit")
     page.click('button:has-text("Start a run now")')
     page.wait_for_url("**/todos")
-    todo = page.locator('.todo-item[data-todo-text="Browser inv"]').first
-    todo.click()
-    page.wait_for_selector("#protocol-run", timeout=5000)
+
+
+def _open_run(page, title):
+    """Click the run's todo row and wait for the checklist in the details pane.
+
+    The row has to be there before we click it: `#todo-list` loads its own
+    contents, and a click that lands during that swap goes nowhere.
+    """
+    selector = f'.todo-item[data-todo-text="{title}"]'
+    page.wait_for_selector(selector, timeout=10000)
+    page.locator(selector).first.click()
+    page.wait_for_selector("#protocol-run", timeout=10000)
+
+
+def test_create_protocol_and_start_run(page, context, live_server):
+    pid = _make_protocol(
+        context, live_server, "Browser inv", ["check fridge", "check pantry"]
+    )
+    _start_run(page, pid)
+    _open_run(page, "Browser inv")
     assert page.locator(".protocol-run-item").count() == 2
     assert page.locator("text=check fridge").count() >= 1
 
 
-def test_run_done_action(page):
-    _make_protocol_via_ui(page, "Done flow", ["item-A", "item-B"])
-    page.click('button:has-text("Start a run now")')
-    page.wait_for_url("**/todos")
-    todo = page.locator('.todo-item[data-todo-text="Done flow"]').first
-    todo.click()
-    page.wait_for_selector("#protocol-run", timeout=5000)
+def test_run_done_action(page, context, live_server):
+    pid = _make_protocol(context, live_server, "Done flow", ["item-A", "item-B"])
+    _start_run(page, pid)
+    _open_run(page, "Done flow")
     first = page.locator(".protocol-run-item").first
     first.locator('.protocol-run-action[data-action="done"]').click()
     page.wait_for_function(
@@ -80,13 +102,10 @@ def test_run_done_action(page):
     )
 
 
-def test_run_send_to_todo_action(page):
-    _make_protocol_via_ui(page, "Send flow", ["buy bread"])
-    page.click('button:has-text("Start a run now")')
-    page.wait_for_url("**/todos")
-    todo = page.locator('.todo-item[data-todo-text="Send flow"]').first
-    todo.click()
-    page.wait_for_selector("#protocol-run", timeout=5000)
+def test_run_send_to_todo_action(page, context, live_server):
+    pid = _make_protocol(context, live_server, "Send flow", ["buy bread"])
+    _start_run(page, pid)
+    _open_run(page, "Send flow")
     item = page.locator(".protocol-run-item").first
     item.locator('.protocol-run-action[data-action="send"]').click()
     page.wait_for_function(
@@ -96,13 +115,10 @@ def test_run_send_to_todo_action(page):
     assert page.locator('.todo-item[data-todo-text="buy bread"]').count() == 1
 
 
-def test_run_keyboard_done_via_c_key(page):
-    _make_protocol_via_ui(page, "Key flow", ["one", "two"])
-    page.click('button:has-text("Start a run now")')
-    page.wait_for_url("**/todos")
-    todo = page.locator('.todo-item[data-todo-text="Key flow"]').first
-    todo.click()
-    page.wait_for_selector("#protocol-run", timeout=5000)
+def test_run_keyboard_done_via_c_key(page, context, live_server):
+    pid = _make_protocol(context, live_server, "Key flow", ["one", "two"])
+    _start_run(page, pid)
+    _open_run(page, "Key flow")
     page.evaluate("document.activeElement && document.activeElement.blur()")
     page.keyboard.press("c")
     page.wait_for_function(
@@ -111,13 +127,10 @@ def test_run_keyboard_done_via_c_key(page):
     )
 
 
-def test_run_navigation_with_j_k(page):
-    _make_protocol_via_ui(page, "Nav flow", ["one", "two", "three"])
-    page.click('button:has-text("Start a run now")')
-    page.wait_for_url("**/todos")
-    todo = page.locator('.todo-item[data-todo-text="Nav flow"]').first
-    todo.click()
-    page.wait_for_selector("#protocol-run", timeout=5000)
+def test_run_navigation_with_j_k(page, context, live_server):
+    pid = _make_protocol(context, live_server, "Nav flow", ["one", "two", "three"])
+    _start_run(page, pid)
+    _open_run(page, "Nav flow")
     page.evaluate("document.activeElement && document.activeElement.blur()")
     page.keyboard.press("j")
     page.keyboard.press("j")
@@ -128,25 +141,25 @@ def test_run_navigation_with_j_k(page):
     )
 
 
-def test_linked_todo_badge_opens_run(page):
-    _make_protocol_via_ui(page, "Linked", ["only"])
-    # Start a run, navigate back to todo list, click the clipboard badge
-    page.click('button:has-text("Start a run now")')
-    page.wait_for_url("**/todos")
+def test_linked_todo_badge_opens_run(page, context, live_server):
+    pid = _make_protocol(context, live_server, "Linked", ["only"])
+    # Start a run, land on the todo list, click the clipboard badge
+    _start_run(page, pid)
+    page.wait_for_selector(".todo-protocol-link", timeout=10000)
     badge = page.locator(".todo-protocol-link")
     assert badge.count() == 1
     badge.first.click()
     # Badge now opens the panel inline instead of navigating
-    page.wait_for_selector("#protocol-run", timeout=5000)
+    page.wait_for_selector("#protocol-run", timeout=10000)
     assert page.url.endswith("/todos")
 
 
-def test_completing_linked_todo_closes_run(page):
+def test_completing_linked_todo_closes_run(page, context, live_server):
     """Marking the run-todo done from /todos should close the run."""
-    _make_protocol_via_ui(page, "ClosingProto", ["x"])
-    page.click('button:has-text("Start a run now")')
-    page.wait_for_url("**/todos")
+    pid = _make_protocol(context, live_server, "ClosingProto", ["x"])
+    _start_run(page, pid)
     _item_sel = '.todo-item[data-todo-text="ClosingProto"]'
+    page.wait_for_selector(_item_sel, timeout=10000)
     item = page.locator(_item_sel)
     assert item.count() == 1
     # Click item to select it (checks the checkbox), then press c to mark done
