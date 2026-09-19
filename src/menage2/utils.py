@@ -1,4 +1,8 @@
 import json
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from menage2.schemas import UndoEntry
 
 
 class Seen:
@@ -19,15 +23,22 @@ class HXTrigger:
     def __bool__(self):
         return bool(self.data)
 
-    def undo(
-        self, todo_ids: list[int], prev_status: str, texts: list[str], action: str
-    ):
+    def undo(self, entries: list["UndoEntry"], texts: list[str], action: str):
+        """Offer to put `entries` back the way they were.
+
+        Each entry is a snapshot taken before the change — id, status and due
+        date — so one mechanism covers completing, holding, postponing and
+        reactivating, and a batch spanning several previous states undoes
+        correctly item by item.
+
+        The snapshot travels as a JSON string: it ends up in a hidden form
+        field, so it has to be a string by the time the client sees it.
+        """
         label = texts[0] if len(texts) == 1 else f"{len(texts)} items"
         self(
             "showUndoToast",
             {
-                "ids": ",".join(str(i) for i in todo_ids),
-                "prevStatus": prev_status,
+                "entries": json.dumps([e.model_dump(mode="json") for e in entries]),
                 "label": label,
                 "action": action,
             },

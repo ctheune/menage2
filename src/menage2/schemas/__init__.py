@@ -1,6 +1,7 @@
 """Pydantic schemas for request/response validation."""
 
 import datetime as _dt
+import json
 from datetime import date, datetime
 from enum import Enum
 from typing import Annotated, List, Literal, Optional, Set
@@ -132,42 +133,30 @@ class TodoResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# XXX we having two different syntaxes is bad. hx-vals sending comma separated
-# should go away.
-def _split_ids(v: object) -> object:
-    """Accept both a real list and the comma-separated string hx-vals sends."""
-    if isinstance(v, str):
-        return [part.strip() for part in v.split(",") if part.strip()]
-    return v
-
-
 class BatchAction(BaseModel):
-    """Schema for batch actions on todos."""
+    """Schema for batch actions on todos.
+
+    Every caller posts `todo_ids[]` through form-json, so this is always a real
+    array — the comma-separated spelling that used to need unpicking here went
+    away with the undo payload.
+    """
 
     action: Literal["done", "hold", "postpone", "activate", "edit"]
     todo_ids: List[int]
     interval: Optional[str] = None  # "1d", "1w", "1mo", etc. — used by postpone
     todo: Optional[TodoUpdate] = None  # used by edit
 
-    _split_todo_ids = field_validator("todo_ids", mode="before")(_split_ids)
 
+class UndoEntry(BaseModel):
+    """One todo as it looked before the action being undone."""
 
-class UndoAction(BaseModel):
-    """Schema for undoing the last batch action.
+    id: int
+    status: TodoStatus = TodoStatus.todo
+    due_date: Optional[date] = None
 
-    The undo button sits inside the batch form and therefore inherits
-    `hx-ext="form-json"`: it posts JSON, with `todo_ids` taken verbatim from the
-    undo toast's dataset as a comma-separated string.
-    """
-
-    todo_ids: List[int] = Field(default_factory=list)
-    prev_status: TodoStatus = TodoStatus.todo
-
-    _split_todo_ids = field_validator("todo_ids", mode="before")(_split_ids)
-
-    @field_validator("prev_status", mode="before")
+    @field_validator("status", mode="before")
     @classmethod
-    def default_prev_status(cls, v: object) -> object:
+    def default_status(cls, v: object) -> object:
         """An absent or unrecognised status puts the todo back on the active list."""
         if not v:
             return TodoStatus.todo
@@ -175,3 +164,20 @@ class UndoAction(BaseModel):
             return TodoStatus(v)
         except ValueError:
             return TodoStatus.todo
+
+
+class UndoAction(BaseModel):
+    """Schema for undoing the last batch action.
+
+    The undo form carries the whole snapshot in one hidden field, so it arrives
+    as a JSON string inside the form-json body.
+    """
+
+    entries: List[UndoEntry] = Field(default_factory=list)
+
+    @field_validator("entries", mode="before")
+    @classmethod
+    def decode_entries(cls, v: object) -> object:
+        if isinstance(v, str):
+            return json.loads(v) if v.strip() else []
+        return v

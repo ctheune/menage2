@@ -109,13 +109,6 @@
                       Done
                     </button>
                   </li>
-                  <li>
-                    <button class="undo-trigger d-none dropdown-item" type="button"
-                      hx-post="${request.route_url('todo_undo')}" hx-trigger="undoRequested from:body" hx-vals='js:{
-                  todo_ids: (document.getElementById("undo-toast") || {dataset:{}}).dataset.todoIds || "",
-                  prev_status: (document.getElementById("undo-toast") || {dataset:{}}).dataset.prevStatus || ""
-                }' hx-swap="none" name="action" value="done" aria-hidden="true" tabindex="-1"></button>
-                  </li>
                 </ul>
               </div>
             </div>
@@ -134,6 +127,8 @@
 
     <!-- Repetition history lands here; it outlives the #todo-list swaps. -->
     <div id="todo-history-wrap"></div>
+
+    <tal:block tal:replace="structure undo_form_html" />
   </div>
 </div>
 <div class="d-none">

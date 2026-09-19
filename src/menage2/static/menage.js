@@ -150,9 +150,6 @@ document.body.addEventListener("showUndoToast", function (e) {
 
   var toast = document.createElement("div");
   toast.id = "undo-toast";
-  toast.dataset.todoIds = e.detail.ids;
-  toast.dataset.prevStatus = e.detail.prevStatus;
-  toast.dataset.label = e.detail.label || "";
   toast.className = "undo-toast";
   toast.style.cssText =
     "background:#fef3c7;color:#78350f;border:1px solid #f59e0b;padding:0.875rem 1.25rem;border-radius:0.75rem;box-shadow:0 8px 32px rgba(0,0,0,0.2);cursor:pointer;font-weight:600;";

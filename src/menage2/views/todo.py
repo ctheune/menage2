@@ -3,6 +3,7 @@ import datetime
 import json
 import re
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse as _urlparse
 
 from dateutil.relativedelta import relativedelta
@@ -47,6 +48,9 @@ from menage2.recurrence import (
     spawn_protocol_every_on_completion,
     spec_to_rule,
 )
+
+if TYPE_CHECKING:
+    from menage2.schemas import UndoEntry
 
 HEADER_MOBILE_DEVICE = r"User-Agent:.*(iPhone|Android).*"
 # Marker extraction lives in menage2.markers; only link rendering is left here.
@@ -428,6 +432,21 @@ def _render_todo_form(request, next_url: str) -> str:
     )
 
 
+def _snapshot(todo: Todo) -> "UndoEntry":
+    """What undo needs to put `todo` back the way it is right now.
+
+    Taken before the change, never after. Status and due date between them
+    cover every batch action: completing and holding move the status,
+    postponing moves the date, reactivating moves the status back.
+
+    This is the same model the undo request is parsed into, so the shape is
+    defined once for both directions.
+    """
+    from menage2.schemas import UndoEntry
+
+    return UndoEntry(id=todo.id, status=todo.status.value, due_date=todo.due_date)
+
+
 def _todo_order(date_column, newest_first: bool = False):
     """The one place item order is decided.
 
@@ -623,6 +642,7 @@ def _list_todos(request):
         "status": status,
         "filter_mode": filter_mode,
         "form_html": _render_todo_form(request, request.route_url("list_todos")),
+        "undo_form_html": _render_undo_form(request),
     }
 
 
@@ -687,10 +707,12 @@ def todos_done(request):
     today = _today()
     now = _now_utc()
     texts = []
+    entries = []
     for todo_id in todo_ids:
         todo = request.dbsession.get(Todo, todo_id)
         if todo:
             texts.append(todo.text)
+            entries.append(_snapshot(todo))
             todo.status = TodoStatus.done
             todo.done_at = now
             spawn_after(todo, today, now, request.dbsession)
@@ -708,7 +730,7 @@ def todos_done(request):
     response.content_type = "text/html"
     response.text = ""
     response.hx_trigger("todo-updated")
-    response.hx_trigger.undo(todo_ids, "todo", texts, "completed")
+    response.hx_trigger.undo(entries, texts, "completed")
     response.hx_trigger(
         "todo-closed"
     )  # XXX the ui should rather check whether the item is still in the list
@@ -729,10 +751,12 @@ def todos_hold(request):
             if x:
                 todo_ids.append(int(x))
     texts = []
+    entries = []
     for todo_id in todo_ids:
         todo = request.dbsession.get(Todo, todo_id)
         if todo:
             texts.append(todo.text)
+            entries.append(_snapshot(todo))
             todo.status = TodoStatus.on_hold
             todo.on_hold_at = _now_utc()
     request.dbsession.flush()
@@ -740,7 +764,7 @@ def todos_hold(request):
     response.content_type = "text/html"
     response.text = ""
     response.hx_trigger("todo-updated")
-    response.hx_trigger.undo(todo_ids, "todo", texts, "put on hold")
+    response.hx_trigger.undo(entries, texts, "put on hold")
     return request.response
 
 
@@ -874,10 +898,13 @@ def recurrence_history(request):
 
 @view_config(route_name="todo_undo", request_method="POST")
 def todo_undo(request):
-    """Put todos back to the status they held before the last batch action.
+    """Put todos back the way the snapshot says they were.
 
-    The undo button lives inside the batch form and inherits its
-    ``hx-ext="form-json"``, so the payload is JSON, not form-encoded.
+    Each entry restores one item's status and due date, so the same endpoint
+    undoes completing, holding, postponing and reactivating — including a
+    batch whose items came from different states.
+
+    The undo form posts JSON (`hx-ext="form-json"`), not form encoding.
     """
     from menage2.schemas import UndoAction
 
@@ -885,20 +912,18 @@ def todo_undo(request):
     if validated is None:
         return request.response
 
-    todo_ids = validated.todo_ids
-    prev_status = TodoStatus(validated.prev_status.value)
     texts = []
-    for todo_id in todo_ids:
-        todo = request.dbsession.get(Todo, todo_id)
-        if todo:
-            texts.append(todo.text)
-            todo.status = prev_status
-            if prev_status == TodoStatus.done:
-                todo.done_at = _now_utc()
-            if prev_status != TodoStatus.done:
-                todo.done_at = None
-            if prev_status != TodoStatus.on_hold:
-                todo.on_hold_at = None
+    for entry in validated.entries:
+        todo = request.dbsession.get(Todo, entry.id)
+        if todo is None:
+            continue
+        texts.append(todo.text)
+        prev_status = TodoStatus(entry.status.value)
+        todo.status = prev_status
+        todo.due_date = entry.due_date
+        todo.done_at = _now_utc() if prev_status == TodoStatus.done else None
+        if prev_status != TodoStatus.on_hold:
+            todo.on_hold_at = None
     request.dbsession.flush()
     label = texts[0] if len(texts) == 1 else f"{len(texts)} items"
     request.response.content_type = "text/html"
@@ -1024,12 +1049,14 @@ def todo_batch_action(request):
     today = _today()
     now = _now_utc()
     texts = []
+    entries = []
 
     if action == "done":
         for todo_id in todo_ids:
             todo = request.dbsession.get(Todo, todo_id)
             if todo:
                 texts.append(todo.text)
+                entries.append(_snapshot(todo))
                 todo.status = TodoStatus.done
                 todo.done_at = now
                 spawn_after(todo, today, now, request.dbsession)
@@ -1042,25 +1069,33 @@ def todo_batch_action(request):
                     spawn_protocol_every_on_completion(
                         run, today, now, request.dbsession
                     )
-        request.response.hx_trigger.undo(todo_ids, "todo", texts, "completed")
+        request.response.hx_trigger.undo(entries, texts, "completed")
     elif action == "hold":
         for todo_id in todo_ids:
             todo = request.dbsession.get(Todo, todo_id)
             if todo and todo.status == TodoStatus.todo:
                 texts.append(todo.text)
+                entries.append(_snapshot(todo))
                 todo.status = TodoStatus.on_hold
                 todo.on_hold_at = now
-        request.response.hx_trigger.undo(todo_ids, "todo", texts, "put on hold")
+        request.response.hx_trigger.undo(entries, texts, "put on hold")
     elif action == "postpone":
         interval = validated.interval
         if not interval:
             return _validation_error(request, "Postpone needs an interval.", status=400)
+        # Snapshot before the dates move — undo restores the old due date.
+        for todo_id in todo_ids:
+            todo = request.dbsession.get(Todo, todo_id)
+            if todo and todo.status in (TodoStatus.on_hold, TodoStatus.todo):
+                texts.append(todo.text)
+                entries.append(_snapshot(todo))
         try:
             _batch_postpone(request.dbsession, todo_ids, interval, today)
         except ValueError:
             return _validation_error(
                 request, f"“{interval}” is not a date or interval I understand."
             )
+        request.response.hx_trigger.undo(entries, texts, "postponed")
     elif action == "edit":
         update = validated.todo
         if update is None:
@@ -1084,23 +1119,19 @@ def todo_batch_action(request):
             elif update.due_date is not None:
                 todo.due_date = update.due_date
     elif action == "activate":
-        prev_status = None
+        # A mixed batch (some done, some on hold) used to be rejected because
+        # one undo could only carry one previous status. Snapshots are per
+        # item, so each goes back to whichever state it came from.
         for todo_id in todo_ids:
             todo = request.dbsession.get(Todo, todo_id)
             if todo and todo.status in (TodoStatus.done, TodoStatus.on_hold):
                 texts.append(todo.text)
-                if prev_status and todo.status != prev_status:
-                    request.response.status_int = 400
-                    return request.response
-                else:
-                    prev_status = todo.status
+                entries.append(_snapshot(todo))
                 todo.status = TodoStatus.todo
                 todo.done_at = None
                 todo.on_hold_at = None
-        if prev_status is not None:
-            request.response.hx_trigger.undo(
-                todo_ids, prev_status.name, texts, "reactivated"
-            )
+        if entries:
+            request.response.hx_trigger.undo(entries, texts, "reactivated")
     else:
         request.response.status_int = 400
         return request.response

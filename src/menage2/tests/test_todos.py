@@ -41,6 +41,21 @@ def _today():
     return datetime.date.today()
 
 
+def _next_request(app_request):
+    """Give `app_request` a fresh response, as a second HTTP call would get.
+
+    HXTrigger refuses to set the same trigger twice — correct for one response,
+    wrong when a test drives two views through the one request fixture.
+    """
+    from pyramid.response import Response
+
+    from menage2.utils import HXTrigger
+
+    app_request.response = Response()
+    app_request.response.hx_trigger = HXTrigger(app_request.response)
+    return app_request
+
+
 def _json_post(app_request, body: dict):
     """Configure app_request for a JSON POST — how htmx posts with form-json."""
     app_request.method = "POST"
@@ -481,10 +496,11 @@ def test_todos_done_response_has_hx_trigger(app_request, dbsession, admin_user):
     todos_done(app_request)
     trigger = json.loads(app_request.response.headers["HX-Trigger"])
     assert "showUndoToast" in trigger
-    assert str(todo.id) in trigger["showUndoToast"]["ids"]
-    assert trigger["showUndoToast"]["prevStatus"] == "todo"
     assert trigger["showUndoToast"]["action"] == "completed"
     assert trigger["showUndoToast"]["label"] == "Test"
+    # The snapshot travels as a JSON string and describes the pre-change state.
+    entries = json.loads(trigger["showUndoToast"]["entries"])
+    assert entries == [{"id": todo.id, "status": "todo", "due_date": None}]
 
 
 def test_todos_hold_sets_status(app_request, dbsession, admin_user):
@@ -561,7 +577,7 @@ def test_todo_undo_reverts_done_to_todo(app_request, dbsession, admin_user):
     todo = _todo(status=TodoStatus.done, done_at=_now(), owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
-    _json_post(app_request, {"todo_ids": str(todo.id), "prev_status": "todo"})
+    _json_post(app_request, {"entries": [{"id": todo.id, "status": "todo"}]})
     todo_undo(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
@@ -573,7 +589,7 @@ def test_todo_undo_reverts_on_hold_to_todo(app_request, dbsession, admin_user):
     todo = _todo(status=TodoStatus.on_hold, on_hold_at=_now(), owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
-    _json_post(app_request, {"todo_ids": str(todo.id), "prev_status": "todo"})
+    _json_post(app_request, {"entries": [{"id": todo.id, "status": "todo"}]})
     todo_undo(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
@@ -589,7 +605,7 @@ def test_todo_undo_returns_list_html_with_confirm_trigger(
     )
     dbsession.add(todo)
     dbsession.flush()
-    _json_post(app_request, {"todo_ids": str(todo.id), "prev_status": "todo"})
+    _json_post(app_request, {"entries": [{"id": todo.id, "status": "todo"}]})
     todo_undo(app_request)
     assert app_request.response.content_type == "text/html"
     trigger = json.loads(app_request.response.headers["HX-Trigger"])
@@ -1334,6 +1350,94 @@ def test_format_date_group_past_beyond_week():
     date = today - datetime.timedelta(days=10)
     formatted = _format_date_group(date, today)
     assert formatted == "Monday, 27.04.2026 (1 week ago)"
+
+
+# ---------------------------------------------------------------------------
+# Undo snapshots — one mechanism for every batch action
+# ---------------------------------------------------------------------------
+
+
+def test_batch_postpone_offers_an_undo(app_request, dbsession, admin_user):
+    today = _today()
+    todo = _todo("Bump me", due_date=today, owner_id=admin_user.id)
+    dbsession.add(todo)
+    dbsession.flush()
+    _batch_request(
+        app_request, {"action": "postpone", "todo_ids": [todo.id], "interval": "1w"}
+    )
+    todo_batch_action(app_request)
+    trigger = json.loads(app_request.response.headers["HX-Trigger"])
+    assert trigger["showUndoToast"]["action"] == "postponed"
+    entries = json.loads(trigger["showUndoToast"]["entries"])
+    assert entries == [{"id": todo.id, "status": "todo", "due_date": today.isoformat()}]
+
+
+def test_undo_restores_the_previous_due_date(app_request, dbsession, admin_user):
+    today = _today()
+    todo = _todo("Bump me", due_date=today, owner_id=admin_user.id)
+    dbsession.add(todo)
+    dbsession.flush()
+    _batch_postpone(dbsession, [todo.id], "1w", today)
+    dbsession.refresh(todo)
+    assert todo.due_date == today + datetime.timedelta(days=7)
+
+    _json_post(
+        app_request,
+        {"entries": [{"id": todo.id, "status": "todo", "due_date": today.isoformat()}]},
+    )
+    todo_undo(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.due_date == today
+
+
+def test_undo_restores_an_undated_todo_to_undated(app_request, dbsession, admin_user):
+    """A postpone that gave an undated item a date has to be able to clear it."""
+    today = _today()
+    todo = _todo("Was undated", owner_id=admin_user.id)
+    dbsession.add(todo)
+    dbsession.flush()
+    _batch_postpone(dbsession, [todo.id], "1d", today)
+    dbsession.refresh(todo)
+    assert todo.due_date is not None
+
+    _json_post(
+        app_request, {"entries": [{"id": todo.id, "status": "todo", "due_date": None}]}
+    )
+    todo_undo(app_request)
+    dbsession.flush()
+    dbsession.refresh(todo)
+    assert todo.due_date is None
+
+
+def test_undo_restores_each_item_to_its_own_previous_state(
+    app_request, dbsession, admin_user
+):
+    """A mixed batch undoes item by item, which one shared status could not do."""
+    was_done = _todo("Was done", status=TodoStatus.done, done_at=_now(), owner_id=1)
+    was_held = _todo("Was held", status=TodoStatus.on_hold, owner_id=1)
+    dbsession.add_all([was_done, was_held])
+    dbsession.flush()
+    _batch_request(
+        app_request,
+        {"action": "activate", "todo_ids": [was_done.id, was_held.id]},
+    )
+    todo_batch_action(app_request)
+    dbsession.flush()
+    trigger = json.loads(app_request.response.headers["HX-Trigger"])
+    entries = json.loads(trigger["showUndoToast"]["entries"])
+    assert {e["id"]: e["status"] for e in entries} == {
+        was_done.id: "done",
+        was_held.id: "on_hold",
+    }
+
+    _json_post(_next_request(app_request), {"entries": entries})
+    todo_undo(app_request)
+    dbsession.flush()
+    dbsession.refresh(was_done)
+    dbsession.refresh(was_held)
+    assert was_done.status == TodoStatus.done
+    assert was_held.status == TodoStatus.on_hold
 
 
 def test_date_groups_carry_breadcrumbs_like_tag_groups(

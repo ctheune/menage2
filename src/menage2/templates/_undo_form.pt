@@ -1,0 +1,19 @@
+<!-- Undo control for the last batch action.
+
+     `showUndoToast` carries a snapshot of the items as they were; this hidden
+     field holds it until someone asks for the undo, so the request itself
+     needs no scripting. Tapping the toast (or pressing `u`) fires
+     `undoRequested` on the body, which is what this form listens for.
+
+     It sits outside the batch form on purpose: nesting forms is invalid, and
+     its fields must not ride along with every batch action.
+-->
+<form id="undo-form"
+      hx-post="${request.route_url('todo_undo')}"
+      hx-ext="form-json"
+      hx-trigger="undoRequested from:body"
+      hx-swap="none"
+      _="on showUndoToast(entries) from body
+           set #undo-entries's value to entries">
+  <input type="hidden" name="entries" id="undo-entries" />
+</form>
