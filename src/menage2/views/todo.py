@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from urllib.parse import urlparse as _urlparse
 
 from dateutil.relativedelta import relativedelta
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.renderers import render, render_to_response
 from pyramid.request import Request
@@ -20,6 +20,7 @@ from menage2.dateparse import (
     parse_recurrence,
 )
 from menage2.fuzzy import fuzzy_filter, fuzzy_highlight
+from menage2.markers import scan
 from menage2.models.team import Team
 from menage2.models.todo import (
     RecurrenceKind,
@@ -48,17 +49,8 @@ from menage2.recurrence import (
 )
 
 HEADER_MOBILE_DEVICE = r"User-Agent:.*(iPhone|Android).*"
-_TAG_RE = re.compile(r"#(\S+)")
-_ASSIGNEE_RE = re.compile(r"@(\S+)")
-# Match ^...  up to next marker or end-of-string. Lookahead never consumes.
-_DATE_RE = re.compile(r"\^([^#*^~@]+?)(?=\s*[#*^~@]|$)")
-_RECURRENCE_MARKER_RE = re.compile(r"\*([^#*^~@]+?)(?=\s*[#*^~@]|$)")
-_NOTE_RE = re.compile(r"~([^#*^~@]+?)(?=\s*[#*^~@]|$)")
-# [label](url) — captures any non-whitespace, non-paren URL; scheme validated via urlparse.
-# Note: `[` is intentionally absent from _NOTE_RE's exclusion set so that [...]() inside
-# a note stays in the note text.
-_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
-# Same pattern anchored for parsing a single stored link string.
+# Marker extraction lives in menage2.markers; only link rendering is left here.
+# Anchored [label](url), for parsing a single stored link string.
 _PARSE_LINK_RE = re.compile(r"^\[([^\]]*)\]\(([^)\s]+)\)$")
 # For rendering inline [label](url) inside note text.
 _INLINE_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
@@ -69,6 +61,46 @@ _UNSAFE_SCHEMES = frozenset({"javascript", "data", "vbscript"})
 def _normalize_url(url: str) -> str:
     """Prepend http:// when url has no scheme (e.g. 'example.org/path' → 'http://example.org/path')."""
     return url if _urlparse(url).scheme else "http://" + url
+
+
+def _validation_error(request, message: str, status: int = 422):
+    """Answer with an error toast rather than a bare status code.
+
+    ``HX-Reswap: none`` stops htmx from swapping the empty error body into the
+    request's target; the message is raised by the ``showValidationError``
+    listener in menage.js.
+    """
+    request.response.status_int = status
+    request.response.headers["HX-Reswap"] = "none"
+    request.response.hx_trigger("showValidationError", {"message": message})
+    return request.response
+
+
+def _validated(request, schema):
+    """Parse the JSON body against `schema`.
+
+    Returns ``None`` when the payload is unusable, having already set up the
+    error response — the caller then returns ``request.response`` unchanged.
+    """
+    try:
+        body = request.json_body
+    except (ValueError, AttributeError):
+        _validation_error(request, "Could not read the request.", status=400)
+        return None
+    if not isinstance(body, dict):
+        _validation_error(request, "Expected a JSON object.", status=400)
+        return None
+    try:
+        return schema(**body)
+    except ValidationError as e:
+        # A toast has room for one problem, not pydantic's full report.
+        first = e.errors()[0]
+        where = ".".join(str(part) for part in first["loc"]) or "request"
+        _validation_error(request, f"{where}: {first['msg']}")
+        return None
+    except (TypeError, ValueError) as e:
+        _validation_error(request, str(e))
+        return None
 
 
 def render_note_html(note: str) -> str:
@@ -113,51 +145,67 @@ class ParsedTodoInput:
 
 
 def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodoInput:
-    """Decompose a raw input string into text + #tags + ^due-date + *recurrence + ~note + [links]().
+    r"""Decompose a raw input string into text + #tags + @who + ^due-date + *rule + ~note + [links]().
 
-    Extraction order matters:
-    - Note is extracted before links so that inline [...]() within note text
-      stay in the note and are not mistaken for standalone link pills.
-    - Links are extracted after note removal so URL #fragments don't pollute tag extraction.
+    The heavy lifting is :func:`menage2.markers.scan`, which walks the string
+    once and yields text, markers and links in source order. Because it is a
+    single pass, a marker payload consumes whatever follows it up to its own
+    terminator — which is how ``[a](b)`` inside a note stays in the note — and
+    ``\#`` style escapes keep marker characters out of the markup.
+
+    A marker whose payload does not parse (``^next thursdya``) is not a marker
+    after all: its source goes back into the text verbatim. Likewise a second
+    ``^``, ``*`` or ``~``, since only one of each can be held.
     """
     if today is None:
         today = datetime.date.today()
 
-    text = raw
-
     due_date: datetime.date | None = None
-    m = _DATE_RE.search(text)
-    if m:
-        parsed = parse_date(m.group(1).strip(), today)
-        if parsed:
-            due_date = parsed.date
-            text = text[: m.start()] + text[m.end() :]
-
     recurrence: RecurrenceSpec | None = None
-    m = _RECURRENCE_MARKER_RE.search(text)
-    if m:
-        spec = parse_recurrence(m.group(1).strip())
-        if spec:
-            recurrence = spec
-            text = text[: m.start()] + text[m.end() :]
-
     note = ""
-    m = _NOTE_RE.search(text)
-    if m:
-        note = m.group(1).strip()
-        text = text[: m.start()] + text[m.end() :]
+    tags: set[str] = set()
+    assignees: set[str] = set()
+    links: list[TodoLink] = []
+    text_parts: list[str] = []
 
-    links = [
-        TodoLink(label=lm.group(1), url=_normalize_url(lm.group(2)), position=i)
-        for i, lm in enumerate(_LINK_RE.finditer(text))
-    ]
-    text = _LINK_RE.sub("", text)
+    for token in scan(raw):
+        if token.kind == "text":
+            text_parts.append(token.value)
+            continue
 
-    tags = set(_TAG_RE.findall(text))
-    assignees = set(_ASSIGNEE_RE.findall(text))
-    text = _TAG_RE.sub("", text)
-    text = _ASSIGNEE_RE.sub("", text)
-    text = re.sub(r"\s+", " ", text).strip()
+        if token.kind == "link":
+            links.append(
+                TodoLink(
+                    label=token.value,
+                    url=_normalize_url(token.url),
+                    position=len(links),
+                )
+            )
+            continue
+
+        if token.marker == "#":
+            tags.add(token.value)
+            continue
+        if token.marker == "@":
+            assignees.add(token.value)
+            continue
+        if token.marker == "^" and due_date is None:
+            parsed = parse_date(token.value, today)
+            if parsed:
+                due_date = parsed.date
+                continue
+        elif token.marker == "*" and recurrence is None:
+            spec = parse_recurrence(token.value)
+            if spec:
+                recurrence = spec
+                continue
+        elif token.marker == "~" and not note:
+            note = token.value
+            continue
+
+        text_parts.append(token.raw)
+
+    text = re.sub(r"\s+", " ", "".join(text_parts)).strip()
     return ParsedTodoInput(
         text=text,
         tags=tags,
@@ -802,17 +850,19 @@ def recurrence_history(request):
 
 @view_config(route_name="todo_undo", request_method="POST")
 def todo_undo(request):
-    todo_ids: list[int] = []
-    for entry in request.params.getall("todo_ids"):
-        for x in str(entry).split(","):
-            x = x.strip()
-            if x:
-                todo_ids.append(int(x))
-    prev_status_str = request.params.get("prev_status", "todo")
-    try:
-        prev_status = TodoStatus(prev_status_str)
-    except ValueError:
-        prev_status = TodoStatus.todo
+    """Put todos back to the status they held before the last batch action.
+
+    The undo button lives inside the batch form and inherits its
+    ``hx-ext="form-json"``, so the payload is JSON, not form-encoded.
+    """
+    from menage2.schemas import UndoAction
+
+    validated = _validated(request, UndoAction)
+    if validated is None:
+        return request.response
+
+    todo_ids = validated.todo_ids
+    prev_status = TodoStatus(validated.prev_status.value)
     texts = []
     for todo_id in todo_ids:
         todo = request.dbsession.get(Todo, todo_id)
@@ -845,21 +895,10 @@ def todo_update(request):
         request.response.status_int = 404
         return request.response
 
-    try:
-        update_data = request.json_body
-    except (ValueError, AttributeError):
-        request.response.status_int = 400
-        return request.response
-
-    print(update_data)
-
     from menage2.schemas import TodoUpdate
 
-    try:
-        validated = TodoUpdate(**update_data)
-    except Exception as e:
-        request.response.status_int = 422
-        request.response.hx_trigger("showValidationError", {"message": str(e)})
+    validated = _validated(request, TodoUpdate)
+    if validated is None:
         return request.response
 
     clear_fields = validated.clear_fields
@@ -951,16 +990,8 @@ def todo_batch_action(request):
     """Handle batch actions: done, hold, postpone, activate."""
     from menage2.schemas import BatchAction
 
-    try:
-        action_data = request.json_body
-    except (ValueError, AttributeError):
-        request.response.status_int = 400
-        return request.response
-
-    try:
-        validated = BatchAction(**action_data)
-    except Exception:
-        request.response.status_int = 422
+    validated = _validated(request, BatchAction)
+    if validated is None:
         return request.response
 
     action = validated.action
@@ -999,14 +1030,17 @@ def todo_batch_action(request):
     elif action == "postpone":
         interval = validated.interval
         if not interval:
-            request.response.status_int = 400
-            return request.response
-        _batch_postpone(request.dbsession, todo_ids, interval, today)
+            return _validation_error(request, "Postpone needs an interval.", status=400)
+        try:
+            _batch_postpone(request.dbsession, todo_ids, interval, today)
+        except ValueError:
+            return _validation_error(
+                request, f"“{interval}” is not a date or interval I understand."
+            )
     elif action == "edit":
         update = validated.todo
         if update is None:
-            request.response.status_int = 400
-            return request.response
+            return _validation_error(request, "Edit needs a todo.", status=400)
 
         clear_fields = update.clear_fields
         for todo_id in todo_ids:
@@ -1287,13 +1321,22 @@ def todo_details_panel(request: Request):
         )
 
     todo = todos[0]
+    run_html = ""
     if todo.protocol_run:
         todo.protocol_run.ensure_snapshot_run_items()
+        # Same partial the run's own actions swap in, so there is one copy of
+        # the checklist markup.
+        run_html = render(
+            "menage2:templates/_protocol_run_partial.pt",
+            {"run": todo.protocol_run},
+            request=request,
+        )
 
     response = render_to_response(
         "menage2:templates/_todo_details_panel.pt",
         {
             "todo": todo,
+            "run_html": run_html,
             "attachments_json": json.dumps(
                 [
                     {

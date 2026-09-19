@@ -41,6 +41,14 @@ def _today():
     return datetime.date.today()
 
 
+def _json_post(app_request, body: dict):
+    """Configure app_request for a JSON POST — how htmx posts with form-json."""
+    app_request.method = "POST"
+    app_request.content_type = "application/json"
+    app_request.body = json.dumps(body).encode()
+    return app_request
+
+
 def _todo(text="Test", tags=None, status=TodoStatus.todo, owner_id=1, **kwargs):
     """Helper to build an unsaved Todo."""
     return Todo(
@@ -553,9 +561,7 @@ def test_todo_undo_reverts_done_to_todo(app_request, dbsession, admin_user):
     todo = _todo(status=TodoStatus.done, done_at=_now(), owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
-    app_request.method = "POST"
-    app_request.POST["todo_ids"] = str(todo.id)
-    app_request.POST["prev_status"] = "todo"
+    _json_post(app_request, {"todo_ids": str(todo.id), "prev_status": "todo"})
     todo_undo(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
@@ -567,9 +573,7 @@ def test_todo_undo_reverts_on_hold_to_todo(app_request, dbsession, admin_user):
     todo = _todo(status=TodoStatus.on_hold, on_hold_at=_now(), owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
-    app_request.method = "POST"
-    app_request.POST["todo_ids"] = str(todo.id)
-    app_request.POST["prev_status"] = "todo"
+    _json_post(app_request, {"todo_ids": str(todo.id), "prev_status": "todo"})
     todo_undo(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
@@ -585,9 +589,7 @@ def test_todo_undo_returns_list_html_with_confirm_trigger(
     )
     dbsession.add(todo)
     dbsession.flush()
-    app_request.method = "POST"
-    app_request.POST["todo_ids"] = str(todo.id)
-    app_request.POST["prev_status"] = "todo"
+    _json_post(app_request, {"todo_ids": str(todo.id), "prev_status": "todo"})
     todo_undo(app_request)
     assert app_request.response.content_type == "text/html"
     trigger = json.loads(app_request.response.headers["HX-Trigger"])
@@ -747,10 +749,7 @@ def test_postpone_endpoint_bumps_due_date(authenticated_testapp, dbsession):
 
 def _batch_request(app_request, body: dict):
     """Configure app_request for a JSON POST to todo_batch_action."""
-    app_request.method = "POST"
-    app_request.content_type = "application/json"
-    app_request.body = json.dumps(body).encode()
-    return app_request
+    return _json_post(app_request, body)
 
 
 def test_batch_postpone_single_item_relative(dbsession, admin_user):
@@ -1115,10 +1114,7 @@ def test_list_todos_runs_daily_sweep_creating_future_instance(
 def _json_request(app_request, todo_id, body: dict):
     """Configure app_request for a JSON POST to todo_update."""
     app_request.matchdict = {"id": str(todo_id)}
-    app_request.method = "POST"
-    app_request.content_type = "application/json"
-    app_request.body = json.dumps(body).encode()
-    return app_request
+    return _json_post(app_request, body)
 
 
 def test_todo_update_sets_note(app_request, dbsession, admin_user):

@@ -1,0 +1,12 @@
+<!-- The whole item list. Adding an item swaps this block, which leaves the
+     new-item input (outside it) untouched and still focused. -->
+<div id="proto-items">
+  <p tal:condition="not items" class="text-muted fst-italic">
+    No items yet<tal:block tal:condition="is_editor">. Add the first one below</tal:block>.
+  </p>
+  <ul class="list-unstyled" tal:condition="items">
+    <tal:block tal:repeat="item items">
+      <tal:block tal:replace="structure render_item(item)"/>
+    </tal:block>
+  </ul>
+</div>

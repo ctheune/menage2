@@ -28,14 +28,14 @@
     filter_mode python:request.params.get('filter', 'personal');
     in_food python:route_name in ('list_recipes', 'add_recipe', 'edit_recipe', 'recipe_steps', 'list_ingredients', 'ingredient_recipes', 'ingredient_toggle_tag', 'suggest_ingredient', 'list_weeks', 'add_week', 'edit_week', 'add_day', 'send_to_shopping_list', 'set_dinner', 'toggle_day_shopping', 'delete_day', 'planner', 'letscook');
     in_tasks python:route_name in ('list_todos', 'list_todos_done', 'list_todos_scheduled', 'list_todos_hold', 'add_todo', 'edit_todo', 'todos_done', 'todos_hold', 'todos_postpone', 'todos_activate_all_on_hold', 'todo_undo', 'todos_activate_batch', 'parse_date_preview', 'set_recurrence', 'parse_recurrence_preview', 'recurrence_history', 'list_tags_json', 'list_principals_json', 'list_protocols', 'new_protocol', 'edit_protocol', 'archive_protocol', 'unarchive_protocol', 'add_protocol_item', 'update_protocol_item', 'update_protocol_item_partial', 'delete_protocol_item', 'start_protocol_run', 'show_protocol_run');
-    in_operations python:route_name in ('admin_operations', 'admin_users', 'admin_user_new', 'admin_user_edit', 'admin_user_deactivate', 'admin_user_delete', 'admin_teams', 'admin_team_new', 'admin_team_edit', 'admin_team_delete', 'admin_team_member_add', 'admin_team_member_remove', 'admin_dashboard_token', 'admin_recurrence_sweep', 'admin_composite_playground');
+    in_operations python:route_name in ('admin_operations', 'admin_users', 'admin_user_new', 'admin_user_edit', 'admin_user_deactivate', 'admin_user_delete', 'admin_teams', 'admin_team_new', 'admin_team_edit', 'admin_team_delete', 'admin_team_member_add', 'admin_team_member_remove', 'admin_dashboard_token', 'admin_recurrence_sweep');
     in_section python:in_food or in_tasks or in_operations;
     sub_meal python:route_name in ('list_weeks', 'add_week', 'edit_week', 'add_day', 'send_to_shopping_list', 'set_dinner', 'toggle_day_shopping', 'delete_day', 'planner', 'letscook');
     sub_recipes python:route_name in ('list_recipes', 'add_recipe', 'edit_recipe', 'recipe_steps');
     sub_ingredients python:route_name in ('list_ingredients', 'ingredient_recipes', 'ingredient_toggle_tag', 'suggest_ingredient');
     sub_crew python:route_name in ('admin_users', 'admin_user_new', 'admin_user_edit', 'admin_user_deactivate', 'admin_user_delete');
     sub_departments python:route_name in ('admin_teams', 'admin_team_new', 'admin_team_edit', 'admin_team_delete', 'admin_team_member_add', 'admin_team_member_remove');
-    sub_admin_ops python:route_name in ('admin_operations', 'admin_dashboard_token', 'admin_recurrence_sweep', 'admin_composite_playground')
+    sub_admin_ops python:route_name in ('admin_operations', 'admin_dashboard_token', 'admin_recurrence_sweep')
   ">
 
   <div class="helios-header">

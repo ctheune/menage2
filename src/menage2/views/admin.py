@@ -281,15 +281,6 @@ def admin_operations(request):
 
 
 @view_config(
-    route_name="admin_composite_playground",
-    renderer="menage2:templates/admin/composite_playground.pt",
-    permission=PERM_ADMIN,
-)
-def composite_playground(request):
-    return {}
-
-
-@view_config(
     route_name="admin_dashboard_token",
     permission=PERM_ADMIN,
 )

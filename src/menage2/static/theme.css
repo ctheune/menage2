@@ -544,7 +544,6 @@ body {
 .todo-recurrence {
     color: var(--bs-secondary-color);
     font-size: 0.85rem;
-    cursor: help;
     user-select: none;
     white-space: nowrap;
 }

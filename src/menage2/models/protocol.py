@@ -75,6 +75,21 @@ class Protocol(Base):
         "RecurrenceRule", lazy="joined"
     )
 
+    def marker_text(self) -> str:
+        """This protocol as the marker string its title line shows and parses back.
+
+        The title takes the place a todo's text would.
+        """
+        from menage2.markers import format_markers
+
+        return format_markers(
+            self.title,
+            tags=self.tags,
+            assignees=self.assignees,
+            recurrence=self.recurrence.label if self.recurrence else None,
+            note=self.note,
+        )
+
 
 class ProtocolItem(Base):
     __tablename__ = "protocol_items"
@@ -88,6 +103,14 @@ class ProtocolItem(Base):
     note = Column(Text)
 
     protocol = relationship("Protocol", back_populates="items")
+
+    def marker_text(self) -> str:
+        """This item as the marker string its edit line shows and parses back."""
+        from menage2.markers import format_markers
+
+        return format_markers(
+            self.text, tags=self.tags, assignees=self.assignees, note=self.note
+        )
 
 
 class ProtocolRun(Base):
@@ -189,3 +212,15 @@ class ProtocolRunItem(Base):
     sent_todo_id = Column(Integer, ForeignKey("todos.id"), nullable=True)
 
     run = relationship("ProtocolRun", back_populates="items")
+
+    @property
+    def is_pending(self) -> bool:
+        return self.status == ProtocolRunItemStatus.pending
+
+    def marker_text(self) -> str:
+        """This run item as the marker string its inline editor shows and parses back."""
+        from menage2.markers import format_markers
+
+        return format_markers(
+            self.text, tags=self.tags, assignees=self.assignees, note=self.note
+        )

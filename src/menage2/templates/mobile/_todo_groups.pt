@@ -9,7 +9,15 @@
 -->
 
 <tal:block tal:repeat="group groups">
-  <div class="tag-group-header">
+  <div class="tag-group-header" data-open="true"
+    _="on click
+         if @data-open is 'true'
+           set @data-open to 'false'
+           add .d-none to the next <ul/>
+         else
+           set @data-open to 'true'
+           remove .d-none from the next <ul/>
+         end">
     <span class="tag-toggle">▾</span>
     <span class="tag-breadcrumb">${group['breadcrumbs']}</span>
   </div>

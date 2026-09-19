@@ -1,3 +1,5 @@
+<!-- The run's checklist. Every action replaces this whole section, so the
+     buttons only need hx-post plus a target of `closest .details-run-section`. -->
 <div class="details-run-section">
   <div
     id="protocol-run"
@@ -8,45 +10,79 @@
     <ul class="todo-group-list mb-0 list-unstyled">
       <li
         tal:repeat="item items"
+        class="${'protocol-run-item todo-item status-' + item.status.value}"
         id="run-item-${item.id}"
-        tal:attributes="class python: 'protocol-run-item todo-item status-' + item.status.value;
-                              data-item-id item.id;
-                              data-done-url request.route_url('run_item_done', id=run.id, item_id=item.id);
-                              data-send-url request.route_url('run_item_send', id=run.id, item_id=item.id);
-                              data-edit-url request.route_url('run_item_edit', id=run.id, item_id=item.id)"
+        data-item-id="${item.id}"
       >
         <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2">
           <span class="protocol-run-item-marker flex-shrink-0">
-            <tal:block tal:condition="item.status.value == 'pending'"
-              >○</tal:block
-            >
+            <tal:block tal:condition="item.is_pending">○</tal:block>
             <tal:block tal:condition="item.status.value == 'done'">✓</tal:block>
-            <tal:block tal:condition="item.status.value == 'sent_to_todo'"
-              >→</tal:block
-            >
+            <tal:block tal:condition="item.status.value == 'sent_to_todo'">→</tal:block>
           </span>
-          <span class="flex-grow-1 small" style="min-width: 0">
-            <span
-              tal:attributes="class python: 'text-decoration-line-through text-muted' if item.status.value != 'pending' else ''"
-              >${item.text}</span
+          <div class="flex-grow-1 small" style="min-width: 0">
+            <span class="run-item-view">
+              <span
+                class="${'' if item.is_pending else 'text-decoration-line-through text-muted'}"
+                >${item.text}</span
+              >
+              <span
+                tal:repeat="tag python:sorted(item.tags)"
+                class="badge bg-secondary rounded-pill ms-1"
+                >#${tag}</span
+              >
+              <span
+                tal:condition="item.note"
+                class="d-block text-muted"
+                style="font-size: 0.75rem"
+                >${item.note}</span
+              >
+            </span>
+
+            <!-- Tweak the wording before sending or ticking it off. The
+                 contenteditable takes the text's place on the same line and
+                 keeps the hidden field that gets posted in sync. -->
+            <form
+              tal:condition="item.is_pending"
+              class="run-item-edit d-none"
+              hx-post="${request.route_url('run_item_edit', id=run.id, item_id=item.id)}"
+              hx-target="closest .details-run-section"
+              hx-swap="outerHTML"
             >
-            <span
-              tal:repeat="tag python:sorted(item.tags)"
-              class="badge bg-secondary rounded-pill ms-1"
-              >#${tag}</span
-            >
-            <span
-              tal:condition="item.note"
-              class="d-block text-muted"
-              style="font-size: 0.75rem"
-              >${item.note}</span
-            >
-          </span>
-          <tal:block tal:condition="item.status.value == 'pending'">
+              <input
+                type="hidden"
+                name="text"
+                id="run-item-text-${item.id}"
+                value="${item.marker_text()}"
+              />
+              <span
+                class="run-item-input d-inline-block border-bottom"
+                contenteditable="plaintext-only"
+                data-canonical="${item.marker_text()}"
+                title="Enter saves, Escape cancels"
+                _="bind me to #run-item-text-${item.id}
+
+                   on keydown[key is 'Enter']
+                     send submit to the closest <form/>
+                     halt
+
+                   on keydown[key is 'Escape']
+                     set my textContent to @data-canonical
+                     add .d-none to the closest <form/>
+                     remove .d-none from the first <.run-item-view/> in the closest <li/>
+                     halt"
+                >${item.marker_text()}</span
+              >
+            </form>
+          </div>
+          <tal:block tal:condition="item.is_pending">
             <button
               type="button"
               class="protocol-run-action flex-shrink-0 btn btn-link btn-sm p-1 text-success"
               data-action="done"
+              hx-post="${request.route_url('run_item_done', id=run.id, item_id=item.id)}"
+              hx-target="closest .details-run-section"
+              hx-swap="outerHTML"
               title="Done (c)"
             >
               ✓
@@ -55,6 +91,9 @@
               type="button"
               class="protocol-run-action flex-shrink-0 btn btn-link btn-sm p-1 text-primary"
               data-action="send"
+              hx-post="${request.route_url('run_item_send', id=run.id, item_id=item.id)}"
+              hx-target="closest .details-run-section"
+              hx-swap="outerHTML"
               title="Send to todo list (t)"
             >
               →
@@ -64,6 +103,13 @@
               class="protocol-run-action flex-shrink-0 btn btn-link btn-sm p-1 text-muted"
               data-action="edit"
               title="Edit before sending (e)"
+              _="on click
+                   set li to the closest <li/>
+                   set editor to the first <.run-item-edit/> in li
+                   if no editor exit end
+                   add .d-none to the first <.run-item-view/> in li
+                   remove .d-none from editor
+                   focus the first <.run-item-input/> in editor"
             >
               ✎
             </button>

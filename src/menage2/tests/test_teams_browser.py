@@ -2,6 +2,8 @@
 
 import pytest
 
+from ._browser_helpers import select_row
+
 
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args, live_server):
@@ -76,10 +78,12 @@ def test_edit_todo_preserves_assignees(page, second_user):
     _add_delegated(page, "Wash car @alice", "Wash car")
     row = page.locator('.todo-item[data-todo-text="Wash car"]')
     assert row.count() == 1
-    # Click the row to select it — the details pane renders every field,
-    # assignees included.
-    row.first.click()
-    page.wait_for_selector("#details-panel #field-assignees", timeout=5000)
+    # Select the row — the details pane renders every field, assignees included.
+    select_row(
+        page,
+        '.todo-item[data-todo-text="Wash car"]',
+        "#details-panel #field-assignees",
+    )
     page.wait_for_function(
         "!!document.querySelector("
         '\'#field-assignees input[name="assignees[]"][value="alice"]\')',

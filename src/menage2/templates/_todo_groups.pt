@@ -6,6 +6,14 @@
     data-tag="${group['full_tag']}"
     data-parent-tag="${group['parent_tag']}"
     data-open="true"
+    _="on click
+         if @data-open is 'true'
+           set @data-open to 'false'
+           add .d-none to the next <ul/>
+         else
+           set @data-open to 'true'
+           remove .d-none from the next <ul/>
+         end"
   >
     <span class="tag-toggle">▾</span>
     <span class="tag-breadcrumb"
@@ -46,7 +54,6 @@
            set mine.checked to (othersSelected or (wasSelected is false))
            trigger 'open-details'"
       tal:attributes="data-recurrence python:_recurrence_label(todo);
-                        data-history-url python:request.route_url('recurrence_history', id=todo.id) if todo.recurrence_id else '';
                         data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments]);
                         data-todo-links python:__import__('json').dumps(['[' + (l.label or '') + '](' + l.url + ')' for l in todo.links_rel]);
                         data-run-started python:'true' if todo.protocol_run_id and todo.protocol_run and todo.protocol_run.opened_at else 'false'"
@@ -132,16 +139,32 @@
           </span>
         </tal:block>
 
-        <span
+        <!-- A <button> so the row's own click handler steps aside (see above).
+             It fetches on its own `showHistory` event rather than on click, so
+             the hyperscript below can close an already-open panel instead. -->
+        <button
+          type="button"
           tal:condition="todo.recurrence_id"
-          class="todo-recurrence flex-shrink-0 small"
-          tal:attributes="title python:_recurrence_label(todo)"
+          class="todo-recurrence flex-shrink-0 small border-0 bg-transparent p-0"
+          hx-target="#todo-history-wrap"
+          hx-swap="innerHTML"
+          hx-params="none"
+          hx-trigger="showHistory"
+          title="${_recurrence_label(todo)}"
+          hx-get="${request.route_url('recurrence_history', id=todo.id)}"
+          _="on click
+               set panel to the first <.todo-history-panel/> in #todo-history-wrap
+               if panel and panel@data-todo-id is '${todo.id}'
+                 remove panel
+               else
+                 send showHistory to me
+               end"
         >
           ↻
           <span class="todo-recurrence-label d-none d-sm-inline"
             >${_recurrence_label(todo)}</span
           >
-        </span>
+        </button>
 
         <span tal:condition="todo.assignees" class="d-inline d-sm-none">
           @

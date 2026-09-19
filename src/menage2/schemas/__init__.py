@@ -132,6 +132,15 @@ class TodoResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# XXX we having two different syntaxes is bad. hx-vals sending comma separated
+# should go away.
+def _split_ids(v: object) -> object:
+    """Accept both a real list and the comma-separated string hx-vals sends."""
+    if isinstance(v, str):
+        return [part.strip() for part in v.split(",") if part.strip()]
+    return v
+
+
 class BatchAction(BaseModel):
     """Schema for batch actions on todos."""
 
@@ -139,3 +148,30 @@ class BatchAction(BaseModel):
     todo_ids: List[int]
     interval: Optional[str] = None  # "1d", "1w", "1mo", etc. — used by postpone
     todo: Optional[TodoUpdate] = None  # used by edit
+
+    _split_todo_ids = field_validator("todo_ids", mode="before")(_split_ids)
+
+
+class UndoAction(BaseModel):
+    """Schema for undoing the last batch action.
+
+    The undo button sits inside the batch form and therefore inherits
+    `hx-ext="form-json"`: it posts JSON, with `todo_ids` taken verbatim from the
+    undo toast's dataset as a comma-separated string.
+    """
+
+    todo_ids: List[int] = Field(default_factory=list)
+    prev_status: TodoStatus = TodoStatus.todo
+
+    _split_todo_ids = field_validator("todo_ids", mode="before")(_split_ids)
+
+    @field_validator("prev_status", mode="before")
+    @classmethod
+    def default_prev_status(cls, v: object) -> object:
+        """An absent or unrecognised status puts the todo back on the active list."""
+        if not v:
+            return TodoStatus.todo
+        try:
+            return TodoStatus(v)
+        except ValueError:
+            return TodoStatus.todo

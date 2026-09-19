@@ -8,7 +8,11 @@ parameter on ``/todos``, and the details pane is the server-rendered
 ``_todo_details_panel.pt`` form.
 """
 
+import datetime
+
 import pytest
+
+from ._browser_helpers import select_row
 
 STATUS_ACTIVE = "/todos?status=active"
 STATUS_HOLD = "/todos?status=on_hold"
@@ -84,18 +88,12 @@ def _add_todo(page, raw: str, expect: str | None = None) -> None:
 
 
 def _select(page, text: str) -> None:
-    """Click a row to select it and open the details pane, then release focus.
+    """Select a row, open the details pane, and release focus.
 
-    Waiting for the row before clicking is load-bearing: `#todo-list` fetches
-    its own contents, and a click aimed at a row while that swap is still in
-    flight is lost together with the row it landed on.
-
-    Blurring matters too: the list-level shortcuts are bound `from body` and
-    bail out while an input or contenteditable has focus.
+    Blurring matters: the list-level shortcuts are bound `from body` and bail
+    out while an input or contenteditable has focus.
     """
-    page.wait_for_selector(_item(text), timeout=10000)
-    page.locator(_item(text)).first.click()
-    page.wait_for_selector("#details-panel #todo-edit-form", timeout=5000)
+    select_row(page, _item(text), "#details-panel #todo-edit-form")
     page.evaluate("document.activeElement && document.activeElement.blur()")
 
 
@@ -335,11 +333,6 @@ def test_c_key_marks_selected_done(page):
     assert page.locator(_item("Done me")).count() == 1
 
 
-@pytest.mark.xfail(
-    reason="todo_undo reads request.params, but the undo button inherits "
-    "hx-ext='form-json' from the batch form and posts a JSON body, so no ids "
-    "reach the view and nothing is restored",
-)
 def test_undo_toast_appears_and_u_restores(page):
     page.goto(STATUS_ACTIVE)
     _add_todo(page, "Undo me")
@@ -376,10 +369,6 @@ def test_a_key_activates_from_hold(page):
     assert page.locator(_item("Reactivate me")).count() == 1
 
 
-@pytest.mark.xfail(
-    reason="the 'Postpone 1 day' batch button sends no interval, and "
-    "todo_batch_action answers 400 for a postpone without one",
-)
 def test_shift_p_postpones_selected_by_one_day(page):
     page.goto(STATUS_ACTIVE)
     _add_todo(page, "Postpone me")
@@ -387,7 +376,48 @@ def test_shift_p_postpones_selected_by_one_day(page):
     page.keyboard.press("Shift+P")
     _wait_gone(page, "Postpone me")
     page.goto(STATUS_SCHEDULED)
-    assert page.locator(_item("Postpone me")).count() == 1
+    row = page.locator(_item("Postpone me"))
+    assert row.count() == 1
+    tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+    assert row.first.get_attribute("data-due-date") == tomorrow
+
+
+def test_postpone_with_an_unparsable_interval_shows_an_error(page):
+    """A bad interval reaches the user as a toast, not a silent 400."""
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Bad interval")
+    _select(page, "Bad interval")
+    page.evaluate("document.getElementById('interval').value = 'not-a-date-at-all'")
+    page.keyboard.press("Shift+P")
+    page.wait_for_selector("#error-toast", timeout=5000)
+    assert "not-a-date-at-all" in page.locator("#error-toast").inner_text()
+    # And the todo stayed put.
+    assert page.locator(_item("Bad interval")).count() == 1
+
+
+def test_collapsing_a_tag_group_hides_its_items(page):
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Mow lawn #garden", "Mow lawn")
+    header = page.locator('.tag-group-header[data-tag="garden"]')
+    header.click()
+    page.wait_for_selector(f"{_item('Mow lawn')}", state="hidden", timeout=5000)
+    assert header.get_attribute("data-open") == "false"
+    header.click()
+    page.wait_for_selector(f"{_item('Mow lawn')}", state="visible", timeout=5000)
+    assert header.get_attribute("data-open") == "true"
+
+
+def test_bracket_keys_collapse_and_expand_all_groups(page):
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Mow lawn #garden", "Mow lawn")
+    _add_todo(page, "Buy nails #diy", "Buy nails")
+    page.evaluate("document.activeElement && document.activeElement.blur()")
+    page.keyboard.press("[")
+    page.wait_for_selector(_item("Mow lawn"), state="hidden", timeout=5000)
+    page.wait_for_selector(_item("Buy nails"), state="hidden", timeout=5000)
+    page.keyboard.press("]")
+    page.wait_for_selector(_item("Mow lawn"), state="visible", timeout=5000)
+    page.wait_for_selector(_item("Buy nails"), state="visible", timeout=5000)
 
 
 def test_activate_all_on_hold_button(page):
@@ -410,10 +440,6 @@ def test_activate_all_on_hold_button(page):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="openHistoryPanel() calls closePopovers(), which was removed from "
-    "menage.js, so the click throws before the panel is fetched",
-)
 def test_recurrence_history_panel_opens_on_badge_click(page):
     page.goto(STATUS_ACTIVE)
     _add_todo(page, "Yoga *every month", "Yoga")
@@ -423,6 +449,31 @@ def test_recurrence_history_panel_opens_on_badge_click(page):
     assert page.locator(".todo-history-entry").count() >= 1
     page.locator(".todo-history-close").click()
     page.wait_for_selector(".todo-history-panel", state="detached", timeout=5000)
+
+
+def test_recurrence_badge_toggles_the_history_panel(page):
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Pilates *every week", "Pilates")
+    badge = page.locator(f"{_item('Pilates')} .todo-recurrence")
+    badge.wait_for(timeout=10000)
+    badge.click()
+    page.wait_for_selector(".todo-history-panel", timeout=5000)
+    # Clicking the same badge again closes it rather than re-fetching.
+    badge.click()
+    page.wait_for_selector(".todo-history-panel", state="detached", timeout=5000)
+    badge.click()
+    page.wait_for_selector(".todo-history-panel", timeout=5000)
+
+
+def test_another_items_badge_replaces_the_open_history_panel(page):
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Pilates *every week", "Pilates")
+    _add_todo(page, "Sauna *every month", "Sauna")
+    page.locator(f"{_item('Pilates')} .todo-recurrence").click()
+    page.wait_for_selector(".todo-history-panel", timeout=5000)
+    page.locator(f"{_item('Sauna')} .todo-recurrence").click()
+    page.wait_for_selector(".todo-history-panel:has-text('Sauna')", timeout=5000)
+    assert page.locator(".todo-history-panel").count() == 1
 
 
 # ---------------------------------------------------------------------------

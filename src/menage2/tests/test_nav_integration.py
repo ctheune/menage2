@@ -163,10 +163,6 @@ def test_admin_operations_title_is_maintenance(authenticated_testapp):
     assert b"Maintenance" in res.body
 
 
-def test_composite_playground_requires_admin(user_testapp):
-    user_testapp.get("/admin/composite-playground", status=403)
-
-
 # ---------------------------------------------------------------------------
 # Protocol archive button in actions slot
 # ---------------------------------------------------------------------------

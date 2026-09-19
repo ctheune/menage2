@@ -5,28 +5,26 @@
     <form xmlns:hx-on="http://htmx.org/hx-on" hx-post="${request.route_url('todo_batch_action')}" hx-ext="form-json"
       hx-target="#todo-list" _="on keydown[key is ']'] from body
                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-                call setAllGroups(true)
+                remove .d-none from <ul.todo-group-list/> in #todo-list
+                repeat for header in <.tag-group-header/> in #todo-list
+                  set header's @data-open to 'true'
+                end
               on keydown[key is '['] from body
                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-                call setAllGroups(false)
+                add .d-none to <ul.todo-group-list/> in #todo-list
+                repeat for header in <.tag-group-header/> in #todo-list
+                  set header's @data-open to 'false'
+                end
               on keydown[key is 'u'] from body
                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                 if no #undo-toast exit end
                 trigger undoRequested on body
               ">
+      <!-- Interval for the postpone batch action; the postpone picker binds to it. -->
+      <input type="hidden" name="interval" id="interval" value="1d" />
       <div class="card">
         <div id="todo-list" data-status="${status}" hx-trigger="load, todo-updated from:body, focus from:window"
-          hx-get="${request.route_url('list_todo_groups', _query=dict(filter=filter_mode, status=status))}" _="on htmx:afterSwap trigger change on closest <form/>
-                 on keydown[key is ']'] from body
-                   if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-                   call setAllGroups(true)
-                 on keydown[key is '['] from body
-                   if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-                   call setAllGroups(false)
-                 on keydown[key is 'u'] from body
-                   if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-                   if no #undo-toast exit end
-                   trigger undoRequested on body"></div>
+          hx-get="${request.route_url('list_todo_groups', _query=dict(filter=filter_mode, status=status))}"></div>
       </div>
     </form>
   </div>

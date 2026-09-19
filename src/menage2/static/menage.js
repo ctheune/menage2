@@ -195,11 +195,6 @@ document.addEventListener("keydown", function (e) {
     return;
 
   if (e.key === "Escape") {
-    if (document.querySelector(".todo-popover")) {
-      e.preventDefault();
-      closePopovers();
-      return;
-    }
     var pane = document.getElementById("details-pane");
     if (
       pane &&
@@ -217,47 +212,12 @@ document.addEventListener("keydown", function (e) {
     }
   }
 
-  // r / [ / ] / u are wired via hyperscript on #done-list and #todo-list.
-  // c / p / P / h are wired via hyperscript on the form in _todo_groups.pt.
+  // [ / ] / u are wired via hyperscript on the batch form in list_todos.pt.
+  // c / P / h / a are wired via hyperscript on the batch-menu buttons there.
   // d / f / s / ~ / @ / l field shortcuts are wired via hyperscript in
   // _todo_details_panel.pt.
-});
-
-
-// --- Repetition history panel ---
-function openHistoryPanel(itemEl) {
-  var url = itemEl.dataset.historyUrl;
-  if (!url) return;
-  closePopovers();
-  closeHistoryPanel();
-  fetch(url, { headers: { Accept: "text/html" } })
-    .then(function (r) {
-      return r.text();
-    })
-    .then(function (html) {
-      var wrap = document.createElement("div");
-      wrap.id = "todo-history-wrap";
-      wrap.innerHTML = html;
-      document.body.appendChild(wrap);
-    });
-}
-function closeHistoryPanel() {
-  var w = document.getElementById("todo-history-wrap");
-  if (w) w.remove();
-}
-document.addEventListener("click", function (e) {
-  if (e.target.closest(".todo-history-close")) {
-    closeHistoryPanel();
-    return;
-  }
-  var rec = e.target.closest(".todo-recurrence");
-  if (rec) {
-    var item = rec.closest(".todo-item");
-    if (item && item.dataset.historyUrl) {
-      e.stopPropagation();
-      openHistoryPanel(item);
-    }
-  }
+  // The repetition history panel is pure htmx: see the .todo-recurrence button
+  // in _todo_groups.pt and _recurrence_history.pt.
 });
 
 // --- Keyboard shortcut help overlay ---
@@ -312,13 +272,11 @@ function ensureHelpOverlay() {
     _kbdRow("click", "Select item \u2014 opens details pane"),
     _kbdRow("c", "Mark selected done"),
     _kbdRow("h", "Put selected on hold"),
-    _kbdRow("d", "Set / change due date"),
-    _kbdRow("f", "Set / change repetition rule"),
-    _kbdRow("s", "Edit tags"),
-    _kbdRow("P", "Postpone"),
+    _kbdRow("a", "Activate selected (on-hold / done list)"),
     _kbdRow("Shift+P", "Postpone selected by 1 day"),
     _kbdRow("[", "Collapse all groups"),
     _kbdRow("]", "Expand all groups"),
+    _kbdRow("click group", "Collapse / expand that group"),
     _kbdRow("u", "Undo last action"),
     _kbdRow("click \u21bb", "Show repetition history"),
     "</tbody></table>",
@@ -345,21 +303,25 @@ function ensureHelpOverlay() {
     _kbdRow("t", "Send current to the todo list"),
     _kbdRow("e", "Edit current item before sending"),
     _kbdRow("Esc", "Close details pane"),
-    _kbdRow("swipe \u2192", "Same as <kbd>c</kbd>"),
-    _kbdRow("swipe \u2190", "Same as <kbd>t</kbd>"),
     "</tbody></table>",
 
-    _kbdSection("Adding a todo"),
+    _kbdSection("Adding a todo (and protocol items)"),
     '<table class="table table-sm table-borderless mb-0"><tbody>',
     _kbdRow("#tag", "Attach a tag (single word)"),
-    _kbdRow("^", "Open the date picker"),
-    _kbdRow("*", "Open the repetition picker"),
+    _kbdRow("@who", "Assign to a person or team"),
+    _kbdRow("^when", "Due date \u2014 <kbd>^tomorrow</kbd>, <kbd>^next week</kbd>"),
+    _kbdRow("*rule", "Repetition \u2014 <kbd>*every week</kbd>"),
+    _kbdRow("~text", "Note (runs to the next marker)"),
+    _kbdRow("[label](url)", "Link"),
+    _kbdRow("~[…]", "Brackets hold anything \u2014 <kbd>~[costs 5 # each]</kbd>"),
+    _kbdRow("\\#", "Backslash writes a marker as plain text"),
     "</tbody></table>",
 
-    _kbdSection("Done list"),
+    _kbdSection("Protocol editor"),
     '<table class="table table-sm table-borderless mb-0"><tbody>',
-    _kbdRow("click", "Select / deselect item"),
-    _kbdRow("r", "Restore selected items"),
+    _kbdRow("click line", "Edit that line as text"),
+    _kbdRow("Enter", "Save the line"),
+    _kbdRow("Esc", "Cancel the edit"),
     "</tbody></table>",
   ]);
   _helpOverlay.innerHTML =
@@ -469,59 +431,10 @@ document.addEventListener("click", function (e) {
 
 // --- Protocol run page interactions ----------------------------------------
 //
-// Run-item actions (done / send-to-todo / edit) are dispatched via delegation
-// on .protocol-run-action buttons inside #protocol-run. Each .protocol-run-item
-// carries data-done-url / data-send-url / data-edit-url to keep the JS
-// parameter-free.
-
-(function _wireRunActions() {
-  document.addEventListener("click", function (e) {
-    var btn = e.target.closest(".protocol-run-action");
-    if (!btn) return;
-    var item = btn.closest(".protocol-run-item");
-    if (!item) return;
-    var action = btn.dataset.action;
-    if (action === "edit") return runItemEditInline(item);
-    var url = action === "done" ? item.dataset.doneUrl : item.dataset.sendUrl;
-    var run = document.getElementById("protocol-run");
-    if (!url || !run) return;
-    e.preventDefault();
-    htmx.ajax("POST", url, { target: run, swap: "innerHTML transition:true" });
-  });
-})();
-
-function runItemEditInline(itemEl) {
-  var textSpan = itemEl.querySelector(".flex-grow-1 > span");
-  if (!textSpan) return;
-  var existing = textSpan.textContent.trim();
-  var input = document.createElement("input");
-  input.type = "text";
-  input.value = existing;
-  input.className = "form-control form-control-sm";
-  input.style.maxWidth = "20rem";
-  textSpan.replaceWith(input);
-  input.focus();
-  input.select();
-  function commit() {
-    var run = document.getElementById("protocol-run");
-    var url = itemEl.dataset.editUrl;
-    if (!url || !run) return;
-    htmx.ajax("POST", url, {
-      target: run,
-      swap: "innerHTML",
-      values: { text: input.value },
-    });
-  }
-  input.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      commit();
-    } else if (e.key === "Escape") {
-      input.replaceWith(textSpan);
-    }
-  });
-  input.addEventListener("blur", commit);
-}
+// The run-item actions (done / send / edit) are plain htmx on the buttons in
+// _protocol_run_partial.pt: done and send post and swap the whole section, and
+// edit reveals that row's inline form via hyperscript. Only the j/k cursor and
+// the hotkeys that click those buttons live here.
 
 // --- Run-item navigation + hotkeys ---
 var _runCurrentIdx = 0;
@@ -597,143 +510,19 @@ document.addEventListener("keydown", function (e) {
 });
 
 
-// --- Protocol item editor — uses CompositeInput (tags + note only) -----------
-
-function initProtocolItemInputs() {
-  document.querySelectorAll(".proto-item-form").forEach(function (form) {
-    var container = form.querySelector(".ci-container");
-    if (!container) return;
-    CompositeInput(container, {
-      textOuter: container.querySelector(".ci-text"),
-      hiddenInput: form.querySelector(".ci-hidden-input"),
-      saveBtn: form.querySelector(".ci-save-btn"),
-      form: form,
-      tags: true,
-      note: true,
-      recurrence: false,
-      dueDate: false,
-      assignees: true,
-      principalsUrl: "/todos/principals.json",
-    });
-  });
-}
-
-function initProtocolNewItemInput() {
-  var container = document.querySelector(".proto-new-item-ci");
-  if (!container) return;
-  var form = document.getElementById("proto-new-item-form");
-  var protocolId = form ? form.dataset.protocolId : null;
-  var sessionKey = protocolId ? "proto-new-item-tags-" + protocolId : null;
-  var focusKey = protocolId ? "proto-new-item-focus-" + protocolId : null;
-
-  CompositeInput(container, {
-    textOuter: container.querySelector(".ci-text"),
-    hiddenInput: form ? form.querySelector(".ci-hidden-input") : null,
-    form: form,
-    tags: true,
-    note: true,
-    recurrence: false,
-    dueDate: false,
-    assignees: true,
-    principalsUrl: "/todos/principals.json",
-    sessionKey: sessionKey,
-    placeholder: "New item…",
-  });
-
-  var scrollKey = protocolId ? "proto-scroll-" + protocolId : null;
-
-  if (scrollKey) {
-    var savedScroll = sessionStorage.getItem(scrollKey);
-    if (savedScroll) {
-      sessionStorage.removeItem(scrollKey);
-      requestAnimationFrame(function () {
-        window.scrollTo({
-          top: parseInt(savedScroll, 10),
-          behavior: "instant",
-        });
-      });
-    }
-  }
-
-  if (focusKey && sessionStorage.getItem(focusKey)) {
-    sessionStorage.removeItem(focusKey);
-    var seg = container.querySelector(".todo-text-seg");
-    if (seg) {
-      seg.focus();
-    }
-  }
-
-  if (form) {
-    form.addEventListener("submit", function () {
-      if (focusKey) sessionStorage.setItem(focusKey, "1");
-      if (scrollKey) sessionStorage.setItem(scrollKey, String(window.scrollY));
-    });
-  }
-}
-
-function deleteProtocolItem(btn) {
-  var li = btn.closest("li");
-  if (!li) return;
-  var url = btn.dataset.deleteUrl;
-  var saved = li.outerHTML;
-  var placeholder = document.createElement("li");
-  placeholder.className = "card mb-1";
-  placeholder.innerHTML =
-    '<div class="card-body py-1 px-3 d-flex align-items-center gap-2">' +
-    '<span class="text-muted small">Item deleted.</span>' +
-    '<button type="button" class="btn btn-link btn-sm p-0">Undo</button>' +
-    "</div>";
-  placeholder._deleteTimer = setTimeout(function () {
-    fetch(url, { method: "POST" }).then(function (r) {
-      if (!r.ok) {
-        placeholder.insertAdjacentHTML("beforebegin", saved);
-        placeholder.remove();
-      } else {
-        placeholder.remove();
-      }
-    });
-  }, 5000);
-  placeholder.querySelector("button").addEventListener("click", function () {
-    clearTimeout(placeholder._deleteTimer);
-    placeholder.insertAdjacentHTML("beforebegin", saved);
-    placeholder.remove();
-    initProtocolItemInputs();
-  });
-  li.replaceWith(placeholder);
-}
-
-function initProtocolTitleInput() {
-  var container = document.getElementById("proto-title-ci");
-  if (!container) return;
-  var form = document.getElementById("proto-title-form");
-  CompositeInput(container, {
-    textOuter: container.querySelector(".ci-text"),
-    hiddenInput: form ? form.querySelector(".ci-hidden-input") : null,
-    quickPickEl: form ? form.querySelector(".ci-quick-pick") : null,
-    form: form,
-    tags: true,
-    note: true,
-    recurrence: true,
-    dueDate: false,
-    assignees: true,
-    principalsUrl: "/todos/principals.json",
-    placeholder: "Protocol title…",
-  });
-}
+// --- Bootstrapping ----------------------------------------------------------
+//
+// Protocol titles and items are edited with plain inputs and a view/edit
+// toggle written in hyperscript (protocols/edit.pt, _protocol_item.pt), so
+// there is nothing left to initialise for them here.
 
 htmx.onLoad(function (content) {
   ensureHelpOverlay();
   initSortables(content);
-  initProtocolItemInputs();
-  initProtocolTitleInput();
-  initProtocolNewItemInput();
   if (document.getElementById("protocol-run")) _runHighlight();
 });
 ensureHelpOverlay();
 initSortables(document);
-initProtocolItemInputs();
-initProtocolTitleInput();
-initProtocolNewItemInput();
 if (document.getElementById("protocol-run")) _runHighlight();
 
 function isCaretAtStart(element) {

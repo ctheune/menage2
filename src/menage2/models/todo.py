@@ -82,6 +82,14 @@ class RecurrenceRule(Base):
     weekday = Column(Integer, nullable=True)  # 0=Mon..6=Sun for "every <weekday>"
     month_day = Column(Integer, nullable=True)  # 1..31 for "every Nth"
 
+    @property
+    def label(self) -> str:
+        """Human-readable rule ("every Wednesday") — the `*` marker's payload."""
+        # Deferred: menage2.recurrence imports this module.
+        from menage2.recurrence import rule_to_spec
+
+        return rule_to_spec(self).label()
+
 
 class TodoLink(Base):
     """Structured storage for todo links, replacing the old '[label](url)' string format."""
@@ -172,6 +180,20 @@ class Todo(Base):
         Index("ix_todos_owner_id", "owner_id"),
         Index("ix_todos_assignees", "assignees", postgresql_using="gin"),
     )
+
+    def marker_text(self) -> str:
+        """This todo as the marker string its edit affordances show and parse back."""
+        from menage2.markers import format_markers
+
+        return format_markers(
+            self.text,
+            tags=self.tags,
+            assignees=self.assignees,
+            links=self.links_rel,
+            due_date=self.due_date,
+            recurrence=self.recurrence.label if self.recurrence else None,
+            note=self.note,
+        )
 
 
 class TodoAttachment(Base):

@@ -161,6 +161,28 @@ def _render_protocol_item(request, protocol, item, is_editor=True):
     )
 
 
+def _render_protocol_items(request, protocol, is_editor=True):
+    """Render the whole item list — the swap target when an item is added."""
+    return render(
+        "menage2:templates/protocols/_items.pt",
+        {
+            "protocol": protocol,
+            "items": sorted(protocol.items, key=lambda i: i.position),
+            "is_editor": is_editor,
+            "render_item": lambda item: _render_protocol_item(
+                request, protocol, item, is_editor
+            ),
+        },
+        request=request,
+    )
+
+
+def _html(request, body: str):
+    request.response.content_type = "text/html"
+    request.response.text = body
+    return request.response
+
+
 @view_config(
     route_name="edit_protocol",
     request_method="GET",
@@ -173,7 +195,7 @@ def edit_protocol(request):
         "protocol": p,
         "rule_label": _rule_label(p),
         "is_editor": is_editor,
-        "render_item": lambda item: _render_protocol_item(request, p, item, is_editor),
+        "items_html": _render_protocol_items(request, p, is_editor),
         "filter_mode": request.params.get("filter", "personal"),
     }
 
@@ -241,14 +263,17 @@ def _apply_protocol_recurrence(protocol, spec, dbsession):
 
 @view_config(route_name="add_protocol_item", request_method="POST")
 def add_protocol_item(request):
+    """Append an item and answer with the re-rendered list.
+
+    Swapping only the list leaves the new-item input in place, so it keeps its
+    focus and the next item can be typed straight away.
+    """
     p = _get_or_404(request, Protocol)
     _require_editor(request, p)
     raw = request.params.get("text", "").strip()
-    if not raw:
-        return HTTPSeeOther(request.route_url("edit_protocol", id=p.id))
-    parsed = parse_todo_input(raw)
-    if not parsed.text:
-        return HTTPSeeOther(request.route_url("edit_protocol", id=p.id))
+    parsed = parse_todo_input(raw) if raw else None
+    if parsed is None or not parsed.text:
+        return _html(request, _render_protocol_items(request, p))
     next_pos = (
         request.dbsession.execute(
             select(ProtocolItem.position)
@@ -267,7 +292,8 @@ def add_protocol_item(request):
         note=parsed.note,
     )
     request.dbsession.add(item)
-    return HTTPSeeOther(request.route_url("edit_protocol", id=p.id))
+    request.dbsession.flush()
+    return _html(request, _render_protocol_items(request, p))
 
 
 @view_config(route_name="update_protocol_item", request_method="POST")
@@ -301,19 +327,16 @@ def update_protocol_item_partial(request):
             item.assignees = parsed.assignees
             item.note = parsed.note
     request.dbsession.flush()
-    body = _render_protocol_item(request, p, item)
-    request.response.content_type = "text/html"
-    request.response.text = body
-    return request.response
+    return _html(request, _render_protocol_item(request, p, item))
 
 
 @view_config(route_name="delete_protocol_item", request_method="POST")
 def delete_protocol_item(request):
+    """Delete an item; the empty body lets htmx swap the row out of the list."""
     item = _get_or_404(request, ProtocolItem, "item_id")
     _require_editor(request, item.protocol)
-    protocol_id = item.protocol_id
     request.dbsession.delete(item)
-    return HTTPSeeOther(request.route_url("edit_protocol", id=protocol_id))
+    return _html(request, "")
 
 
 # ---------------------------------------------------------------------------

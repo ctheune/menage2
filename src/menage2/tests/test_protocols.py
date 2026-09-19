@@ -152,10 +152,14 @@ def test_edit_protocol_composite_clears_assignees(
 def test_edit_protocol_composite_shows_in_form(
     authenticated_testapp, dbsession, admin_user
 ):
+    """The title's edit mode is prefilled with the canonical marker string."""
     p = _make_protocol(dbsession, admin_user)
+    p.tags = {"weekly"}
+    p.note = "bring the ladder"
+    dbsession.flush()
     res = authenticated_testapp.get(f"/protocols/{p.id}/edit", status=200)
-    assert b"ci-container" in res.body
-    assert b"ci-hidden-input" in res.body
+    assert b'name="composite"' in res.body
+    assert b"#weekly ~bring the ladder" in res.body
 
 
 def test_edit_protocol_updates_title_and_recurrence(
@@ -211,11 +215,12 @@ def test_archive_and_unarchive(authenticated_testapp, dbsession, admin_user):
 
 def test_add_protocol_item_extracts_tags(authenticated_testapp, dbsession, admin_user):
     p = _make_protocol(dbsession, admin_user)
-    authenticated_testapp.post(
+    res = authenticated_testapp.post(
         f"/protocols/{p.id}/items",
         {"text": "Check fridge #shopping:groceries"},
-        status=303,
+        status=200,
     )
+    assert b'id="proto-items"' in res.body
     dbsession.flush()
     dbsession.refresh(p)
     assert len(p.items) == 1
@@ -243,7 +248,7 @@ def test_add_protocol_item_extracts_note(authenticated_testapp, dbsession, admin
     authenticated_testapp.post(
         f"/protocols/{p.id}/items",
         {"text": "Check fridge ~look in the back"},
-        status=303,
+        status=200,
     )
     dbsession.flush()
     dbsession.refresh(p)
@@ -275,10 +280,12 @@ def test_delete_protocol_item(authenticated_testapp, dbsession, admin_user):
     p = _make_protocol(dbsession, admin_user, items=["one", "two"])
     item = p.items[0]
     item_id = item.id
-    authenticated_testapp.post(
+    res = authenticated_testapp.post(
         f"/protocols/{p.id}/items/{item_id}/delete",
-        status=303,
+        status=200,
     )
+    # Empty body: htmx swaps the row away with hx-swap="outerHTML".
+    assert res.body == b""
     assert dbsession.query(ProtocolItem).filter(ProtocolItem.id == item_id).count() == 0
 
 
@@ -356,7 +363,7 @@ def test_show_run_reuses_snapshot_after_template_edit(
     authenticated_testapp.post(
         f"/protocols/{p.id}/items",
         {"text": "leak-attempt"},
-        status=303,
+        status=200,
     )
     res = authenticated_testapp.get(
         f"/todos/details-panel?todo_ids[]={todo.id}", status=200

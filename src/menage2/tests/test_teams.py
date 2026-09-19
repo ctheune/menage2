@@ -530,7 +530,7 @@ def test_protocol_supervisor_can_edit(
     user_testapp.post(f"/protocols/{p.id}/archive", status=303)
     p.archived_at = None
     dbsession.flush()
-    user_testapp.post(f"/protocols/{p.id}/items", {"text": "New step"}, status=303)
+    user_testapp.post(f"/protocols/{p.id}/items", {"text": "New step"}, status=200)
     user_testapp.post(
         f"/protocols/{p.id}/items/{item.id}", {"text": "Changed"}, status=303
     )

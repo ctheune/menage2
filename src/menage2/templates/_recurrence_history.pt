@@ -1,8 +1,13 @@
-<div class="todo-history-panel">
+<div class="todo-history-panel"
+     data-todo-id="${current_id}"
+     _="on keydown[key is 'Escape'] from body
+          remove me
+          halt">
   <div class="todo-history-header">
     <strong>Repetition history</strong>
     <span tal:condition="rule_label" class="text-muted ms-2 small">${rule_label}</span>
-    <button type="button" class="todo-history-close" title="Close">×</button>
+    <button type="button" class="todo-history-close" title="Close"
+            _="on click remove the closest .todo-history-panel">×</button>
   </div>
   <ol class="todo-history-list" tal:condition="chain">
     <li tal:repeat="entry chain"
