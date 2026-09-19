@@ -40,7 +40,14 @@
         <!-- hx-swap is spelled out because the form's "none" is inherited. -->
         <div id="todo-list" data-status="${status}" hx-trigger="load, todo-updated from:body, focus from:window"
           hx-swap="innerHTML"
-          hx-get="${request.route_url('list_todo_groups', _query=dict(filter=filter_mode, status=status))}"></div>
+          hx-get="${request.route_url('list_todo_groups', _query=dict(filter=filter_mode, status=status))}"
+          _="on visibilitychange from document
+               -- Returning to the app is the phone's version of the desktop's
+               -- window focus, which mobile browsers do not reliably fire.
+               -- Reusing the ordinary refresh event updates the nav counts too.
+               if document.visibilityState is 'visible'
+                 trigger 'todo-updated' on body
+               end"></div>
       </div>
     </form>
 

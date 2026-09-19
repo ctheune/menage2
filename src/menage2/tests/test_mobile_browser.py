@@ -195,6 +195,49 @@ def test_swipe_acts_on_the_swiped_row_only(page, context, live_server):
 
 
 # ---------------------------------------------------------------------------
+# Coming back to the app
+# ---------------------------------------------------------------------------
+
+
+def _become(page, state: str) -> None:
+    """Fake a visibility transition.
+
+    Headless Chromium keeps every page visible — `bring_to_front` does not
+    change `document.visibilityState` — so the state is overridden and the
+    event the handler listens for is dispatched directly.
+    """
+    page.evaluate(
+        """(state) => {
+            Object.defineProperty(document, 'visibilityState', {
+                configurable: true, get: () => state,
+            });
+            document.dispatchEvent(new Event('visibilitychange'));
+        }""",
+        state,
+    )
+
+
+def test_list_refreshes_when_the_app_becomes_visible(page, context, live_server):
+    _open_list(page)
+    # Something lands while the phone is showing something else.
+    _add_todo(context, live_server, "Added while away")
+    assert page.locator(_item("Added while away")).count() == 0
+
+    _become(page, "visible")
+    page.wait_for_selector(_item("Added while away"), timeout=10000)
+
+
+def test_list_does_not_refresh_on_the_way_out(page, context, live_server):
+    """visibilitychange fires when hiding too; only becoming visible reloads."""
+    _open_list(page)
+    _add_todo(context, live_server, "Added while away")
+
+    _become(page, "hidden")
+    page.wait_for_timeout(1000)
+    assert page.locator(_item("Added while away")).count() == 0
+
+
+# ---------------------------------------------------------------------------
 # The undo bubble
 # ---------------------------------------------------------------------------
 
