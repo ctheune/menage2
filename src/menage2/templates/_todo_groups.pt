@@ -1,6 +1,7 @@
 <tal:block tal:repeat="group groups">
   <div
     tal:condition="group['items']"
+    id="group-tag-${group['full_tag']}"
     class="tag-group-header"
     data-tag="${group['full_tag']}"
     data-parent-tag="${group['parent_tag']}"
@@ -15,6 +16,7 @@
 
   <ul
     tal:condition="group['items']"
+    id="tag-list-${group['full_tag']}"
     data-parent-tag="${group['full_tag']}"
     class="todo-group-list mb-0 list-unstyled"
   >
@@ -97,11 +99,14 @@
           >
             <tal:block tal:repeat="att todo.attachments">
               <img
-                class="todo-attachment-thumb"
+                class="todo-attachment-thumb ${'d-none' if repeat['att'].index > 2 else ''}"
                 loading="lazy"
-                tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
-                                   data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);
-                                   alt att.original_filename"
+                tal:attributes="
+                  src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
+                  data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);
+                  alt att.original_filename;
+                  "
+
               />
             </tal:block>
           </span>

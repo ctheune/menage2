@@ -481,45 +481,42 @@
 
           <div class="form-control container">
             <div class="row">
-              <script type="text/hyperscript-template" live>
+            <script type="text/hyperscript-template" live>
+              <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; column-gap: 1em;
+  row-gap: 1em;">
               #for attachment in $attachments
-                <div class="col-lg-4 col-md-12 mb-4">
-                  <img src="$${attachment.url}" alt="$${attachment.filename}" class="w-100 shadow-1-strong rounded mb-4"/>
-                </div>
+                <img src="$${attachment.url}" alt="$${attachment.filename}" style="width: 100%; height: auto; aspect-ratio: 1 / 1; height: auto; min-width: 0; min-height: 0; object-fit: cover; display: block;" />
               #end
-              </script>
-              <div class="col-lg-4 col-md-12 mb-4" _="on drop(dataTransfer)
-                   log 'drop'
+              <div class="bg-secondary-subtle d-flex align-items-center justify-content-center"  style="width: 100%; height: auto; aspect-ratio: 1 / 1; height: auto; min-width: 0; min-height: 0; object-fit: cover;"
+                _="on drop(dataTransfer)
                    halt the event
                    remove .bg-info
                    if dataTransfer.files.length > 0 then
                      add .bg-info-subtle
                      make a FormData called fd
                      repeat for file in dataTransfer.files indexed by i
-                       log file
-                       log 'file' + i
                        call fd.append('file' + i, file)
                      end
-                     log fd
                      fetch ${request.route_url('todo_attachment_upload', id=todo.id)} with method:'POST', body: fd
                      remove .bg-info-subtle
+                     add .bg-secondary-subtle
                    end
 
                  on dragover(dataTransfer)
-                   log 'over'
                    set dataTransfer's dropEffect to 'copy'
                    halt
 
                  on dragenter
+                   remove .bg-secondary-subtle
                    add .bg-info
-                   log 'enter'
 
                  on dragleave
                    remove .bg-info
-                   log 'leave'
+                   add .bg-secondary-subtle
               ">
-                <i class="bi bi-images"></i>
+                  <i class="bi bi-upload" style="pointer-events: none;"></i>
               </div>
+              </script>
             </div>
           </div>
         </div>
@@ -570,6 +567,7 @@
       </div>
     </tal:block>
 
+    <!-- XXX
     <ul _="live
         empty me
         repeat for e in #todo-edit-form's elements
@@ -577,5 +575,6 @@
         end
        end">
     </ul>
+    -->
   </div>
 </div>

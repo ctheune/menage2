@@ -3,11 +3,7 @@
   <div metal:fill-slot="title">TODO</div>
 
   <span metal:fill-slot="actions">
-    <form
-      method="post"
-      action="${request.route_url('todos_activate_all_on_hold')}"
-      class="d-inline m-0"
-    >
+    <form method="post" action="${request.route_url('todos_activate_all_on_hold')}" class="d-inline m-0">
       <button type="submit" class="btn btn-sm btn-dark text-nowrap">
         <i class="bi bi-arrow-clockwise"></i> Activate all
       </button>
@@ -21,12 +17,8 @@
     <div class="row">
       <!-- Todo list -->
       <div class="col-md-6">
-        <form
-          xmlns:hx-on="http://htmx.org/hx-on"
-          hx-post="${request.route_url('todo_batch_action')}"
-          hx-ext="form-json"
-          hx-target="#todo-list"
-          _="on keydown[key is ']'] from body
+        <form xmlns:hx-on="http://htmx.org/hx-on" hx-post="${request.route_url('todo_batch_action')}" hx-ext="form-json"
+          hx-swap="none" _="on keydown[key is ']'] from body
                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                 call setAllGroups(true)
               on keydown[key is '['] from body
@@ -36,174 +28,106 @@
                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                 if no #undo-toast exit end
                 trigger undoRequested on body
-              "
-        >
+              ">
           <div class="card">
             <!-- Status tabs -->
             <div class="card-header d-flex align-items-end">
               <ul class="nav nav-tabs card-header-tabs flex-grow-1 me-2">
                 <li class="nav-item">
-                  <a
-                    href="${request.route_url('list_todos')}?filter=${filter_mode}&status=active"
-                    class="nav-link ${'active' if status == 'active' else ''}"
-                    >Active</a
-                  >
+                  <a href="${request.route_url('list_todos')}?filter=${filter_mode}&status=active"
+                    class="nav-link ${'active' if status == 'active' else ''}">Active</a>
                 </li>
                 <li class="nav-item">
-                  <a
-                    href="${request.route_url('list_todos')}?filter=${filter_mode}&status=on_hold"
-                    class="nav-link ${'active' if status == 'on_hold' else ''}"
-                    >On Hold</a
-                  >
+                  <a href="${request.route_url('list_todos')}?filter=${filter_mode}&status=on_hold"
+                    class="nav-link ${'active' if status == 'on_hold' else ''}">On Hold</a>
                 </li>
                 <li class="nav-item">
-                  <a
-                    href="${request.route_url('list_todos')}?filter=${filter_mode}&status=scheduled"
-                    class="nav-link ${'active' if status == 'scheduled' else ''}"
-                    >Scheduled</a
-                  >
+                  <a href="${request.route_url('list_todos')}?filter=${filter_mode}&status=scheduled"
+                    class="nav-link ${'active' if status == 'scheduled' else ''}">Scheduled</a>
                 </li>
                 <li class="nav-item">
-                  <a
-                    href="${request.route_url('list_todos')}?filter=${filter_mode}&status=done"
-                    class="nav-link ${'active' if status == 'done' else ''}"
-                    >Done</a
-                  >
+                  <a href="${request.route_url('list_todos')}?filter=${filter_mode}&status=done"
+                    class="nav-link ${'active' if status == 'done' else ''}">Done</a>
                 </li>
               </ul>
               <!--- batch menu -->
               <div class="dropdown flex-shrink-0">
-                <button
-                  class="btn dropdown-toggle btn-sm"
-                  type="button"
-                  data-bs-toggle="dropdown"
-                  aria-expanded="false"
-                >
+                <button class="btn dropdown-toggle btn-sm" type="button" data-bs-toggle="dropdown"
+                  aria-expanded="false">
                   <i class="bi bi-three-dots"></i>
                 </button>
 
                 <ul class="dropdown-menu">
                   <li>
-                    <button
-                      class="hold-trigger dropdown-item"
-                      name="action"
-                      value="hold"
-                      tal:condition="python:status == 'active'"
-                      type="submit"
-                      aria-hidden="true"
-                      tabindex="-1"
-                      _="on keydown[key is 'h'] from body
+                    <button class="hold-trigger dropdown-item" name="action" value="hold"
+                      tal:condition="python:status == 'active'" type="submit" aria-hidden="true" tabindex="-1" _="on keydown[key is 'h'] from body
                     if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                     if no <input.todo-checkbox:checked/> in closest <form/> exit end
-                    me.click()"
-                    >
+                    me.click()">
                       Hold
                     </button>
                   </li>
 
                   <li condition="python:status != 'done'">
-                    <input
-                      type="hidden"
-                      name="interval"
-                      id="interval"
-                      value="1d"
-                    />
+                    <input type="hidden" name="interval" id="interval" value="1d" />
 
-                    <button
-                      class="postpone-trigger dropdown-item"
-                      type="button"
-                      hx-get="${request.route_url('todo_picker_postpone')}"
-                      hx-trigger="click"
-                      hx-target="next .popover"
-                      aria-hidden="true"
-                      tabindex="-1"
-                      _="on keydown[key is 'p'] from body
+                    <button class="postpone-trigger dropdown-item" type="button"
+                      hx-get="${request.route_url('todo_picker_postpone')}" hx-trigger="click" hx-target="next .popover"
+                      aria-hidden="true" tabindex="-1" _="on keydown[key is 'p'] from body
                       if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                       if no <input.todo-checkbox:checked/> in closest <form/> exit end
-                      me.click()"
-                    >
+                      me.click()">
                       Postpone
                     </button>
 
                     <div class="popover bg-light p-2 w-50 d-none"></div>
                   </li>
                   <li>
-                    <button
-                      name="action"
-                      value="postpone"
-                      type="submit"
-                      class="dropdown-item"
-                      aria-hidden="true"
-                      tabindex="-1"
-                      _="on keydown[key is 'P'] from body
+                    <button name="action" value="postpone" type="submit" class="dropdown-item" aria-hidden="true"
+                      tabindex="-1" _="on keydown[key is 'P'] from body
                       if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                       if no <input.todo-checkbox:checked/> in closest <form/> exit end
-                      me.click()"
-                    >
+                      me.click()">
                       Postpone 1 day
                     </button>
                   </li>
 
                   <li>
-                    <button
-                      tal:condition="python:status in ['done', 'on_hold']"
-                      name="action"
-                      value="activate"
-                      class="dropdown-item"
-                      aria-hidden="true"
-                      tabindex="-1"
-                      type="submit"
-                      _="on keydown[key is 'a'] from body
+                    <button tal:condition="python:status in ['done', 'on_hold']" name="action" value="activate"
+                      class="dropdown-item" aria-hidden="true" tabindex="-1" type="submit" _="on keydown[key is 'a'] from body
                     if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                     if no <input.todo-checkbox:checked/> in closest <form/> exit end
-                    me.click()"
-                    >
+                    me.click()">
                       Activate
                     </button>
                   </li>
                   <li>
-                    <button
-                      tal:condition="python:status != 'done'"
-                      class="done-trigger dropdown-item"
-                      name="action"
-                      value="done"
-                      type="submit"
-                      aria-hidden="true"
-                      tabindex="-1"
-                      _="on keydown[key is 'c'] from body
-                    if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
-                    if no <input.todo-checkbox:checked/> in closest <form/> exit end
-                    me.click()"
-                    >
+                    <button tal:condition="python:status != 'done'" class="done-trigger dropdown-item" name="action"
+                      value="done" type="submit" aria-hidden="true" tabindex="-1" _="
+                      on keydown[key is 'c'] from body
+                        if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target
+                          exit
+                        end
+                        if no <input.todo-checkbox:checked/> in closest <form/>
+                          exit
+                        end
+                        me.click()">
                       Done
                     </button>
                   </li>
                   <li>
-                    <button
-                      class="undo-trigger d-none dropdown-item"
-                      type="button"
-                      hx-post="${request.route_url('todo_undo')}"
-                      hx-trigger="undoRequested from:body"
-                      hx-vals='js:{
+                    <button class="undo-trigger d-none dropdown-item" type="button"
+                      hx-post="${request.route_url('todo_undo')}" hx-trigger="undoRequested from:body" hx-vals='js:{
                   todo_ids: (document.getElementById("undo-toast") || {dataset:{}}).dataset.todoIds || "",
                   prev_status: (document.getElementById("undo-toast") || {dataset:{}}).dataset.prevStatus || ""
-                }'
-                      hx-swap="none"
-                      name="action"
-                      value="done"
-                      aria-hidden="true"
-                      tabindex="-1"
-                    ></button>
+                }' hx-swap="none" name="action" value="done" aria-hidden="true" tabindex="-1"></button>
                   </li>
                 </ul>
               </div>
             </div>
-            <div
-              id="todo-list"
-              data-status="${status}"
-              hx-trigger="load, todo-updated from:body, focus from:window"
-              hx-get="${request.route_url('list_todo_groups', _query=dict(filter=filter_mode, status=status))}"
-              _="on htmx:afterSwap trigger change on closest <form/>
+            <div id="todo-list" data-status="${status}" hx-trigger="load, todo-updated from:body, focus from:window"
+              hx-swap="innerHTML"
+              hx-get="${request.route_url('list_todo_groups', _query=dict(filter=filter_mode, status=status))}" __="on htmx:afterSwap trigger change on closest <form/>
                  on keydown[key is ']'] from body
                    if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                    call setAllGroups(true)
@@ -213,8 +137,7 @@
                  on keydown[key is 'u'] from body
                    if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                    if no #undo-toast exit end
-                   trigger undoRequested on body"
-            ></div>
+                   trigger undoRequested on body"></div>
           </div>
         </form>
       </div>
@@ -227,12 +150,7 @@
   </div>
 </div>
 <div class="d-none">
-  <span
-    hx-get="${request.route_url('todo_details_panel')}"
-    hx-trigger="open-details from:#todo-list"
-    hx-target="#details-pane"
-    hx-include="#todo-list"
-    hx-swap="outerHTML"
-  />
+  <span hx-get="${request.route_url('todo_details_panel')}" hx-trigger="open-details from:#todo-list"
+    hx-target="#details-pane" hx-include="#todo-list" hx-swap="outerHTML" />
   <span _="on 'todo-closed' from body add .d-none to #details-pane" />
 </div>
