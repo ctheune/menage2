@@ -11,6 +11,9 @@
 
 * Use pydantic if handling JSON on the server side.
 
+* Instead of passing around dicts (or lists of dicts) use TypedDicts if pydantic
+  doesn't make sense.
+
 # Interactivity / Client-side scripting
 
 * Never ever create new javascript.
