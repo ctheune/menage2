@@ -11,7 +11,7 @@ from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.renderers import render, render_to_response
 from pyramid.request import Request
 from pyramid.view import view_config
-from sqlalchemy import asc, nulls_last, or_, select, text
+from sqlalchemy import asc, desc, nulls_last, or_, select, text
 from sqlalchemy.orm import joinedload
 
 from menage2.dateparse import (
@@ -266,7 +266,6 @@ def _flatten(node: dict, result: list, depth: int) -> None:
     for name, data in sorted(node.items()):
         full_tag = data["full_tag"]
         parent_tag = full_tag.rsplit(":", 1)[0] if ":" in full_tag else ""
-        data["items"].sort(key=lambda x: x.id)
         result.append(
             {
                 "name": name,
@@ -425,6 +424,27 @@ def _render_todo_form(request, next_url: str) -> str:
     )
 
 
+def _todo_order(date_column, newest_first: bool = False):
+    """The one place item order is decided.
+
+    `date_column` picks which date drives the list: the due date while an item
+    is still open, the completion time once it is done. `newest_first` flips
+    that date for lists that read backwards in time. Dateless items sort last
+    either way, and ties fall to id so the sequence is stable across reloads.
+
+    Grouping downstream only buckets items and orders the *groups*; nothing
+    re-sorts the items themselves, because a second sort elsewhere would
+    silently undo this one.
+    """
+    by_date = desc(date_column) if newest_first else asc(date_column)
+    return (nulls_last(by_date), asc(Todo.id))
+
+
+def _render_undo_form(request) -> str:
+    """The undo control both the desktop and the mobile list hang off."""
+    return render("menage2:templates/_undo_form.pt", {}, request=request)
+
+
 def _filter_todos(
     dbsession,
     today: datetime.date,
@@ -435,24 +455,23 @@ def _filter_todos(
     """Items shown in the main list: status=todo and due today/earlier (or undated)."""
 
     query = dbsession.query(Todo).options(joinedload(Todo.protocol_run))
+    order = _todo_order(Todo.due_date)
 
     if status == "active":
         query = query.where(
             Todo.status == TodoStatus.todo,
             or_(Todo.due_date.is_(None), Todo.due_date <= today),
         )
-        query = query.order_by(nulls_last(asc(Todo.due_date)), asc(Todo.created_at))
     elif status == "on_hold":
         query = query.where(Todo.status == TodoStatus.on_hold)
-        query = query.order_by(nulls_last(asc(Todo.due_date)), asc(Todo.created_at))
     elif status == "scheduled":
         query = query.where(Todo.status == TodoStatus.todo, Todo.due_date > today)
-        query = query.order_by(asc(Todo.due_date), asc(Todo.created_at))
     elif status == "done":
         query = query.where(Todo.status == TodoStatus.done)
-        query = query.order_by(Todo.done_at.desc())
+        # Finished work reads backwards in time, matching the day groups.
+        order = _todo_order(Todo.done_at, newest_first=True)
 
-    todos = query.all()
+    todos = query.order_by(*order).all()
     memberships = get_user_team_memberships(dbsession, user)
     return [t for t in todos if todo_matches_filter(t, user, memberships, filter_mode)]
 

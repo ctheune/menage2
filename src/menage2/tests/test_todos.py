@@ -1334,3 +1334,99 @@ def test_format_date_group_past_beyond_week():
     date = today - datetime.timedelta(days=10)
     formatted = _format_date_group(date, today)
     assert formatted == "Monday, 27.04.2026 (1 week ago)"
+
+
+# ---------------------------------------------------------------------------
+# Ordering — decided once, never re-sorted downstream
+# ---------------------------------------------------------------------------
+
+
+def test_list_todos_ties_on_due_date_are_broken_by_id(
+    app_request, dbsession, admin_user
+):
+    today = _today()
+    first = _todo("first", tags={"x"}, due_date=today)
+    second = _todo("second", tags={"x"}, due_date=today)
+    dbsession.add_all([first, second])
+    dbsession.flush()
+    from menage2.views.todo import list_todo_groups
+
+    items = list_todo_groups(app_request)["groups"][0]["items"]
+    assert [t.id for t in items] == sorted(t.id for t in items)
+
+
+def test_done_list_orders_by_completion_time_newest_first(
+    app_request, dbsession, admin_user
+):
+    """The done list sorts on a different date than the open lists do."""
+    now = _now()
+    # Ids ascend while completion times descend, so ordering on the wrong
+    # column — or on id alone — reverses the expected result.
+    first_done = _todo(
+        "first_done",
+        status=TodoStatus.done,
+        done_at=now - datetime.timedelta(hours=3),
+        owner_id=admin_user.id,
+    )
+    later_done = _todo(
+        "later_done",
+        status=TodoStatus.done,
+        done_at=now - datetime.timedelta(hours=1),
+        owner_id=admin_user.id,
+    )
+    dbsession.add_all([first_done, later_done])
+    dbsession.flush()
+    app_request.GET["status"] = "done"
+    from menage2.views.todo import list_todo_groups
+
+    groups = list_todo_groups(app_request)["groups"]
+    items = [t.text for g in groups for t in g["items"]]
+    assert items == ["later_done", "first_done"]
+
+
+def test_done_list_ties_on_completion_time_are_broken_by_id(
+    app_request, dbsession, admin_user
+):
+    now = _now()
+    a = _todo("a", status=TodoStatus.done, done_at=now, owner_id=admin_user.id)
+    b = _todo("b", status=TodoStatus.done, done_at=now, owner_id=admin_user.id)
+    dbsession.add_all([a, b])
+    dbsession.flush()
+    app_request.GET["status"] = "done"
+    from menage2.views.todo import list_todo_groups
+
+    groups = list_todo_groups(app_request)["groups"]
+    items = [t.id for g in groups for t in g["items"]]
+    assert items == sorted(items)
+
+
+def test_open_lists_still_order_by_due_date(app_request, dbsession, admin_user):
+    """Only the done list swaps the date column; the rest are unaffected."""
+    today = _today()
+    soon = _todo("soon", tags={"x"}, due_date=today - datetime.timedelta(days=1))
+    later = _todo("later", tags={"x"}, due_date=today)
+    dbsession.add_all([later, soon])
+    dbsession.flush()
+    from menage2.views.todo import list_todo_groups
+
+    items = list_todo_groups(app_request)["groups"][0]["items"]
+    assert [t.text for t in items] == ["soon", "later"]
+
+
+def test_tag_grouping_does_not_resort_items(app_request, dbsession, admin_user):
+    """Grouping buckets items; it must not impose an order of its own.
+
+    The ids here run opposite to the due dates, so an id sort anywhere
+    downstream would show up immediately.
+    """
+    today = _today()
+    soonest = _todo("soonest", tags={"x"}, due_date=today - datetime.timedelta(days=5))
+    middle = _todo("middle", tags={"x"}, due_date=today - datetime.timedelta(days=2))
+    latest = _todo("latest", tags={"x"}, due_date=today)
+    # Insert latest-due first so it gets the lowest id.
+    dbsession.add_all([latest, middle, soonest])
+    dbsession.flush()
+    from menage2.views.todo import list_todo_groups
+
+    items = list_todo_groups(app_request)["groups"][0]["items"]
+    assert [t.text for t in items] == ["soonest", "middle", "latest"]
