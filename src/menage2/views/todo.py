@@ -386,6 +386,10 @@ def build_date_groups(
             {
                 "name": name,
                 "full_tag": name,
+                # Date groups have no hierarchy, but the key has to be here:
+                # every group dict carries the same shape so a template can
+                # read it without knowing which grouping produced it.
+                "breadcrumbs": name,
                 "parent_tag": "",
                 "depth": 0,
                 "items": items,

@@ -1336,6 +1336,31 @@ def test_format_date_group_past_beyond_week():
     assert formatted == "Monday, 27.04.2026 (1 week ago)"
 
 
+def test_date_groups_carry_breadcrumbs_like_tag_groups(
+    app_request, dbsession, admin_user
+):
+    """Both groupings produce the same dict shape.
+
+    The mobile template reads `breadcrumbs` unconditionally, so a date group
+    without it took the done and scheduled views down with a KeyError.
+    """
+    todo = _todo(
+        "Finished",
+        status=TodoStatus.done,
+        done_at=_now(),
+        owner_id=admin_user.id,
+    )
+    dbsession.add(todo)
+    dbsession.flush()
+    app_request.GET["status"] = "done"
+    from menage2.views.todo import list_todo_groups
+
+    groups = list_todo_groups(app_request)["groups"]
+    assert groups
+    for group in groups:
+        assert group["breadcrumbs"] == group["name"]
+
+
 # ---------------------------------------------------------------------------
 # Ordering — decided once, never re-sorted downstream
 # ---------------------------------------------------------------------------
