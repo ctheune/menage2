@@ -9,8 +9,7 @@
 -->
 
 <tal:block tal:repeat="group groups">
-  <div class="tag-group-header" data-open="true"
-    _="on click
+  <div class="tag-group-header" data-open="true" _="on click
          if @data-open is 'true'
            set @data-open to 'false'
            add .d-none to the next <ul/>
@@ -23,10 +22,12 @@
   </div>
 
   <ul class="todo-group-list mb-0 list-unstyled">
-    <li tal:repeat="todo group['items']" id="todo-${todo.id}" class="todo-item" _="
+    <li tal:repeat="todo group['items']" id="todo-${todo.id}" class="todo-item" data-todo-id="${todo.id}"
+      data-todo-text="${todo.text}" _="
          init
             set :swipe to 0
             set :origin to 0
+            set :swipeAction to null
          live
             set *transform to 'translateX(' + :swipe + 'px)'
          on touchstart(changedTouches)
@@ -36,22 +37,38 @@
             transition :swipe to 0 over 200ms
             remove {background-color}
          on touchend
-            transition :swipe to 0 over 200ms
-            remove {background-color}
+            if :swipeAction is null then
+              transition :swipe to 0 over 200ms
+              remove {background-color}
+              exit
+            else
+              -- Hand the row to the batch form and let its hidden button submit,
+              -- so a swipe goes through exactly the same endpoint, undo toast
+              -- included, as the desktop batch menu.
+              set #swipe-todo-id's value to my @data-todo-id
+              if :swipeAction is 'done' then call #swipe-done.click() end
+              if :swipeAction is 'hold' then call #swipe-hold.click() end
+              if :swipeAction is 'postpone' then call #swipe-postpone.click() end
+            end
+            set :swipeAction to null
          on touchmove(changedTouches)
             set :swipe to ((first of changedTouches)'s pageX - :origin)
             measure my width
-            set :threshold to it's width / 3
+            set :threshold to it's width / 4
             if :swipe > :threshold then
               set *background-color to 'var(--bs-success-bg-subtle)'
+              set :swipeAction to 'done'
             else
               if :swipe < -2*:threshold then
                 set *background-color to 'var(--bs-info-bg-subtle)'
+                set :swipeAction to 'postpone'
               else
                 if :swipe < -:threshold then
                   set *background-color to 'var(--bs-secondary-bg-subtle)'
+                  set :swipeAction to 'hold'
                 else
                   set *background-color to 'var(--bs-warning-bg-subtle)'
+                  set :swipeAction to null
                 end
               end
             end

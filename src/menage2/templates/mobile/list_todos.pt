@@ -3,7 +3,7 @@
 
   <div metal:fill-slot="content">
     <form xmlns:hx-on="http://htmx.org/hx-on" hx-post="${request.route_url('todo_batch_action')}" hx-ext="form-json"
-      hx-target="#todo-list" _="on keydown[key is ']'] from body
+      hx-swap="none" _="on keydown[key is ']'] from body
                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                 remove .d-none from <ul.todo-group-list/> in #todo-list
                 repeat for header in <.tag-group-header/> in #todo-list
@@ -22,11 +22,29 @@
               ">
       <!-- Interval for the postpone batch action; the postpone picker binds to it. -->
       <input type="hidden" name="interval" id="interval" value="1d" />
+
+      <!-- The row a swipe is acting on. There is no selection UI on mobile:
+           the gesture picks exactly one row and fills this in. -->
+      <input type="hidden" name="todo_ids[]" id="swipe-todo-id" value="" />
+
+      <!-- Swipes submit through these. Hidden because the gesture is the only
+           way to reach them; they carry the action the same way the desktop
+           batch menu does. -->
+      <button type="submit" name="action" value="done" id="swipe-done"
+              class="d-none" tabindex="-1" aria-hidden="true"></button>
+      <button type="submit" name="action" value="hold" id="swipe-hold"
+              class="d-none" tabindex="-1" aria-hidden="true"></button>
+      <button type="submit" name="action" value="postpone" id="swipe-postpone"
+              class="d-none" tabindex="-1" aria-hidden="true"></button>
       <div class="card">
+        <!-- hx-swap is spelled out because the form's "none" is inherited. -->
         <div id="todo-list" data-status="${status}" hx-trigger="load, todo-updated from:body, focus from:window"
+          hx-swap="innerHTML"
           hx-get="${request.route_url('list_todo_groups', _query=dict(filter=filter_mode, status=status))}"></div>
       </div>
     </form>
+
+    <tal:block tal:replace="structure undo_form_html" />
   </div>
 
 
