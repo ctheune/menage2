@@ -266,6 +266,7 @@ def _flatten(node: dict, result: list, depth: int) -> None:
     for name, data in sorted(node.items()):
         full_tag = data["full_tag"]
         parent_tag = full_tag.rsplit(":", 1)[0] if ":" in full_tag else ""
+        data["items"].sort(key=lambda x: x.id)
         result.append(
             {
                 "name": name,
