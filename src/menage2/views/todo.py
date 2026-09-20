@@ -1547,7 +1547,11 @@ def todo_details_panel_mobile(request: Request):
 
     return render_to_response(
         "menage2:templates/mobile/_todo_details_panel.pt",
-        {"todo": todo, "fields_html": _render_todo_fields(request, todo, "m")},
+        {
+            "todo": todo,
+            "fields_html": _render_todo_fields(request, todo, "m"),
+            "run_html": _render_run(request, todo),
+        },
         request=request,
         response=request.response,
     )

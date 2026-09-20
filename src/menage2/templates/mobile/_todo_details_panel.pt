@@ -3,7 +3,13 @@
      The fields are the shared partial, so editing and adding stay the same
      shape. Saving PUTs to todo_update, which redirects to the empty panel —
      that is what closes the sheet, while its `todo-updated` refreshes the list.
+
+     A task that stands for a protocol run has a checklist as well, and a
+     phone has no room to put one under the other. Tabs let you have either,
+     and the checklist comes up first: it is the reason you opened a task
+     that has one.
 -->
+<tal:block tal:define="has_run python:bool(run_html)">
 
 <!-- The title edits in place in the sheet header, the way it does on the
      desktop panel, and writes through to the form's hidden field. It is
@@ -16,17 +22,52 @@
          halt
        on keydown[key is 'Escape'] blur me">${todo.text}</h5>
 
-<form id="mobile-edit-form"
-      hx-put="${request.route_url('todo_update', id=todo.id)}"
-      hx-ext="form-json"
-      hx-target="#mobile-edit-body"
-      hx-swap="innerHTML">
+<ul class="nav nav-tabs" role="tablist" tal:condition="has_run">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="mobile-checklist-tab" type="button"
+            role="tab" aria-selected="true" aria-controls="mobile-checklist-pane"
+            data-bs-toggle="tab" data-bs-target="#mobile-checklist-pane">
+      Checklist
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="mobile-details-tab" type="button"
+            role="tab" aria-selected="false" aria-controls="mobile-details-pane"
+            data-bs-toggle="tab" data-bs-target="#mobile-details-pane">
+      Details
+    </button>
+  </li>
+</ul>
 
-  <tal:block tal:replace="structure fields_html" />
+<div class="tab-content">
 
-  <div class="d-flex gap-2">
-    <button type="button" class="btn btn-outline-secondary flex-grow-1"
-            data-bs-dismiss="offcanvas">Cancel</button>
-    <button type="submit" class="btn btn-primary flex-grow-1">Save</button>
+  <div class="tab-pane fade show active" id="mobile-checklist-pane"
+       role="tabpanel" aria-labelledby="mobile-checklist-tab"
+       tal:condition="has_run">
+    <tal:block tal:replace="structure run_html" />
   </div>
-</form>
+
+  <!-- Without a checklist there are no tabs, so the fields are simply what
+       the sheet shows. -->
+  <div class="tab-pane fade p-3 ${'' if has_run else 'show active'}"
+       id="mobile-details-pane" role="tabpanel"
+       aria-labelledby="mobile-details-tab">
+    <form id="mobile-edit-form"
+          hx-put="${request.route_url('todo_update', id=todo.id)}"
+          hx-ext="form-json"
+          hx-target="#mobile-edit-body"
+          hx-swap="innerHTML">
+
+      <tal:block tal:replace="structure fields_html" />
+
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary flex-grow-1"
+                data-bs-dismiss="offcanvas">Cancel</button>
+        <button type="submit" class="btn btn-primary flex-grow-1">Save</button>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+</tal:block>

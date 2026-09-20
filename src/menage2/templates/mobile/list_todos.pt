@@ -56,13 +56,19 @@
     <!-- Edit sheet. Each row carries its own hx-get with its id, so nothing
          has to be selected first; the row opens the sheet as it fires. -->
     <div class="offcanvas offcanvas-bottom h-75" tabindex="-1" id="mobile-edit"
-         aria-labelledby="mobile-edit-title">
+         aria-labelledby="mobile-edit-title"
+         _="on 'todo-closed' from body
+              -- The last item of a checklist has been ticked off, so there is
+              -- nothing left in here to look at.
+              call #mobile-edit-close.click()">
       <div class="offcanvas-header">
         <h5 class="offcanvas-title" id="mobile-edit-title">Edit task</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas"
                 aria-label="Close"></button>
       </div>
-      <div class="offcanvas-body" id="mobile-edit-body"></div>
+      <!-- No padding here: the checklist rows carry their own and the tabs
+           reach the edges. The fields pane puts its own back. -->
+      <div class="offcanvas-body p-0" id="mobile-edit-body"></div>
       <!-- Opened from a row's htmx response and closed by the empty panel
            after a save. Hyperscript clicks these rather than toggling classes,
            so Bootstrap still handles the backdrop and the scroll lock. -->

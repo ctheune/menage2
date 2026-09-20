@@ -406,13 +406,17 @@ def _open_edit(page, text: str, attempts: int = 3):
     The span carries both the hx-get and the hyperscript that opens the sheet,
     so it has to be wired first; and because opening is idempotent, a tap the
     list swallowed mid-swap can simply be repeated.
+
+    What it waits for is the tab strip rather than the form: a task with a
+    checklist opens on the checklist, leaving the form in a pane that is
+    present but not on screen.
     """
     target = f"{_item(text)} .flex-grow-1"
     for attempt in range(attempts):
         _wait_wired(page, target)
         page.locator(target).first.click()
         try:
-            page.wait_for_selector("#mobile-edit.show #mobile-edit-form", timeout=3000)
+            page.wait_for_selector("#mobile-edit.show .tab-content", timeout=3000)
             return
         except PlaywrightTimeoutError:
             if attempt == attempts - 1:
@@ -1040,3 +1044,125 @@ def test_a_task_from_someone_else_shows_up_under_assigned(
         "#offcanvasBottom h6:has-text('Whose') + .list-group a:has-text('Assigned')"
     )
     assert assigned.locator(".badge").inner_text() == "1"
+
+
+# ---------------------------------------------------------------------------
+# A task that is also a checklist
+# ---------------------------------------------------------------------------
+
+
+def _protocol_run(context, live_server, title: str, items: list[str]) -> None:
+    """Create a protocol, give it items and start a run, all through the API.
+
+    The run's own todo is what turns up in the list, and it is the one that
+    carries the checklist.
+    """
+    resp = context.request.post(
+        f"{live_server}/protocols/new", form={"title": title}, max_redirects=0
+    )
+    assert resp.status == 303, f"Creating the protocol failed: {resp.status}"
+    protocol_id = resp.headers["location"].rstrip("/").split("/")[-2]
+    for text in items:
+        resp = context.request.post(
+            f"{live_server}/protocols/{protocol_id}/items", form={"text": text}
+        )
+        assert resp.ok, f"Adding item {text!r} failed: {resp.status}"
+    resp = context.request.post(
+        f"{live_server}/protocols/{protocol_id}/start", max_redirects=0
+    )
+    assert resp.status == 303, f"Starting the run failed: {resp.status}"
+
+
+def test_a_task_with_a_checklist_shows_it(page, context, live_server):
+    """It was not reachable at all on a phone before: the sheet only ever
+    showed the fields."""
+    _protocol_run(context, live_server, "Weekly tidy", ["fridge", "pantry"])
+    _open_list(page)
+    _open_edit(page, "Weekly tidy")
+
+    # The checklist is what comes up, since it is why you opened this one.
+    page.wait_for_selector("#mobile-checklist-pane.active #protocol-run", timeout=5000)
+    assert page.locator("#mobile-checklist-pane .protocol-run-item").count() == 2
+    assert page.locator("#mobile-checklist-pane").inner_text().count("fridge") == 1
+
+
+def test_the_other_tab_still_edits_the_task(page, context, live_server):
+    _protocol_run(context, live_server, "Weekly tidy", ["fridge"])
+    _open_list(page)
+    _open_edit(page, "Weekly tidy")
+    page.wait_for_selector("#mobile-checklist-pane.active", timeout=5000)
+
+    page.locator("#mobile-details-tab").click()
+    page.wait_for_selector(
+        "#mobile-details-pane.active #mobile-edit-form", timeout=5000
+    )
+    page.locator("#m-note").fill("start with the freezer")
+    _save_edit(page)
+
+    _open_edit(page, "Weekly tidy")
+    page.locator("#mobile-details-tab").click()
+    page.wait_for_selector("#mobile-details-pane.active", timeout=5000)
+    assert page.locator("#m-note").input_value() == "start with the freezer"
+
+
+def test_an_ordinary_task_gets_no_tabs(page, context, live_server):
+    """Nothing to choose between, so nothing to choose from."""
+    _add_todo(context, live_server, "Just a task")
+    _open_list(page)
+    _open_edit(page, "Just a task")
+
+    assert page.locator("#mobile-checklist-tab").count() == 0
+    # And the fields are simply there, rather than behind a hidden tab.
+    assert page.locator("#mobile-details-pane.active #m-note").is_visible()
+
+
+def test_ticking_a_checklist_item_off_works_from_the_sheet(page, context, live_server):
+    _protocol_run(context, live_server, "Weekly tidy", ["fridge", "pantry"])
+    _open_list(page)
+    _open_edit(page, "Weekly tidy")
+    page.wait_for_selector("#mobile-checklist-pane .protocol-run-item", timeout=5000)
+
+    page.locator('#mobile-checklist-pane [data-action="done"]').first.click()
+    page.wait_for_selector(
+        "#mobile-checklist-pane .protocol-run-item.status-done", timeout=5000
+    )
+
+
+def test_the_sheet_closes_when_the_last_item_is_ticked_off(page, context, live_server):
+    """The run closes with its last item, and there is nothing left in here."""
+    _protocol_run(context, live_server, "One thing", ["fridge"])
+    _open_list(page)
+    _open_edit(page, "One thing")
+    page.wait_for_selector("#mobile-checklist-pane .protocol-run-item", timeout=5000)
+
+    page.locator('#mobile-checklist-pane [data-action="done"]').first.click()
+    page.wait_for_selector("#mobile-edit.show", state="detached", timeout=10000)
+
+
+def test_the_checklist_and_its_tabs_reach_the_edges(page, context, live_server):
+    """A phone has little enough width without the sheet padding it twice.
+
+    The checklist rows bring their own spacing, so the sheet adds none.
+    """
+    _protocol_run(context, live_server, "Weekly tidy", ["fridge"])
+    _open_list(page)
+    _open_edit(page, "Weekly tidy")
+    page.wait_for_selector("#mobile-checklist-pane #protocol-run", timeout=5000)
+
+    sheet = page.locator("#mobile-edit").bounding_box()
+    for selector in ("#mobile-edit .nav-tabs", "#mobile-checklist-pane #protocol-run"):
+        box = page.locator(selector).bounding_box()
+        assert box["x"] == sheet["x"], selector
+        assert box["width"] == sheet["width"], selector
+
+
+def test_the_fields_keep_their_breathing_room(page, context, live_server):
+    """Taking the padding off the sheet must not push the form to the edge."""
+    _add_todo(context, live_server, "Just a task")
+    _open_list(page)
+    _open_edit(page, "Just a task")
+
+    sheet = page.locator("#mobile-edit").bounding_box()
+    field = page.locator("#m-note").bounding_box()
+    assert field["x"] > sheet["x"]
+    assert field["x"] + field["width"] < sheet["x"] + sheet["width"]
