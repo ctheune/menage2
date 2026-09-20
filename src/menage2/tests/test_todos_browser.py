@@ -312,6 +312,33 @@ def test_removing_the_only_link_clears_them(page):
     assert page.locator("#field-links .badge").count() == 0
 
 
+def test_stopping_a_repetition_leaves_the_item_alone(page):
+    """The item stays, it just stops being a repetition."""
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Bins *every week", "Bins")
+    _select(page, "Bins")
+    page.wait_for_selector("#stop-repeating", timeout=5000)
+
+    page.locator("#stop-repeating").click()
+
+    # The row is still there, without the repeat mark, and the panel no
+    # longer offers to stop what is no longer happening.
+    page.wait_for_function(
+        f"document.querySelectorAll('{_item('Bins')} .todo-recurrence').length === 0",
+        timeout=10000,
+    )
+    page.wait_for_selector("#stop-repeating", state="detached", timeout=5000)
+    assert page.locator(_item("Bins")).count() == 1
+
+
+def test_an_item_that_does_not_repeat_is_not_offered_the_button(page):
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Just the once")
+    _select(page, "Just the once")
+    page.wait_for_selector("#todo-edit-form", timeout=5000)
+    assert page.locator("#stop-repeating").count() == 0
+
+
 def test_details_pane_shows_recurrence_label(page):
     page.goto(STATUS_ACTIVE)
     _add_todo(page, "Rec subject *every month", "Rec subject")

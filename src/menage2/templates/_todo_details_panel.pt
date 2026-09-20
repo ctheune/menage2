@@ -140,6 +140,18 @@
                on blur
                 hide next .picker" />
           <div class="picker"></div>
+
+          <!-- Clearing the field above takes this one item out of the
+               repetition. Stopping ends the repetition itself, which is the
+               other thing people mean, and cannot be said by typing. -->
+          <button type="button" tal:condition="todo.recurrence_id"
+                  id="stop-repeating"
+                  class="btn btn-link btn-sm px-0 text-body-secondary"
+                  hx-post="${request.route_url('todo_stop_repeating', id=todo.id)}"
+                  hx-target="#details-pane"
+                  hx-swap="outerHTML">
+            Stop repeating, keep what is there
+          </button>
         </div>
 
         <div class="mb-3">

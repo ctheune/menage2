@@ -1096,6 +1096,74 @@ def test_recurrence_history_returns_chain(authenticated_testapp, dbsession):
     assert b"Repetition history" in res.body
 
 
+def test_stop_repeating_takes_the_rule_off_the_whole_chain(
+    app_request, dbsession, admin_user
+):
+    """One item left carrying the rule is enough for it to carry on."""
+    from menage2.views.todo import todo_stop_repeating
+
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    first = _todo("Bins", recurrence_id=rule.id, status=TodoStatus.done, done_at=_now())
+    dbsession.add(first)
+    dbsession.flush()
+    second = _todo("Bins", recurrence_id=rule.id)
+    dbsession.add(second)
+    dbsession.flush()
+    first.recurred_into_id = second.id
+    dbsession.flush()
+
+    app_request.matchdict = {"id": str(second.id)}
+    todo_stop_repeating(app_request)
+    dbsession.flush()
+
+    assert first.recurrence_id is None
+    assert second.recurrence_id is None
+    # What it produced is still there, and still in order.
+    assert first.recurred_into_id == second.id
+    assert first.status == TodoStatus.done
+
+
+def test_a_stopped_repetition_spawns_nothing_more(app_request, dbsession, admin_user):
+    """The point of stopping, checked through the two things that spawn."""
+    from menage2.recurrence import run_sweep
+    from menage2.views.todo import todo_stop_repeating
+
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    todo = _todo(
+        "Bins",
+        recurrence_id=rule.id,
+        due_date=_today() - datetime.timedelta(days=14),
+    )
+    dbsession.add(todo)
+    dbsession.flush()
+
+    app_request.matchdict = {"id": str(todo.id)}
+    todo_stop_repeating(app_request)
+    dbsession.flush()
+    before = dbsession.query(Todo).count()
+
+    # The catch-up finds nothing to anchor on ...
+    assert run_sweep(dbsession, _today(), _now()) == 0
+    # ... and neither does completing what is left.
+    app_request.method = "POST"
+    app_request.POST["todo_ids"] = str(todo.id)
+    todos_done(app_request)
+    dbsession.flush()
+    assert dbsession.query(Todo).count() == before
+
+
 def test_listing_todos_does_not_spawn_anything(app_request, dbsession, admin_user):
     """Looking at the list is not a reason to write to the database.
 

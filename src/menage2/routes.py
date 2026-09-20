@@ -96,6 +96,7 @@ def includeme(config):
     config.add_route("todo_details_panel", "/todos/details-panel")
     config.add_route("todo_link_label", "/todos/link-label")
     config.add_route("recurrence_history", "/todos/{id}/history")
+    config.add_route("todo_stop_repeating", "/todos/{id:\\d+}/stop-repeating")
     config.add_route(
         "todo_attachment_thumbnail",
         "/todos/{todo_id}/attachment/{uuid}/thumb",

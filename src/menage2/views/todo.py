@@ -1130,6 +1130,33 @@ def todo_update(request):
     return response
 
 
+@view_config(route_name="todo_stop_repeating", request_method="POST")
+def todo_stop_repeating(request):
+    """End a repetition, leaving everything it has already produced.
+
+    The rule comes off every item in the chain, not just this one. Anything
+    still carrying it is something the sweep would anchor on or a completion
+    would spawn from, so leaving one behind would mean the repetition
+    carried on — which is what "stop" is being asked about.
+
+    The items themselves stay, as ordinary todos: done ones are still the
+    record of what happened, and an open one is still something to do.
+    """
+    todo = request.dbsession.get(Todo, int(request.matchdict["id"]))
+    if todo is None:
+        return _validation_error(request, "No such task.", status=404)
+
+    for member in chain_history(request.dbsession, todo):
+        member.recurrence_id = None
+    request.dbsession.flush()
+
+    return HTTPSeeOther(
+        request.route_url(
+            "todo_details_panel", _query=dict(todo_ids=str(todo.id), updated="true")
+        ),
+    )
+
+
 @view_config(route_name="todo_batch_action", request_method="POST")
 def todo_batch_action(request):
     """Handle batch actions: done, hold, postpone, activate."""
