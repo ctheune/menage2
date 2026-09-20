@@ -530,13 +530,40 @@ _VALID_FILTER_MODES = {
 }
 
 
+def _filter_counts(request) -> dict[str, int]:
+    """How many active items each filter mode would show.
+
+    The desktop subnav has always put these on its tabs. On a phone they
+    matter more: the filters live behind the menu, so the count is what says
+    whether opening one is worth the tap.
+    """
+    return {
+        mode: len(
+            _filter_todos(
+                request.dbsession,
+                _today(),
+                user=request.identity,
+                filter_mode=mode,
+            )
+        )
+        for mode in _VALID_FILTER_MODES
+    }
+
+
 def _validate_filter(candidate: str):
     if candidate not in _VALID_FILTER_MODES:
         candidate = list(_VALID_FILTER_MODES)[0]
     return candidate
 
 
-_VALID_STATUS_FILTERS = {"active", "on_hold", "scheduled", "done"}
+#: Statuses a list can show, in the order they are offered. Membership tests
+#: read the keys; the labels are what the mobile menu puts on screen.
+_VALID_STATUS_FILTERS = {
+    "active": "Active",
+    "scheduled": "Scheduled",
+    "on_hold": "On hold",
+    "done": "Done",
+}
 
 
 class SubnavSection(BaseModel):
@@ -556,21 +583,14 @@ def task_subnav_partial(request: Request):
     path = _urlparse(current_url).path if current_url else ""
 
     filter_mode = _validate_filter(request.params.get("filter"))
+    counts = _filter_counts(request)
     sections: list[SubnavSection] = []
 
     for section_filter, section_title in _VALID_FILTER_MODES.items():
-        section_todos = len(
-            _filter_todos(
-                request.dbsession,
-                _today(),
-                user=request.identity,
-                filter_mode=section_filter,
-            )
-        )
         section = SubnavSection(
             title=section_title,
             url=request.route_url("list_todos", _query=dict(filter=section_filter)),
-            badge=str(section_todos),
+            badge=str(counts[section_filter]),
             active=(
                 request.route_path("list_todos") == path
                 and filter_mode == section_filter
@@ -676,7 +696,17 @@ def list_todos(request):
     renderer="menage2:templates/mobile/list_todos.pt",
 )
 def list_todos_mobile(request):
-    return _list_todos(request)
+    """The list, plus what the phone's menu needs to offer the other lists.
+
+    The desktop keeps the filters in a subnav of their own; a phone has no
+    room for one, so they sit in the menu sheet and the counts come along
+    here rather than from a second request.
+    """
+    return _list_todos(request) | {
+        "filter_modes": _VALID_FILTER_MODES,
+        "filter_counts": _filter_counts(request),
+        "status_labels": _VALID_STATUS_FILTERS,
+    }
 
 
 #: Fields the mobile new-task sheet posts alongside the title.

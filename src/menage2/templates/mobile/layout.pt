@@ -81,14 +81,32 @@
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
   <div class="offcanvas-body">
-    <!-- Which items to show. Full page loads: the status is in the URL, so
-         the list, its refresh trigger and the back button all stay in step. -->
-    <div class="list-group mb-3"
-         tal:define="current python:request.params.get('status', 'active')">
-      <a tal:repeat="entry python:[('active', 'Active'), ('scheduled', 'Scheduled'), ('on_hold', 'On hold'), ('done', 'Done')]"
-         href="${request.route_url('list_todos', _query=dict(status=entry[0]))}"
-         class="list-group-item list-group-item-action ${'active' if entry[0] == current else ''}"
-         aria-current="${'page' if entry[0] == current else None}">${entry[1]}</a>
+    <!-- Which items to show: a status and a filter, and every link carries
+         both. Changing one otherwise drops the other back to its default and
+         the list quietly turns into a different list.
+
+         Full page loads, so the pair is in the URL and the list, its refresh
+         trigger and the back button all stay in step. -->
+
+    <h6 class="text-body-secondary text-uppercase small">Show</h6>
+    <div class="list-group mb-3">
+      <a tal:repeat="entry status_labels.items()"
+         href="${request.route_url('list_todos', _query=dict(status=entry[0], filter=filter_mode))}"
+         class="list-group-item list-group-item-action ${'active' if entry[0] == status else ''}"
+         aria-current="${'page' if entry[0] == status else None}">${entry[1]}</a>
+    </div>
+
+    <h6 class="text-body-secondary text-uppercase small">Whose</h6>
+    <div class="list-group mb-3">
+      <a tal:repeat="entry filter_modes.items()"
+         href="${request.route_url('list_todos', _query=dict(status=status, filter=entry[0]))}"
+         class="list-group-item list-group-item-action d-flex justify-content-between align-items-center ${'active' if entry[0] == filter_mode else ''}"
+         aria-current="${'page' if entry[0] == filter_mode else None}">
+        ${entry[1]}
+        <!-- How many that list holds right now: on a phone this is what says
+             whether opening it is worth the tap. -->
+        <span class="badge rounded-pill text-bg-secondary">${filter_counts[entry[0]]}</span>
+      </a>
     </div>
 
     <form method="post" action="${request.route_url('logout')}" class="m-0 d-grid">

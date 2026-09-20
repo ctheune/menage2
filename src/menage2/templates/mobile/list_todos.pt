@@ -23,6 +23,19 @@
       <!-- overflow-hidden clips the swipe: without it a dragged row runs past
            the card, widens the page and exposes the backdrop beside it. -->
       <div class="card overflow-hidden">
+        <!-- Which list this is. The filters live behind the menu, so without
+             a line saying so a non-default one just looks like items having
+             gone missing. It opens the menu too, since that is where you go
+             next if it is not the list you wanted. -->
+        <a class="card-header d-flex justify-content-between align-items-center
+                  text-decoration-none link-body-emphasis small"
+           id="mobile-list-header"
+           href="#offcanvasBottom" role="button" data-bs-toggle="offcanvas"
+           aria-controls="offcanvasBottom">
+          <span>${filter_modes[filter_mode]} <span class="text-body-secondary">·</span>
+            ${status_labels[status]}</span>
+          <i class="bi bi-chevron-down"></i>
+        </a>
         <!-- hx-swap is spelled out because the form's "none" is inherited. -->
         <div id="todo-list" data-status="${status}"
              hx-trigger="load, todo-updated from:body, focus from:window"

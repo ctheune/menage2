@@ -913,3 +913,74 @@ def test_tapping_the_picture_closes_the_viewer(
     _open_photo(page, "Close me")
     page.locator("#mobile-photo-image").click()
     page.wait_for_selector("#mobile-photo.show", state="detached", timeout=5000)
+
+
+# ---------------------------------------------------------------------------
+# Whose tasks to show
+# ---------------------------------------------------------------------------
+
+
+def _menu(page):
+    page.locator("nav a[aria-label='Menu']").click()
+    page.wait_for_selector("#offcanvasBottom.show", timeout=5000)
+
+
+def _choose(page, group: str, label: str) -> None:
+    """Pick an entry from one of the menu's two lists."""
+    page.locator(
+        f"#offcanvasBottom h6:has-text('{group}') + .list-group a:has-text('{label}')"
+    ).click()
+
+
+def test_the_menu_offers_the_other_peoples_lists(page, context, live_server):
+    _add_todo(context, live_server, "Mine alone")
+    _open_list(page)
+    _menu(page)
+    whose = "#offcanvasBottom h6:has-text('Whose') + .list-group"
+    assert [
+        entry.strip() for entry in page.locator(f"{whose} a").all_inner_texts()
+    ] == ["My Tasks\n1", "Assigned\n0", "Delegated\n0", "All\n1"]
+
+
+def test_switching_whose_tasks_keeps_the_status(page, context, live_server):
+    """The two menus are one pair; changing either must not reset the other."""
+    _add_todo(context, live_server, "Somebody else's *every week")
+    _open_list(page, "/todos?status=done")
+    _menu(page)
+    _choose(page, "Whose", "All")
+    page.wait_for_url("**/todos?**", timeout=10000)
+    assert "status=done" in page.url
+    assert "filter=all" in page.url
+    _menu(page)
+    # And back the other way: the filter survives a change of status.
+    _choose(page, "Show", "Active")
+    page.wait_for_selector(_item("Somebody else's"), timeout=10000)
+    assert "filter=all" in page.url
+
+
+def test_the_list_says_which_list_it_is(page, context, live_server):
+    _open_list(page, "/todos?status=scheduled&filter=delegated_in")
+    header = page.locator("#mobile-list-header")
+    assert "Assigned" in header.inner_text()
+    assert "Scheduled" in header.inner_text()
+    # And it is the way back to the menu.
+    header.click()
+    page.wait_for_selector("#offcanvasBottom.show", timeout=5000)
+
+
+def test_a_delegated_task_is_only_reachable_through_its_filter(
+    page, context, live_server
+):
+    """Which is the whole point: handing a task on takes it off your own list,
+    and until now a phone had no way back to it."""
+    _add_todo(context, live_server, "Handed off @alice")
+    _add_todo(context, live_server, "Kept for myself")
+
+    _open_list(page)
+    page.wait_for_selector(_item("Kept for myself"), timeout=10000)
+    assert page.locator(_item("Handed off")).count() == 0
+
+    _menu(page)
+    _choose(page, "Whose", "Delegated")
+    page.wait_for_selector(_item("Handed off"), timeout=10000)
+    assert page.locator(_item("Kept for myself")).count() == 0
