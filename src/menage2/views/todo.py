@@ -37,6 +37,7 @@ from menage2.principals import (
     get_all_principals,
     get_user_team_memberships,
     todo_matches_filter,
+    uncovered_teams,
 )
 from menage2.recurrence import (
     chain_history,
@@ -546,7 +547,14 @@ def _filter_todos(
 
     todos = query.order_by(*order).all()
     memberships = get_user_team_memberships(dbsession, user)
-    return [t for t in todos if todo_matches_filter(t, user, memberships, filter_mode)]
+    # Teams this user supervises whose assignees are all away: their work
+    # counts as the supervisor's own until somebody is back.
+    covering = uncovered_teams(dbsession, user, memberships, today)
+    return [
+        t
+        for t in todos
+        if todo_matches_filter(t, user, memberships, filter_mode, covering)
+    ]
 
 
 @view_config(route_name="home")
@@ -676,6 +684,15 @@ def _list_todo_groups(request):
         "render_note_html": render_note_html,
         "today": today,
         "parse_link": parse_link,
+        # Rows for a team whose assignees are all away say so: a task nobody
+        # has seen before, appearing on your list without explanation, is not
+        # obviously yours to do only until they are back.
+        "covering": uncovered_teams(
+            request.dbsession,
+            user,
+            get_user_team_memberships(request.dbsession, user),
+            today,
+        ),
     }
 
 

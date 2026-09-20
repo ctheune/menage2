@@ -58,7 +58,8 @@
                         data-todo-links python:__import__('json').dumps(['[' + (l.label or '') + '](' + l.url + ')' for l in todo.links_rel]);
                         data-run-started python:'true' if todo.protocol_run_id and todo.protocol_run and todo.protocol_run.opened_at else 'false'"
     >
-      <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2">
+      <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2"
+           tal:define="stand_in python:sorted(covering & todo.assignees);            others python:sorted(todo.assignees - covering)">
         <span class="flex-shrink-0">
           <input
             type="checkbox"
@@ -166,15 +167,25 @@
           >
         </button>
 
-        <span tal:condition="todo.assignees" class="d-inline d-sm-none">
+        <span tal:condition="others" class="d-inline d-sm-none">
           @
         </span>
 
+        <!-- Everyone assigned to this team is away, so it is on this list
+             until somebody is back. Saying whose it is stops it reading as
+             work that has always been yours — and says it in place of the
+             assignee below, which would only repeat the team's name. -->
         <span
-          tal:condition="todo.assignees"
+          tal:condition="stand_in"
+          class="badge rounded-pill bg-warning-subtle text-warning-emphasis flex-shrink-0 fw-normal"
+          title="Everyone assigned to this team is away"
+        >covering @${stand_in[0]}</span>
+
+        <span
+          tal:condition="others"
           class="todo-assignees flex-shrink-0 small text-muted d-none d-sm-inline"
         >
-          <tal:block tal:repeat="a python:sorted(todo.assignees)"
+          <tal:block tal:repeat="a others"
             >@${a}
           </tal:block>
         </span>

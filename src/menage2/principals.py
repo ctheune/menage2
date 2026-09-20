@@ -86,8 +86,38 @@ def absent_usernames(dbsession, day) -> set[str]:
     return away
 
 
+def uncovered_teams(dbsession, user, memberships: dict[str, str], day) -> set[str]:
+    """Teams `user` supervises whose assignees are, today, all away.
+
+    A team with nobody assigned to it is not covered by this: "everyone is
+    away" should mean somebody was there to go away in the first place, and
+    an empty team is a setup left half done rather than a holiday.
+    """
+    supervised = {name for name, role in memberships.items() if role == "supervisor"}
+    if not supervised:
+        return set()
+
+    rows = dbsession.execute(
+        select(Team.name, User.username)
+        .join(TeamMember, TeamMember.team_id == Team.id)
+        .join(User, User.id == TeamMember.user_id)
+        .where(Team.name.in_(supervised), TeamMember.role == "assignee")
+    ).all()
+
+    assignees: dict[str, set[str]] = {}
+    for team_name, username in rows:
+        assignees.setdefault(team_name, set()).add(username)
+
+    away = absent_usernames(dbsession, day)
+    return {team for team, members in assignees.items() if members and members <= away}
+
+
 def todo_matches_filter(
-    todo, user, memberships: dict[str, str], filter_mode: str
+    todo,
+    user,
+    memberships: dict[str, str],
+    filter_mode: str,
+    covering: set[str] = frozenset(),
 ) -> bool:
     """Return True if *todo* matches *filter_mode* for *user*.
 
@@ -96,6 +126,9 @@ def todo_matches_filter(
         user: The authenticated User ORM object.
         memberships: {team_name: role} from get_user_team_memberships().
         filter_mode: One of "personal", "all", "delegated_out", "delegated_in".
+        covering: team names from uncovered_teams() — teams this user
+            supervises whose assignees are all away today. Their work counts
+            as the supervisor's own until somebody is back.
     """
     assignee_teams = {tn for tn, role in memberships.items() if role == "assignee"}
     supervisor_teams = {tn for tn, role in memberships.items() if role == "supervisor"}
@@ -106,6 +139,7 @@ def todo_matches_filter(
     has_assignees = bool(todo.assignees)
     in_assignee_team = bool(assignee_teams & todo.assignees)
     in_supervisor_team = bool(supervisor_teams & todo.assignees)
+    covers_for_team = bool(covering & todo.assignees)
 
     if filter_mode == "delegated_out":
         owner_delegated = (
@@ -127,6 +161,7 @@ def todo_matches_filter(
             or is_unowned
             or is_direct_assignee
             or in_assignee_team
+            or covers_for_team
         )
 
     # "all" — everything the user can see
