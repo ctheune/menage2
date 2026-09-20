@@ -227,6 +227,23 @@ def user_testapp(testapp, regular_user):
 
 
 @pytest.fixture
+def attachments_dir(tmp_path, app):
+    """Point uploads at a throwaway directory for the duration of one test.
+
+    `app` is session-scoped, so the old setting has to go back afterwards.
+    """
+    d = tmp_path / "attachments"
+    d.mkdir()
+    old = app.registry.settings.get("menage.attachments_dir")
+    app.registry.settings["menage.attachments_dir"] = str(d)
+    yield d
+    if old is not None:
+        app.registry.settings["menage.attachments_dir"] = old
+    else:
+        app.registry.settings.pop("menage.attachments_dir", None)
+
+
+@pytest.fixture
 def clean_db(dbengine):
     """Truncate all tables before and after each browser test."""
     import time as _time

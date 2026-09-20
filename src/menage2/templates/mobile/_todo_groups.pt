@@ -106,7 +106,15 @@
               </tal:block>
             </span>
           </span>
-          <span tal:condition="todo.attachments" class="todo-attachment-thumbs flex-shrink-0">
+          <span tal:condition="todo.attachments" class="todo-attachment-thumbs flex-shrink-0"
+                _="on click
+                     -- A picture opens the viewer and nothing else: the tap
+                     -- would otherwise reach the row and open it for editing.
+                     if target matches 'img'
+                       halt the event
+                       send showPhoto(pic: target) to #mobile-photo
+                       call #mobile-photo-open.click()
+                     end">
             <tal:block tal:repeat="att todo.attachments">
               <img class="todo-attachment-thumb" loading="lazy" tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
                                    data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);

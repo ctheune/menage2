@@ -9,9 +9,11 @@ Swipe distances are measured against a threshold of a quarter of the row width,
 so the offsets here are expressed in those terms rather than raw pixels.
 """
 
+import io
 import re
 
 import pytest
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 IPHONE_UA = (
@@ -791,3 +793,123 @@ def test_opening_a_picker_does_not_move_the_fields_below_it(page, context, live_
         "#n-recurrence + .picker li[data-picker-value]", timeout=10000
     )
     assert page.locator("#n-note").bounding_box()["y"] == before
+
+
+# ---------------------------------------------------------------------------
+# Looking at the pictures
+# ---------------------------------------------------------------------------
+
+
+def _attach(context, live_server, todo_id: int, *names: str) -> None:
+    """Upload one small picture per name to a todo."""
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), color=(200, 30, 30)).save(buf, format="JPEG")
+    jpeg = buf.getvalue()
+    # One request each: a multipart body here is a mapping, so it cannot
+    # carry the same field name more than once.
+    for name in names:
+        resp = context.request.post(
+            f"{live_server}/todos/{todo_id}/attachments",
+            multipart={
+                "files[]": {"name": name, "mimeType": "image/jpeg", "buffer": jpeg}
+            },
+        )
+        assert resp.ok, f"Uploading {name} failed: {resp.status}"
+
+
+def _todo_id(page, text: str) -> int:
+    return int(page.locator(_item(text)).first.get_attribute("data-todo-id"))
+
+
+def _open_photo(page, text: str, nth: int = 0):
+    thumb = page.locator(f"{_item(text)} .todo-attachment-thumbs img").nth(nth)
+    thumb.click()
+    page.wait_for_selector("#mobile-photo.show", timeout=5000)
+    return thumb
+
+
+def test_tapping_a_picture_opens_it_instead_of_the_edit_sheet(
+    page, context, live_server, attachments_dir
+):
+    _add_todo(context, live_server, "Look at this")
+    _open_list(page)
+    _attach(context, live_server, _todo_id(page, "Look at this"), "holiday.jpg")
+    page.reload()
+    _wait_wired(page, f"{_item('Look at this')} .todo-attachment-thumbs")
+
+    # The row fetches its edit panel the moment it is tapped, so recording
+    # what was asked for says more than looking at the sheet, which would not
+    # have opened yet either way.
+    asked: list[str] = []
+    page.on("request", lambda request: asked.append(request.url))
+
+    _open_photo(page, "Look at this")
+    # The full picture, not the thumbnail the list shows.
+    assert page.locator("#mobile-photo-image").get_attribute("src").endswith("/full")
+    assert page.locator("#mobile-photo-name").inner_text() == "holiday.jpg"
+    # The tap stopped at the picture; the row never went for its panel.
+    assert [url for url in asked if "details-panel" in url] == []
+    assert page.locator("#mobile-edit.show").count() == 0
+
+
+def test_a_single_picture_offers_nothing_to_page_through(
+    page, context, live_server, attachments_dir
+):
+    _add_todo(context, live_server, "Just the one")
+    _open_list(page)
+    _attach(context, live_server, _todo_id(page, "Just the one"), "only.jpg")
+    page.reload()
+    _wait_wired(page, f"{_item('Just the one')} .todo-attachment-thumbs")
+
+    _open_photo(page, "Just the one")
+    assert page.locator("#mobile-photo-nav.d-none").count() == 1
+
+
+def test_paging_through_a_row_of_pictures(page, context, live_server, attachments_dir):
+    _add_todo(context, live_server, "Three of them")
+    _open_list(page)
+    _attach(
+        context,
+        live_server,
+        _todo_id(page, "Three of them"),
+        "first.jpg",
+        "second.jpg",
+        "third.jpg",
+    )
+    page.reload()
+    _wait_wired(page, f"{_item('Three of them')} .todo-attachment-thumbs")
+
+    _open_photo(page, "Three of them", nth=1)
+    assert page.locator("#mobile-photo-name").inner_text() == "second.jpg"
+    assert page.locator("#mobile-photo-nav.d-none").count() == 0
+
+    page.locator("#mobile-photo-nav button[aria-label='Next']").click()
+    page.wait_for_function(
+        "() => document.getElementById('mobile-photo-name').textContent === 'third.jpg'",
+        timeout=5000,
+    )
+    # Past the last one it comes back round rather than dead-ending.
+    page.locator("#mobile-photo-nav button[aria-label='Next']").click()
+    page.wait_for_function(
+        "() => document.getElementById('mobile-photo-name').textContent === 'first.jpg'",
+        timeout=5000,
+    )
+    page.locator("#mobile-photo-nav button[aria-label='Previous']").click()
+    page.wait_for_function(
+        "() => document.getElementById('mobile-photo-name').textContent === 'third.jpg'",
+        timeout=5000,
+    )
+
+
+def test_tapping_the_picture_closes_the_viewer(
+    page, context, live_server, attachments_dir
+):
+    _add_todo(context, live_server, "Close me")
+    _open_list(page)
+    _attach(context, live_server, _todo_id(page, "Close me"), "shut.jpg")
+    page.reload()
+    _wait_wired(page, f"{_item('Close me')} .todo-attachment-thumbs")
+
+    _open_photo(page, "Close me")
+    page.locator("#mobile-photo-image").click()
+    page.wait_for_selector("#mobile-photo.show", state="detached", timeout=5000)

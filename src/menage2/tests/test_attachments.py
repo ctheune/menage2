@@ -39,19 +39,6 @@ def _make_todo(dbsession, admin_user, text="Test todo"):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def attachments_dir(tmp_path, app):
-    d = tmp_path / "attachments"
-    d.mkdir()
-    old = app.registry.settings.get("menage.attachments_dir")
-    app.registry.settings["menage.attachments_dir"] = str(d)
-    yield d
-    if old is not None:
-        app.registry.settings["menage.attachments_dir"] = old
-    else:
-        app.registry.settings.pop("menage.attachments_dir", None)
-
-
 # ---------------------------------------------------------------------------
 # Upload tests
 # ---------------------------------------------------------------------------

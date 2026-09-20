@@ -163,11 +163,19 @@
 
     <div class="mb-3" tal:condition="python:has and todo.attachments" id="${p}-attachments">
       <label class="form-label">Files</label>
-      <div class="form-control d-flex flex-wrap gap-2">
-        <img class="rounded object-fit-cover" width="72" height="72"
+      <!-- Same handler as the list: tapping one opens the viewer. -->
+      <div class="form-control todo-attachment-thumbs flex-wrap gap-2"
+           _="on click
+                if target matches 'img'
+                  halt the event
+                  send showPhoto(pic: target) to #mobile-photo
+                  call #mobile-photo-open.click()
+                end">
+        <img class="todo-attachment-thumb-edit"
              tal:repeat="attachment todo.attachments"
              alt="${attachment.original_filename}"
-             src="${request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=attachment.uuid)}" />
+             src="${request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=attachment.uuid)}"
+             data-full-url="${request.route_url('todo_attachment_full', todo_id=todo.id, uuid=attachment.uuid)}" />
       </div>
     </div>
 

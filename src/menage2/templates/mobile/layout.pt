@@ -99,6 +99,73 @@
   </div>
 </div>
 
+<!-- Picture viewer.
+
+     The desktop has one already, but it is eighty lines of plain JavaScript
+     with module-level state and a document-wide click listener. A phone needs
+     less than that: Bootstrap owns the modal, and hyperscript only says which
+     picture is in it.
+-->
+<div class="modal fade" id="mobile-photo" tabindex="-1" aria-hidden="true"
+     aria-labelledby="mobile-photo-name"
+     _="on showPhoto(pic)
+          set my shown to pic
+          set #mobile-photo-image's src to pic@data-full-url
+          set #mobile-photo-image's alt to pic@alt
+          -- textContent, not innerHTML: the caption is a filename someone
+          -- else chose.
+          set #mobile-photo-name's textContent to pic@alt
+          -- A single picture needs no way through to the next one.
+          set others to <img/> in (the closest .todo-attachment-thumbs to pic)
+          if others.length > 1
+            remove .d-none from #mobile-photo-nav
+          else
+            add .d-none to #mobile-photo-nav
+          end">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-0">
+        <span class="text-white-50 small text-truncate" id="mobile-photo-name"></span>
+        <button type="button" class="btn-close btn-close-white" aria-label="Close"
+                data-bs-dismiss="modal"></button>
+      </div>
+      <!-- Tapping the picture puts it away again, the way a phone gallery does. -->
+      <div class="modal-body d-flex align-items-center justify-content-center p-0"
+           data-bs-dismiss="modal">
+        <img id="mobile-photo-image" src="" alt=""
+             class="img-fluid mh-100 object-fit-contain" />
+      </div>
+      <div class="modal-footer border-0 justify-content-between d-none"
+           id="mobile-photo-nav">
+        <button type="button" class="btn btn-link text-white" aria-label="Previous"
+                _="on click
+                     set here to #mobile-photo's shown
+                     if no here exit end
+                     set other to the previous <img/> from here
+                       within (the closest .todo-attachment-thumbs to here)
+                       with wrapping
+                     if other send showPhoto(pic: other) to #mobile-photo end">
+          <i class="bi bi-chevron-left fs-3"></i>
+        </button>
+        <button type="button" class="btn btn-link text-white" aria-label="Next"
+                _="on click
+                     set here to #mobile-photo's shown
+                     if no here exit end
+                     set other to the next <img/> from here
+                       within (the closest .todo-attachment-thumbs to here)
+                       with wrapping
+                     if other send showPhoto(pic: other) to #mobile-photo end">
+          <i class="bi bi-chevron-right fs-3"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Clicked by hyperscript so Bootstrap still handles the backdrop and the
+     scroll lock, the same way the sheets are opened. -->
+<button type="button" class="d-none" id="mobile-photo-open"
+        data-bs-toggle="modal" data-bs-target="#mobile-photo"></button>
+
 </body>
 
 </html>
