@@ -1,0 +1,123 @@
+<!-- The assignee field: same widget as the tag field, one per person.
+
+     Needs `todo` in scope.
+-->
+<div class="mb-3" hx-disinherit="*" id="field-assignees"
+  data-assignees="${' '.join(sorted(todo.assignees) if todo.assignees else [])}"
+  _="init
+       set $assignees to my @data-assignees split by ' ' as Array
+       if not $assignees then
+         set $assignees to []
+       end">
+
+  <label>Assignees</label>
+
+  <div class="form-control"
+       _="on click or keydown[key is '@' and target is body] from body
+            focus first <span.new-assignee/> in me
+            then halt">
+    <script type="text/hyperscript-template" live>
+        #for assignee in $assignees
+          <input type="hidden" name="assignees[]" value="$${assignee}"/>
+          <span class="badge rounded-pill text-bg-secondary">$${assignee}
+            <i class="bi bi-x" role="button" aria-label="Remove assignee" _="on click remove previous <input/>'s value from $assignees"></i>
+          </span>
+        #else
+          <input type="hidden" name="clear_fields[]" value="assignees"/>
+        #end
+      </script>
+
+    <span class="new-assignee" contentEditable="plaintext-only"
+      hx-get="${request.route_url('todo_assignee_picker')}"
+      hx-target="next .picker"
+      hx-trigger="focus, input delay:100ms"
+      hx-vals="js:{value: this.textContent}"
+      hx-params="value"
+      _="on focus
+         show next .picker
+
+       on blur
+         hide next .picker
+
+       on keydown[key is 'Escape']
+         blur me
+         halt
+
+       on keydown[key is 'Backspace']
+         if isCaretAtStart(me) and $assignees then
+            remove $assignees[-1]
+         end
+       end
+
+       on keydown[key is 'ArrowDown']
+         set items to <li[data-picker-value]/> in next .picker
+         if items
+           set active to first <li.picker-selected/> in next .picker
+           if active
+             remove .picker-selected from active
+             set nxt to next <li[data-picker-value]/> from active
+             if nxt add .picker-selected to nxt
+             else add .picker-selected to first in items end
+           else
+             add .picker-selected to first in items
+           end
+         end
+        halt
+
+        on keydown[key is 'ArrowUp']
+         set items to <li[data-picker-value]/> in next .picker
+         if items
+           set active to first <li.picker-selected/> in next .picker
+           if active
+             remove .picker-selected from active
+             set prv to previous <li[data-picker-value]/> from active
+             if prv add .picker-selected to prv
+             else add .picker-selected to last in items end
+           else
+             add .picker-selected to last in items
+           end
+         end
+       halt
+
+       on keydown[key is ' ']
+        set active to first <li.picker-selected/> in next .picker
+        if active
+          append active's @data-picker-value to $assignees
+        else
+          if my textContent then
+            append my textContent to $assignees
+          end
+        end
+        clear me
+        focus me
+      halt
+
+       on keydown[key is 'Enter']
+         set active to first <li.picker-selected/> in next .picker
+         if active and not ($assignees contains active's @data-picker-value) then
+           append active's @data-picker-value to $assignees
+         else
+           if my textContent then
+             if not ($assignees contains my textContent) then
+               append my textContent to $assignees
+             end
+           else
+             send submit to closest <form/>
+           end
+         end
+         clear me
+         blur me
+         focus me
+         halt
+
+       on assigneeSelected
+         set active to first <li.picker-selected/> in next .picker
+         if active and not ($assignees contains active's @data-picker-value) then
+           append active's @data-picker-value to $assignees
+         end
+         clear me
+         blur me
+      "></span>&ZeroWidthSpace;<!-- ensure form control height -->
+    <div class="picker"></div>
+  </div>
+</div>

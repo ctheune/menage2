@@ -1,0 +1,107 @@
+<!-- The tag field: pills for what is set, plus a typed entry that opens the
+     tag picker. Shared by the desktop details panel and the mobile edit
+     sheet, so a tag is picked the same way on both.
+
+     Needs `tags_json` in scope.
+-->
+<div class="mb-3" hx-disinherit="*" id="field-tags" data-tags="${tags_json}"
+  _="init set $tags to ((my @data-tags) as JSON)">
+
+  <label>Tags</label>
+
+  <div class="form-control" _="on click or keydown[key is 's' and target is body] from body
+      focus first <span.new-tag/> in me
+      then halt
+      ">
+    <script type="text/hyperscript-template" live>
+    #for tag in $tags
+      <input type="hidden" name="tags[]" value="$${tag}"/>
+      <span class="badge rounded-pill text-bg-secondary">$${tag}
+        <i class="bi bi-x" role="button" aria-label="Remove tag" _="on click remove previous <input/>'s value from $tags"></i>
+      </span>
+    #else
+      <input type="hidden" name="clear_fields[]" value="tags"/>
+    #end
+    </script>
+
+    <span class="new-tag" contentEditable="plaintext-only" hx-get="${request.route_url('todo_tag_picker')}"
+      hx-target="next .picker" hx-trigger="focus, input delay:100ms" hx-vals="js:{value: this.textContent}"
+      hx-params="value" _="
+         on focus
+            show next .picker
+
+         on blur
+            hide next .picker
+
+         on keydown[key is 'Escape']
+            blur me
+            halt
+
+         on keydown[key is 'Backspace']
+           if isCaretAtStart(me) and $tags then
+              remove $tags[-1]
+           end
+         end
+
+         on keydown[key is 'ArrowDown']
+           set items to <li[data-picker-value]/> in next .picker
+           if items
+             set active to first <li.picker-selected/> in next .picker
+             if active
+               remove .picker-selected from active
+               set nxt to next <li[data-picker-value]/> from active
+               if nxt add .picker-selected to nxt
+               else add .picker-selected to first in items end
+             else
+               add .picker-selected to first in items
+             end
+           end
+          halt
+
+          on keydown[key is 'ArrowUp']
+           set items to <li[data-picker-value]/> in next .picker
+           if items
+             set active to first <li.picker-selected/> in next .picker
+             if active
+               remove .picker-selected from active
+               set prv to previous <li[data-picker-value]/> from active
+               if prv add .picker-selected to prv
+               else add .picker-selected to last in items end
+             else
+               add .picker-selected to last in items
+             end
+           end
+         halt
+
+         on keydown[key is ' ']
+          set active to first <li.picker-selected/> in next .picker
+          if active
+            append active's @data-picker-value to $tags
+          else
+            if my textContent then
+              append my textContent to $tags
+            end
+          end
+          clear me
+          focus me
+        halt
+
+         on keydown[key is 'Enter'] or tagSelected
+           set active to first <li.picker-selected/> in next .picker
+           if active
+             append active's @data-picker-value to $tags
+           else
+             if my textContent then
+               append my textContent to $tags
+             else
+               send submit to closest <form/>
+             end
+           end
+           blur me
+           clear me
+           focus me
+           halt
+        "></span>&ZeroWidthSpace;<!-- ensure from control height -->
+    <div class="picker"></div>
+  </div>
+</div>
