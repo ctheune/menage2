@@ -778,16 +778,31 @@ def test_only_one_sheets_fields_are_in_the_page(page, context, live_server):
     assert page.locator('#field-tags input[name="tags[]"]').input_value() == "garden"
 
 
+def _pick(page, within: str, typed: str, wanted: str) -> None:
+    """Type into a field and tap `wanted` in the picker it opens.
+
+    The picker is re-fetched as you type, so the tap waits for the answer to
+    the last keystroke — otherwise it lands on a row being replaced and is
+    lost, which looks exactly like a picker that ignored you.
+    """
+    page.locator(f"{within} .form-control").click()
+    page.keyboard.type(typed)
+    option = f"{within} .picker li[data-picker-value='{wanted}']"
+    page.wait_for_selector(option, timeout=10000)
+    # The picker asks again 100ms after the last keystroke, so the rows on
+    # screen may be about to be replaced. A time-based wait is the honest
+    # answer to a time-based debounce.
+    page.wait_for_timeout(500)
+    page.wait_for_selector(option, timeout=10000)
+    page.locator(option).click()
+
+
 def test_a_tag_picked_in_the_new_sheet_becomes_a_pill(page, context, live_server):
     _add_todo(context, live_server, "Something tagged #garden")
     _open_list(page)
     _open_add(page)
 
-    page.locator("#mobile-add #field-tags .form-control").click()
-    page.keyboard.type("gar")
-    option = "#mobile-add #field-tags .picker li[data-picker-value='garden']"
-    page.wait_for_selector(option, timeout=10000)
-    page.locator(option).click()
+    _pick(page, "#mobile-add #field-tags", "gar", "garden")
 
     page.wait_for_function(
         """() => {
@@ -1163,25 +1178,6 @@ def test_the_fields_keep_their_breathing_room(page, context, live_server):
 # ---------------------------------------------------------------------------
 # A picker closes once something in it has been picked
 # ---------------------------------------------------------------------------
-
-
-def _pick(page, within: str, typed: str, wanted: str) -> None:
-    """Type into a field and tap `wanted` in the picker it opens.
-
-    The picker is re-fetched as you type, so the tap waits for the answer to
-    the last keystroke — otherwise it lands on a row being replaced and is
-    lost, which looks exactly like a picker that ignored you.
-    """
-    page.locator(f"{within} .form-control").click()
-    page.keyboard.type(typed)
-    option = f"{within} .picker li[data-picker-value='{wanted}']"
-    page.wait_for_selector(option, timeout=10000)
-    # The picker asks again 100ms after the last keystroke, so the rows on
-    # screen may be about to be replaced. A time-based wait is the honest
-    # answer to a time-based debounce.
-    page.wait_for_timeout(500)
-    page.wait_for_selector(option, timeout=10000)
-    page.locator(option).click()
 
 
 def _picker_open(page, selector: str) -> bool:
