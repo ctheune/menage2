@@ -494,6 +494,24 @@ def _render_todo_fields(request, todo, prefix: str) -> str:
     )
 
 
+def _render_run(request, todo) -> str:
+    """The checklist of the protocol run this todo stands for, if it is one.
+
+    Empty string when it is an ordinary todo, which is also what says whether
+    a panel needs to offer the checklist at all.
+    """
+    if not todo.protocol_run:
+        return ""
+    todo.protocol_run.ensure_snapshot_run_items()
+    # The same partial the run's own actions swap in, so there is one copy of
+    # the checklist markup.
+    return render(
+        "menage2:templates/_protocol_run_partial.pt",
+        {"run": todo.protocol_run},
+        request=request,
+    )
+
+
 def _render_undo_form(request) -> str:
     """The undo control both the desktop and the mobile list hang off."""
     return render("menage2:templates/_undo_form.pt", {}, request=request)
@@ -1565,16 +1583,7 @@ def todo_details_panel(request: Request):
         )
 
     todo = todos[0]
-    run_html = ""
-    if todo.protocol_run:
-        todo.protocol_run.ensure_snapshot_run_items()
-        # Same partial the run's own actions swap in, so there is one copy of
-        # the checklist markup.
-        run_html = render(
-            "menage2:templates/_protocol_run_partial.pt",
-            {"run": todo.protocol_run},
-            request=request,
-        )
+    run_html = _render_run(request, todo)
 
     response = render_to_response(
         "menage2:templates/_todo_details_panel.pt",
