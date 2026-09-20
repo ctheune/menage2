@@ -10,7 +10,7 @@ from sqlalchemy import select
 from ..models.config import ConfigItem
 from ..models.team import Team, TeamMember
 from ..models.user import User
-from ..recurrence import force_recurrence_sweep
+from ..recurrence import run_sweep
 from ..security import PERM_ADMIN
 from ..views.auth import DASHBOARD_TOKEN_KEY
 
@@ -317,13 +317,13 @@ def base_name_view(request) -> HTTPSeeOther:
     route_name="admin_recurrence_sweep", request_method="POST", permission=PERM_ADMIN
 )
 def recurrence_sweep(request):
-    """Force the daily recurrence sweep regardless of the marker.
+    """Run the recurrence sweep now instead of waiting for the next one.
 
-    Useful after editing rules in bulk or recovering from a worker that was
-    down across midnight. Spawned count is surfaced via a flash message.
+    Useful after editing rules in bulk, or when the `menage2_sweep` command
+    has not been running. Spawned count is surfaced via a flash message.
     """
     today = _datetime.date.today()
-    spawned = force_recurrence_sweep(request.dbsession, today, _now())
+    spawned = run_sweep(request.dbsession, today, _now())
     return HTTPSeeOther(
         location=request.route_url(
             "admin_operations",

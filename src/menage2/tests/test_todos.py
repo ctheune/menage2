@@ -1096,9 +1096,13 @@ def test_recurrence_history_returns_chain(authenticated_testapp, dbsession):
     assert b"Repetition history" in res.body
 
 
-def test_list_todos_runs_daily_sweep_creating_future_instance(
-    app_request, dbsession, admin_user
-):
+def test_listing_todos_does_not_spawn_anything(app_request, dbsession, admin_user):
+    """Looking at the list is not a reason to write to the database.
+
+    Sweeping from whichever request arrived first meant several of them
+    sweeping at once, which is how the chains came to branch. The sweep is a
+    command on a schedule now; opening the list only reads.
+    """
     rule = RecurrenceRule(
         kind=RecurrenceKind.every,
         interval_value=1,
@@ -1107,23 +1111,48 @@ def test_list_todos_runs_daily_sweep_creating_future_instance(
     dbsession.add(rule)
     dbsession.flush()
     today = _today()
-    # Anchor in the past so the chain has no today-or-future active item yet.
+    # Overdue anchor: this is precisely the case a sweep would act on.
     anchor = _todo(
         "Sweep", recurrence_id=rule.id, due_date=today - datetime.timedelta(days=14)
     )
     dbsession.add(anchor)
     dbsession.flush()
+    before = dbsession.query(Todo).count()
+
     list_todos(app_request)
     dbsession.flush()
+
+    assert dbsession.query(Todo).count() == before
+    assert anchor.recurred_into_id is None
+
+
+def test_the_sweep_is_what_catches_that_up(app_request, dbsession, admin_user):
+    """The other half of the bargain: nothing is lost, it just waits."""
+    from menage2.recurrence import run_sweep
+
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    today = _today()
+    anchor = _todo(
+        "Sweep", recurrence_id=rule.id, due_date=today - datetime.timedelta(days=14)
+    )
+    dbsession.add(anchor)
+    dbsession.flush()
+
+    run_sweep(dbsession, today, _now())
+    dbsession.flush()
+
     actives = (
         dbsession.query(Todo)
-        .filter(
-            Todo.recurrence_id == rule.id,
-            Todo.due_date >= today,
-        )
+        .filter(Todo.recurrence_id == rule.id, Todo.due_date >= today)
         .all()
     )
-    assert len(actives) >= 1
+    assert len(actives) == 1
 
 
 # ---------------------------------------------------------------------------

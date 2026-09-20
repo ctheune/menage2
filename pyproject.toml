@@ -39,6 +39,7 @@ dependencies = [
 [project.scripts]
 initialize_menage2_db = "menage2.scripts.initialize_db:main"
 set_ingredient_tags = "menage2.scripts.ingredients:main"
+menage2_sweep = "menage2.scripts.sweep:main"
 
 [project.entry-points."paste.app_factory"]
 main = "menage2:main"

@@ -1,12 +1,10 @@
 """Tests for menage2.recurrence — spawn helpers and the daily-sweep gate."""
 
 import datetime
-import threading
 
 import pytest
 
 from menage2.dateparse import RecurrenceSpec
-from menage2.models.config import ConfigItem
 from menage2.models.protocol import Protocol, ProtocolRun
 from menage2.models.todo import (
     RecurrenceKind,
@@ -17,13 +15,11 @@ from menage2.models.todo import (
 )
 from menage2.models.user import User
 from menage2.recurrence import (
-    _LAST_SWEEP_KEY,
     chain_history,
     ensure_protocol_has_run,
-    force_recurrence_sweep,
     rule_to_spec,
+    run_sweep,
     spawn_after,
-    spawn_due_every_if_needed,
     spawn_every_on_completion,
     spawn_protocol_after,
     spawn_protocol_every_on_completion,
@@ -260,13 +256,17 @@ def test_spawn_every_on_completion_no_op_for_no_rule(dbsession, admin_user):
 
 
 # ---------------------------------------------------------------------------
-# spawn_due_every_if_needed (daily gate, sweeps)
+# run_sweep (the catch-up)
 # ---------------------------------------------------------------------------
 
 
-def test_sweep_creates_no_op_when_marker_already_today(dbsession, admin_user):
+def test_sweeping_twice_creates_nothing_the_second_time(dbsession, admin_user):
+    """What replaces the per-day marker.
+
+    The sweep runs on a schedule now, as often as the schedule says. Nothing
+    stops it running twice in a row, so running twice has to be harmless.
+    """
     today = datetime.date(2026, 4, 29)
-    dbsession.add(ConfigItem(key=_LAST_SWEEP_KEY, value=today.isoformat()))
     rule = _make_rule(dbsession, "every", "week", weekday=2)
     _make_todo(
         dbsession,
@@ -275,25 +275,10 @@ def test_sweep_creates_no_op_when_marker_already_today(dbsession, admin_user):
         due_date=datetime.date(2026, 4, 22),
         owner=admin_user,
     )
-    spawned = spawn_due_every_if_needed(dbsession, today, _now())
-    assert spawned == 0
-    # Only the original anchor exists
-    assert dbsession.query(Todo).count() == 1
-
-
-def test_sweep_writes_marker_after_running(dbsession, admin_user):
-    today = datetime.date(2026, 4, 29)
-    rule = _make_rule(dbsession, "every", "week", n=1)
-    _make_todo(
-        dbsession,
-        text="Weekly rev",
-        recurrence_id=rule.id,
-        due_date=today,
-        owner=admin_user,
-    )
-    spawn_due_every_if_needed(dbsession, today, _now())
-    item = dbsession.get(ConfigItem, _LAST_SWEEP_KEY)
-    assert item.value == today.isoformat()
+    assert run_sweep(dbsession, today, _now()) == 1
+    before = dbsession.query(Todo).count()
+    assert run_sweep(dbsession, today, _now()) == 0
+    assert dbsession.query(Todo).count() == before
 
 
 def test_sweep_skips_when_today_active_anchor(dbsession, admin_user):
@@ -307,7 +292,7 @@ def test_sweep_skips_when_today_active_anchor(dbsession, admin_user):
         due_date=today,
         owner=admin_user,
     )
-    spawned = spawn_due_every_if_needed(dbsession, today, _now())
+    spawned = run_sweep(dbsession, today, _now())
     assert spawned == 0
 
 
@@ -324,7 +309,7 @@ def test_sweep_creates_next_when_today_anchor_already_done(dbsession, admin_user
         done_at=_now(),
         owner=admin_user,
     )
-    spawned = spawn_due_every_if_needed(dbsession, today, _now())
+    spawned = run_sweep(dbsession, today, _now())
     assert spawned >= 1
     pending = (
         dbsession.query(Todo)
@@ -348,7 +333,7 @@ def test_sweep_catches_up_missed_occurrences(dbsession, admin_user):
         due_date=datetime.date(2026, 4, 1),
         owner=admin_user,
     )  # Wed, 4 weeks before today
-    spawn_due_every_if_needed(dbsession, today, _now())
+    run_sweep(dbsession, today, _now())
     children = dbsession.query(Todo).filter(Todo.recurrence_id == rule.id).all()
     # We require: at least one due_date today-or-later (the chain is alive again)
     assert any(c.due_date >= today for c in children)
@@ -370,7 +355,7 @@ def test_sweep_creates_until_today_or_future_when_only_past_active(
         status=TodoStatus.todo,
         owner=admin_user,
     )
-    spawn_due_every_if_needed(dbsession, today, _now())
+    run_sweep(dbsession, today, _now())
     actives = (
         dbsession.query(Todo)
         .filter(
@@ -403,13 +388,12 @@ def test_sweep_skips_when_future_active_exists(dbsession, admin_user):
         owner=admin_user,
     )
     before = dbsession.query(Todo).count()
-    spawn_due_every_if_needed(dbsession, today, _now())
+    run_sweep(dbsession, today, _now())
     assert dbsession.query(Todo).count() == before
 
 
-def test_force_recurrence_sweep_bypasses_daily_marker(dbsession, admin_user):
+def test_sweep_catches_up_a_rule_nobody_has_touched(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
-    dbsession.add(ConfigItem(key=_LAST_SWEEP_KEY, value=today.isoformat()))
     rule = _make_rule(dbsession, "every", "week", weekday=2)
     _make_todo(
         dbsession,
@@ -418,7 +402,7 @@ def test_force_recurrence_sweep_bypasses_daily_marker(dbsession, admin_user):
         due_date=datetime.date(2026, 4, 1),
         owner=admin_user,
     )
-    spawned = force_recurrence_sweep(dbsession, today, _now())
+    spawned = run_sweep(dbsession, today, _now())
     assert spawned >= 1
     pending = (
         dbsession.query(Todo)
@@ -432,35 +416,67 @@ def test_force_recurrence_sweep_bypasses_daily_marker(dbsession, admin_user):
     assert pending == 1
 
 
-def test_sweep_concurrent_calls_collapse_to_one(dbsession, admin_user):
-    today = datetime.date(2026, 4, 29)
-    rule = _make_rule(dbsession, "every", "week", n=1)
-    # Past-due anchor → the chain has no today-or-future, so a sweep would
-    # spawn. We expect only the first thread to actually do so.
-    _make_todo(
-        dbsession,
-        recurrence_id=rule.id,
-        due_date=datetime.date(2026, 4, 1),
-        owner=admin_user,
+def test_two_workers_spawning_at_once_produce_one_successor(clean_db, dbengine):
+    """The race this was all about, across two real connections.
+
+    Both read the item before either writes, so neither can see the other
+    coming — which is exactly what two web workers handling the same
+    completion look like. Only the database can tell them apart.
+    """
+    from sqlalchemy.orm import sessionmaker
+
+    from menage2.models.todo import RecurrenceKind, RecurrenceRule, RecurrenceUnit
+
+    Session = sessionmaker(bind=dbengine)
+
+    setup = Session()
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.after,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
     )
+    setup.add(rule)
+    setup.flush()
+    parent = Todo(
+        text="Water",
+        tags=set(),
+        status=TodoStatus.todo,
+        created_at=_now(),
+        due_date=datetime.date(2026, 5, 3),
+        recurrence_id=rule.id,
+    )
+    setup.add(parent)
+    setup.commit()
+    parent_id, rule_id = parent.id, rule.id
+    setup.close()
 
-    results = []
-    barrier = threading.Barrier(3)
+    one, two = Session(), Session()
+    try:
+        mine = one.get(Todo, parent_id)
+        theirs = two.get(Todo, parent_id)
+        assert theirs.recurred_into_id is None  # neither has written yet
 
-    def worker():
-        barrier.wait()
-        spawned = spawn_due_every_if_needed(dbsession, today, _now())
-        results.append(spawned)
+        completion = datetime.date(2026, 5, 10)
+        first = spawn_after(mine, completion, _now(), one)
+        one.commit()
+        second = spawn_after(theirs, completion, _now(), two)
+        two.commit()
 
-    threads = [threading.Thread(target=worker) for _ in range(3)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+        assert first is not None
+        assert second is None, "the second worker added a branch"
 
-    # Exactly one thread did the spawn; the others saw the marker.
-    assert results.count(0) == 2
-    assert sum(results) >= 1
+        check = Session()
+        successors = (
+            check.query(Todo)
+            .filter(Todo.recurrence_id == rule_id, Todo.id != parent_id)
+            .all()
+        )
+        assert len(successors) == 1
+        assert check.get(Todo, parent_id).recurred_into_id == successors[0].id
+        check.close()
+    finally:
+        one.close()
+        two.close()
 
 
 # ---------------------------------------------------------------------------
@@ -592,7 +608,7 @@ def test_daily_sweep_includes_protocols(dbsession, admin_user):
     p = _make_protocol(dbsession, admin_user, recurrence=rule)
     # Past run only — chain has no today-or-future active.
     spawn_protocol_run(p, today - datetime.timedelta(days=14), _now(), dbsession)
-    spawned = spawn_due_every_if_needed(dbsession, today, _now())
+    spawned = run_sweep(dbsession, today, _now())
     assert spawned >= 1
     actives = (
         dbsession.query(Todo)
@@ -612,7 +628,7 @@ def test_daily_sweep_skips_archived_protocols(dbsession, admin_user):
     before = (
         dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).count()
     )
-    spawn_due_every_if_needed(dbsession, today, _now())
+    run_sweep(dbsession, today, _now())
     after = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).count()
     assert before == after
 

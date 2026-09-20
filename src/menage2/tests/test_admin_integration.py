@@ -94,14 +94,12 @@ def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession, admin_u
     """The admin button forces a sweep regardless of the daily marker."""
     import datetime
 
-    from menage2.models.config import ConfigItem
     from menage2.models.todo import (
         RecurrenceKind,
         RecurrenceRule,
         RecurrenceUnit,
         Todo,
     )
-    from menage2.recurrence import _LAST_SWEEP_KEY
 
     today = datetime.date.today()
     rule = RecurrenceRule(
@@ -121,7 +119,6 @@ def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession, admin_u
             owner=admin_user,
         )
     )
-    dbsession.add(ConfigItem(key=_LAST_SWEEP_KEY, value=today.isoformat()))
     dbsession.flush()
 
     res = authenticated_testapp.post("/admin/recurrence-sweep", status=303)

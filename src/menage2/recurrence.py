@@ -1,21 +1,21 @@
 """Repetition scheduling for todos.
 
-Two flavours of recurrence rule are spawned by different triggers:
+Completing an item is what normally produces the next one, for both flavours
+of rule: ``after`` counts the interval from the completion date, ``every``
+takes the next occurrence of a fixed cadence. That happens there and then,
+so the next item appears while you are looking at the list.
 
-* ``after`` rules fire when an item is marked done. A new Todo is spawned with
-  ``due_date = completion_date + interval``. Triggered from ``todos_done``.
-* ``every`` rules fire on a fixed cadence regardless of completion. The view
-  pipeline calls :func:`spawn_due_every_if_needed` which sweeps every active
-  ``every`` rule and creates any missing occurrences whose ``due_date`` is on
-  or before today. Gated by a per-day ``ConfigItem`` marker plus a
-  process-wide :class:`threading.Lock` so concurrent web requests sweep at
-  most once per day.
+:func:`run_sweep` is the catch-up for everything completion cannot cover — a
+rule nobody has touched, an ``every`` rule whose date has come round with
+its last instance still open, a run that was missed while the app was down.
+It is idempotent, and it belongs to the ``menage2_sweep`` command rather
+than to a request: sweeping from whichever request happened to arrive first
+meant several of them sweeping at once.
 """
 
 from __future__ import annotations
 
 import datetime
-import threading
 from typing import TYPE_CHECKING, Iterable, Optional
 
 from sqlalchemy import select
@@ -23,7 +23,6 @@ from sqlalchemy import update as sqla_update
 
 import menage2.models.protocol
 from menage2.dateparse import RecurrenceSpec, next_occurrence
-from menage2.models.config import ConfigItem
 from menage2.models.todo import (
     RecurrenceKind,
     RecurrenceRule,
@@ -36,10 +35,6 @@ from menage2.models.todo import (
 
 if TYPE_CHECKING:  # avoid circular import; models.protocol imports from this module
     from menage2.models.protocol import Protocol, ProtocolRun
-
-_LAST_SWEEP_KEY = "last_recurrence_sweep_date"
-_sweep_lock = threading.Lock()
-
 
 # ---------------------------------------------------------------------------
 # Rule ↔ spec translation
@@ -219,58 +214,23 @@ def _spawn_every_chain(
     return _spawn_linked(dbsession, anchor_todo, nxt, now_utc)
 
 
-def _today_marker(today: datetime.date) -> str:
-    return today.isoformat()
+def run_sweep(dbsession, today: datetime.date, now_utc: datetime.datetime) -> int:
+    """Create whatever is missing for every ``every`` rule, todos and protocols.
 
+    Catch-up only: completing an item already produces its successor, so on
+    most runs this finds nothing to do and says so by returning 0.
 
-def _read_marker(dbsession) -> str | None:
-    item = dbsession.get(ConfigItem, _LAST_SWEEP_KEY)
-    return item.value if item else None
+    Safe to run as often as you like — every rule that already has something
+    due today or later is skipped, and a spawn that loses a race to another
+    sweep takes its own row back out. There is no per-day marker any more:
+    the command's schedule says when it runs, and running twice costs a
+    couple of queries.
 
-
-def _write_marker(dbsession, value: str) -> None:
-    item = dbsession.get(ConfigItem, _LAST_SWEEP_KEY)
-    if item is None:
-        dbsession.add(ConfigItem(key=_LAST_SWEEP_KEY, value=value))
-    else:
-        item.value = value
-
-
-def spawn_due_every_if_needed(
-    dbsession, today: datetime.date, now_utc: datetime.datetime
-) -> int:
-    """Sweep ``every`` rules — todos AND protocols — at most once per day.
-
-    Holds the process-wide :data:`_sweep_lock` to serialise concurrent
-    requests within a single worker. The marker check + write happens inside
-    the lock so simultaneous list views collapse to a single sweep.
-
-    Returns the total number of todos and protocol-run-todos spawned.
+    Returns how many todos and protocol-run-todos were created.
     """
-    today_str = _today_marker(today)
-    with _sweep_lock:
-        if _read_marker(dbsession) == today_str:
-            return 0
-        spawned = _sweep_every_rules(dbsession, today, now_utc)
-        spawned += _sweep_every_protocols(dbsession, today, now_utc)
-        _write_marker(dbsession, today_str)
-        return spawned
-
-
-def force_recurrence_sweep(
-    dbsession, today: datetime.date, now_utc: datetime.datetime
-) -> int:
-    """Run the sweep regardless of the daily marker (admin action).
-
-    Still serialised by :data:`_sweep_lock`. The marker is bumped to today
-    on success so the automatic per-day check stays consistent.
-    """
-    today_str = _today_marker(today)
-    with _sweep_lock:
-        spawned = _sweep_every_rules(dbsession, today, now_utc)
-        spawned += _sweep_every_protocols(dbsession, today, now_utc)
-        _write_marker(dbsession, today_str)
-        return spawned
+    spawned = _sweep_every_rules(dbsession, today, now_utc)
+    spawned += _sweep_every_protocols(dbsession, today, now_utc)
+    return spawned
 
 
 def _sweep_every_rules(

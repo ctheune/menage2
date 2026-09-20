@@ -42,7 +42,6 @@ from menage2.recurrence import (
     chain_history,
     rule_to_spec,
     spawn_after,
-    spawn_due_every_if_needed,
     spawn_every_on_completion,
     spawn_protocol_after,
     spawn_protocol_every_on_completion,
@@ -680,10 +679,6 @@ def list_todo_groups_mobile(request):
 
 
 def _list_todos(request):
-    today = _today()
-    # XXX
-    spawn_due_every_if_needed(request.dbsession, today, _now_utc())
-
     status = request.params.get("status", "active")
     if status not in _VALID_STATUS_FILTERS:
         status = "active"
