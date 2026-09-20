@@ -150,7 +150,7 @@
   </div><!-- /.helios-header -->
 
   <div class="helios-content-wrap">
-    <dialog id="popOver" class="w-75 h-75 border border-0 rounded" _="on htmx:afterSwap then open me"></dialog>
+    <dialog id="popOver" class="w-75 h-75 border border-0 rounded" _="on htmx:afterSwap open me"></dialog>
 
     <div metal:define-slot="content">No content</div>
   </div>
