@@ -20,6 +20,8 @@
           </div>
         </div>
 
+        <div metal:use-macro="load: ../_absences.pt"></div>
+
         <div class="card mb-3">
           <div class="card-body">
             <h5 class="card-title">Security</h5>

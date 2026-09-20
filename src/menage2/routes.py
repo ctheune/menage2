@@ -31,6 +31,8 @@ def includeme(config):
     # Account management (authenticated users)
     config.add_route("account", "/account")
     config.add_route("account_change_password", "/account/password")
+    config.add_route("account_absence_add", "/account/absences")
+    config.add_route("account_absence_remove", "/account/absences/{id}/remove")
     config.add_route("account_passkeys", "/account/passkeys")
     config.add_route("account_passkey_delete", "/account/passkeys/{id}/delete")
     config.add_route(
@@ -47,6 +49,11 @@ def includeme(config):
     config.add_route("admin_user_edit", "/admin/users/{id}/edit")
     config.add_route("admin_user_deactivate", "/admin/users/{id}/deactivate")
     config.add_route("admin_user_delete", "/admin/users/{id}/delete")
+    config.add_route("admin_user_absences", "/admin/users/{id}/absences")
+    config.add_route("admin_user_absence_add", "/admin/users/{id}/absences/add")
+    config.add_route(
+        "admin_user_absence_remove", "/admin/users/{id}/absences/{absence_id}/remove"
+    )
     config.add_route("admin_dashboard_token", "/admin/dashboard-token")
     config.add_route("admin_base_name", "/admin/base-name")
     config.add_route("admin_recurrence_sweep", "/admin/recurrence-sweep")

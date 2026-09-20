@@ -43,6 +43,7 @@
               </td>
               <td class="align-middle text-nowrap">
                 <a href="${request.route_url('admin_user_edit', id=user.id)}" class="link-secondary small me-2">Edit</a>
+                <a href="${request.route_url('admin_user_absences', id=user.id)}" class="link-secondary small me-2">Away</a>
                 <tal:block tal:condition="user.id != request.identity.id">
                   <tal:block tal:condition="user.is_active">
                     <form method="post" action="${request.route_url('admin_user_deactivate', id=user.id)}"

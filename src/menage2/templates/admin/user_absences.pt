@@ -1,0 +1,29 @@
+<div metal:use-macro="load: ../layout.pt">
+  <span metal:fill-slot="title-mobile">Away</span>
+  <span metal:fill-slot="title">${user.real_name} — away</span>
+
+  <span metal:fill-slot="actions">
+    <a href="${request.route_url('admin_users')}" class="btn btn-sm btn-outline-secondary">
+      Back to Crew
+    </a>
+  </span>
+
+  <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
+    <div class="row">
+      <div class="col-lg-7">
+        <!-- The layout keeps its title slot for standalone pages; inside a
+             section it shows the section nav instead, so whose absences
+             these are has to be said here. -->
+        <h4 class="mb-3">${user.real_name}
+          <span class="text-body-secondary fs-6 font-monospace">@${user.username}</span>
+        </h4>
+
+        <p tal:condition="not user.is_active" class="alert alert-secondary">
+          This account is deactivated, which already counts as away — for good,
+          rather than until a date.
+        </p>
+        <div metal:use-macro="load: ../_absences.pt"></div>
+      </div>
+    </div>
+  </div>
+</div>

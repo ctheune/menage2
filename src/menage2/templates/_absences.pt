@@ -1,0 +1,58 @@
+<!-- Somebody's absences: what is recorded and a row to add one.
+
+     Needs `absences`, `add_url`, `remove_url` (a callable taking the id) and
+     `today` in scope. Used by a person's own account page and by the admin
+     page for somebody else's, which differ only in whose they are.
+-->
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="card-title">Away</h5>
+    <p class="text-body-secondary small">
+      A week off that starts on a Monday counts from the Saturday before it,
+      and one that ends on a Friday counts to the Sunday after. While
+      everyone assigned to a team is away, that team's tasks appear on its
+      supervisors' own list.
+    </p>
+
+    <ul class="list-group list-group-flush mb-3" tal:condition="absences">
+      <li tal:repeat="absence absences"
+          class="list-group-item d-flex justify-content-between align-items-center px-0">
+        <span tal:attributes="class python:'' if absence.covers_until >= today else 'text-body-secondary'">
+          ${absence.starts_on.strftime('%a %d %b %Y')}
+          –
+          ${absence.ends_on.strftime('%a %d %b %Y')}
+          <span tal:condition="python:absence.covers_from != absence.starts_on or absence.covers_until != absence.ends_on"
+                class="text-body-secondary small">
+            (counts ${absence.covers_from.strftime('%d %b')}
+             – ${absence.covers_until.strftime('%d %b')})
+          </span>
+        </span>
+        <form method="post" action="${remove_url(absence.id)}" class="m-0">
+          <button type="submit" class="btn btn-link btn-sm p-0 text-danger">Remove</button>
+        </form>
+      </li>
+    </ul>
+
+    <p tal:condition="not absences" class="text-body-secondary">
+      Nothing recorded.
+    </p>
+
+    <form method="post" action="${add_url}" class="row g-2 align-items-end">
+      <div class="col-sm-5">
+        <label class="form-label" for="absence-starts">First day</label>
+        <input type="date" class="form-control" id="absence-starts"
+               name="starts_on" required />
+      </div>
+      <div class="col-sm-5">
+        <label class="form-label" for="absence-ends">Last day</label>
+        <input type="date" class="form-control" id="absence-ends"
+               name="ends_on" required />
+      </div>
+      <div class="col-sm-2">
+        <button type="submit" class="btn btn-dark w-100">Add</button>
+      </div>
+    </form>
+
+    <p tal:condition="error" class="text-danger small mt-2 mb-0">${error}</p>
+  </div>
+</div>

@@ -9,10 +9,11 @@ from sqlalchemy import select
 
 from ..models.config import ConfigItem
 from ..models.team import Team, TeamMember
-from ..models.user import User
+from ..models.user import Absence, User
 from ..recurrence import run_sweep
 from ..security import PERM_ADMIN
 from ..tags import apply_retag, list_tags, plan_retag
+from ..views.account import parse_absence
 from ..views.auth import DASHBOARD_TOKEN_KEY
 
 BASE_NAME_KEY = "base_name"
@@ -248,6 +249,66 @@ def delete_user(request):
 
     request.dbsession.delete(user)
     return HTTPSeeOther(location=request.route_url("admin_users"))
+
+
+# ---------------------------------------------------------------------------
+# Absences
+# ---------------------------------------------------------------------------
+
+
+@view_config(
+    route_name="admin_user_absences",
+    renderer="menage2:templates/admin/user_absences.pt",
+    permission=PERM_ADMIN,
+)
+def user_absences(request):
+    user = request.dbsession.get(User, int(request.matchdict["id"]))
+    if user is None:
+        raise HTTPNotFound()
+    return {
+        "user": user,
+        "absences": user.absences,
+        "today": _datetime.date.today(),
+        "error": request.GET.get("error"),
+        "add_url": request.route_url("admin_user_absence_add", id=user.id),
+        "remove_url": lambda absence_id: request.route_url(
+            "admin_user_absence_remove", id=user.id, absence_id=absence_id
+        ),
+    }
+
+
+@view_config(
+    route_name="admin_user_absence_add", request_method="POST", permission=PERM_ADMIN
+)
+def user_absence_add(request):
+    user = request.dbsession.get(User, int(request.matchdict["id"]))
+    if user is None:
+        raise HTTPNotFound()
+    starts_on, ends_on, error = parse_absence(request)
+    if error:
+        return HTTPSeeOther(
+            request.route_url(
+                "admin_user_absences", id=user.id, _query={"error": error}
+            )
+        )
+    request.dbsession.add(
+        Absence(user_id=user.id, starts_on=starts_on, ends_on=ends_on)
+    )
+    return HTTPSeeOther(request.route_url("admin_user_absences", id=user.id))
+
+
+@view_config(
+    route_name="admin_user_absence_remove",
+    request_method="POST",
+    permission=PERM_ADMIN,
+)
+def user_absence_remove(request):
+    user_id = int(request.matchdict["id"])
+    absence = request.dbsession.get(Absence, int(request.matchdict["absence_id"]))
+    if absence is None or absence.user_id != user_id:
+        raise HTTPNotFound()
+    request.dbsession.delete(absence)
+    return HTTPSeeOther(request.route_url("admin_user_absences", id=user_id))
 
 
 # ---------------------------------------------------------------------------

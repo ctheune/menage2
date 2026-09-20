@@ -24,7 +24,7 @@ NOTE: Team expansion uses Python set intersection on memberships — no inline S
 from sqlalchemy import select
 
 from .models.team import Team, TeamMember
-from .models.user import User
+from .models.user import Absence, User
 
 
 def get_all_principals(dbsession) -> list[dict]:
@@ -51,6 +51,39 @@ def get_user_team_memberships(dbsession, user) -> dict[str, str]:
         .where(TeamMember.user_id == user.id)
     ).all()
     return {name: role for name, role in rows}
+
+
+def absent_usernames(dbsession, day) -> set[str]:
+    """Everybody who is away on `day`.
+
+    A deactivated account counts as away and stays that way: somebody who
+    has left is not coming back on Monday, and their team's work should not
+    wait for them.
+
+    The stretch each absence covers is worked out in Python rather than in
+    the query: a Monday start reaches back over the weekend before it and a
+    Friday end reaches forward over the one after, and that rule belongs
+    next to the dates it is about. The query narrows to absences that could
+    possibly reach `day` first, so only a handful are ever looked at.
+    """
+    import datetime
+
+    away = set(
+        dbsession.execute(
+            select(User.username).where(User.is_active == False)  # noqa: E712
+        )
+        .scalars()
+        .all()
+    )
+
+    reach = datetime.timedelta(days=2)
+    rows = dbsession.execute(
+        select(Absence, User.username)
+        .join(User, User.id == Absence.user_id)
+        .where(Absence.starts_on <= day + reach, Absence.ends_on >= day - reach)
+    ).all()
+    away.update(username for absence, username in rows if absence.covers(day))
+    return away
 
 
 def todo_matches_filter(

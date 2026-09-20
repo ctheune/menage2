@@ -1,5 +1,6 @@
 import base64
 import json
+from datetime import date as _date
 from datetime import datetime, timezone
 
 from argon2 import PasswordHasher
@@ -7,7 +8,7 @@ from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatc
 from pyramid.httpexceptions import HTTPNotFound, HTTPSeeOther
 from pyramid.view import view_config
 
-from ..models.user import Passkey
+from ..models.user import Absence, Passkey
 from ..security import PERM_AUTHENTICATED
 
 _ph = PasswordHasher()
@@ -17,13 +18,75 @@ def _now():
     return datetime.now(timezone.utc)
 
 
+# ---------------------------------------------------------------------------
+# Absences
+# ---------------------------------------------------------------------------
+
+
+def parse_absence(request):
+    """The dates from the form, or a message saying what is wrong with them.
+
+    Returns (starts_on, ends_on, error) — the first two are None when there
+    is an error.
+    """
+    raw_start = request.POST.get("starts_on", "").strip()
+    raw_end = request.POST.get("ends_on", "").strip()
+    try:
+        starts_on = _date.fromisoformat(raw_start)
+        ends_on = _date.fromisoformat(raw_end)
+    except ValueError:
+        return None, None, "Give both days."
+    if ends_on < starts_on:
+        return None, None, "The last day comes before the first."
+    return starts_on, ends_on, None
+
+
 @view_config(
     route_name="account",
     renderer="menage2:templates/auth/account.pt",
     permission=PERM_AUTHENTICATED,
 )
 def account_view(request):
-    return {"user": request.identity}
+    user = request.identity
+    return {
+        "user": user,
+        "absences": user.absences,
+        "today": _date.today(),
+        "error": request.GET.get("error"),
+        "add_url": request.route_url("account_absence_add"),
+        "remove_url": lambda absence_id: request.route_url(
+            "account_absence_remove", id=absence_id
+        ),
+    }
+
+
+@view_config(
+    route_name="account_absence_add",
+    request_method="POST",
+    permission=PERM_AUTHENTICATED,
+)
+def account_absence_add(request):
+    starts_on, ends_on, error = parse_absence(request)
+    if error:
+        return HTTPSeeOther(request.route_url("account", _query={"error": error}))
+    request.dbsession.add(
+        Absence(user_id=request.identity.id, starts_on=starts_on, ends_on=ends_on)
+    )
+    return HTTPSeeOther(request.route_url("account"))
+
+
+@view_config(
+    route_name="account_absence_remove",
+    request_method="POST",
+    permission=PERM_AUTHENTICATED,
+)
+def account_absence_remove(request):
+    """Only your own: the id is looked up against the signed-in user."""
+    absence = request.dbsession.get(Absence, int(request.matchdict["id"]))
+    if absence is None or absence.user_id != request.identity.id:
+        raise HTTPNotFound()
+    request.dbsession.delete(absence)
+    return HTTPSeeOther(request.route_url("account"))
 
 
 @view_config(
