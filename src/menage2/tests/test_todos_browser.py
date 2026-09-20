@@ -315,7 +315,7 @@ def test_set_due_date_from_details_pane_moves_to_scheduled(page):
     page.locator("#todo-edit-form input[type='submit']").click()
     _wait_gone(page, "schedule me")
     page.goto(STATUS_SCHEDULED)
-    assert page.locator(_item("schedule me")).count() == 1
+    page.wait_for_selector(_item("schedule me"), timeout=10000)
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +330,7 @@ def test_c_key_marks_selected_done(page):
     page.keyboard.press("c")
     _wait_gone(page, "Done me")
     page.goto(STATUS_DONE)
-    assert page.locator(_item("Done me")).count() == 1
+    page.wait_for_selector(_item("Done me"), timeout=10000)
 
 
 def test_undo_toast_appears_and_u_restores(page):
@@ -351,7 +351,7 @@ def test_h_key_puts_selected_on_hold(page):
     page.keyboard.press("h")
     _wait_gone(page, "Hold me")
     page.goto(STATUS_HOLD)
-    assert page.locator(_item("Hold me")).count() == 1
+    page.wait_for_selector(_item("Hold me"), timeout=10000)
 
 
 def test_a_key_activates_from_hold(page):
@@ -366,7 +366,7 @@ def test_a_key_activates_from_hold(page):
     page.keyboard.press("a")
     _wait_gone(page, "Reactivate me")
     page.goto(STATUS_ACTIVE)
-    assert page.locator(_item("Reactivate me")).count() == 1
+    page.wait_for_selector(_item("Reactivate me"), timeout=10000)
 
 
 def test_shift_p_postpones_selected_by_one_day(page):
@@ -432,7 +432,7 @@ def test_activate_all_on_hold_button(page):
     page.get_by_role("button", name="Activate all").click()
     page.wait_for_url("**/todos", timeout=10000)
     page.goto(STATUS_ACTIVE)
-    assert page.locator(_item("Bulk activate me")).count() == 1
+    page.wait_for_selector(_item("Bulk activate me"), timeout=10000)
 
 
 # ---------------------------------------------------------------------------

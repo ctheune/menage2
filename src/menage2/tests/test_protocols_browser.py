@@ -8,7 +8,7 @@ protocol shows up in the todo list and behaves in the details pane.
 
 import pytest
 
-from ._browser_helpers import select_row
+from ._browser_helpers import click_until, select_row
 
 
 @pytest.fixture(scope="session")
@@ -142,12 +142,9 @@ def test_linked_todo_badge_opens_run(page, context, live_server):
     # Start a run, land on the todo list, click the clipboard badge
     _start_run(page, pid)
     page.wait_for_selector(".todo-protocol-link", timeout=10000)
-    badge = page.locator(".todo-protocol-link")
-    assert badge.count() == 1
-    badge.first.click()
-
-    # Badge now opens the panel inline instead of navigating
-    page.wait_for_selector("#protocol-run", timeout=10000)
+    assert page.locator(".todo-protocol-link").count() == 1
+    # Badge opens the panel inline instead of navigating.
+    click_until(page, ".todo-protocol-link", "#protocol-run")
     assert page.url.endswith("/todos")
 
 

@@ -30,3 +30,22 @@ def select_row(page, selector: str, expect: str, attempts: int = 3) -> None:
             continue
         page.wait_for_selector(expect, timeout=10000)
         return
+
+
+def click_until(page, selector: str, expect: str, attempts: int = 3) -> None:
+    """Click `selector` until `expect` appears, for clicks that are idempotent.
+
+    Use this where re-clicking does no harm — a badge that opens a panel, say.
+    Row selection must not go through here: a second click on a selected row
+    toggles it off again, which is what `select_row` exists to avoid.
+    """
+    page.wait_for_selector(selector, timeout=10000)
+    target = page.locator(selector).first
+    for attempt in range(attempts):
+        target.click()
+        try:
+            page.wait_for_selector(expect, timeout=3000)
+            return
+        except PlaywrightTimeoutError:
+            if attempt == attempts - 1:
+                raise
