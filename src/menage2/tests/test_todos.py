@@ -966,8 +966,9 @@ def test_todos_done_spawns_after_instance(app_request, dbsession, admin_user):
     app_request.POST["todo_ids"] = str(todo.id)
     todos_done(app_request)
     dbsession.flush()
-    children = dbsession.query(Todo).filter(Todo.recurred_from_id == todo.id).all()
-    assert len(children) == 1
+    dbsession.refresh(todo)
+    assert todo.recurred_into_id is not None
+    children = [dbsession.get(Todo, todo.recurred_into_id)]
     assert children[0].text == "Vacuum"
     assert children[0].recurrence_id == rule.id
     assert children[0].due_date == _today() + datetime.timedelta(days=7)
@@ -1000,7 +1001,8 @@ def test_todos_done_spawns_every_instance(app_request, dbsession, admin_user):
     )
     assert len(pending) == 1
     assert pending[0].due_date == _today() + datetime.timedelta(days=7)
-    assert pending[0].recurred_from_id == todo.id
+    dbsession.refresh(todo)
+    assert todo.recurred_into_id == pending[0].id
 
 
 def test_recurrence_clone_preserves_assignees(app_request, dbsession, admin_user):
@@ -1082,8 +1084,10 @@ def test_recurrence_history_returns_chain(authenticated_testapp, dbsession):
     a = _todo("A", recurrence_id=rule.id, status=TodoStatus.done, done_at=_now())
     dbsession.add(a)
     dbsession.flush()
-    b = _todo("B", recurrence_id=rule.id, recurred_from_id=a.id)
+    b = _todo("B", recurrence_id=rule.id)
     dbsession.add(b)
+    dbsession.flush()
+    a.recurred_into_id = b.id
     dbsession.flush()
     res = authenticated_testapp.get(f"/todos/{b.id}/history", status=200)
     assert b"A" in res.body

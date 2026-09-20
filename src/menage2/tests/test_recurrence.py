@@ -3,6 +3,8 @@
 import datetime
 import threading
 
+import pytest
+
 from menage2.dateparse import RecurrenceSpec
 from menage2.models.config import ConfigItem
 from menage2.models.protocol import Protocol, ProtocolRun
@@ -76,6 +78,77 @@ def test_spec_rule_roundtrip(dbsession):
 
 
 # ---------------------------------------------------------------------------
+# The chain cannot fork
+# ---------------------------------------------------------------------------
+
+
+def test_an_item_only_ever_spawns_once(dbsession, admin_user):
+    """The whole point of writing the chain forwards.
+
+    Two requests completing the same item used to produce two successors and
+    a chain shaped like a tree. Now the second one finds the place taken.
+    """
+    from menage2.models.todo import Todo
+
+    rule = _make_rule(dbsession, "after", "week", n=1)
+    parent = _make_todo(
+        dbsession, text="Water", recurrence_id=rule.id, owner=admin_user
+    )
+    completion = datetime.date(2026, 5, 10)
+
+    first = spawn_after(parent, completion, _now(), dbsession)
+    second = spawn_after(parent, completion, _now(), dbsession)
+
+    assert first is not None
+    assert second is None
+    assert parent.recurred_into_id == first.id
+    assert dbsession.query(Todo).filter(Todo.recurrence_id == rule.id).count() == 2, (
+        "the second spawn left a branch behind"
+    )
+
+
+def test_claiming_a_successor_twice_is_refused_by_the_database(dbsession, admin_user):
+    """Not just the in-memory check: the UPDATE is what arbitrates.
+
+    Two workers each hold their own idea of the parent, so neither can see
+    the other's claim. Only the conditional UPDATE can tell them apart.
+    """
+    from menage2.recurrence import _claim_successor
+
+    rule = _make_rule(dbsession, "after", "week", n=1)
+    parent = _make_todo(
+        dbsession, text="Water", recurrence_id=rule.id, owner=admin_user
+    )
+    mine = _make_todo(dbsession, text="mine", recurrence_id=rule.id, owner=admin_user)
+    theirs = _make_todo(
+        dbsession, text="theirs", recurrence_id=rule.id, owner=admin_user
+    )
+
+    assert _claim_successor(dbsession, parent, mine) is True
+    assert _claim_successor(dbsession, parent, theirs) is False
+    assert parent.recurred_into_id == mine.id
+
+
+def test_two_items_cannot_claim_the_same_successor(dbsession, admin_user):
+    """The other half: UNIQUE stops a chain joining back onto itself."""
+    import sqlalchemy.exc
+
+    rule = _make_rule(dbsession, "after", "week", n=1)
+    one = _make_todo(dbsession, text="one", recurrence_id=rule.id, owner=admin_user)
+    two = _make_todo(dbsession, text="two", recurrence_id=rule.id, owner=admin_user)
+    shared = _make_todo(
+        dbsession, text="shared", recurrence_id=rule.id, owner=admin_user
+    )
+
+    one.recurred_into_id = shared.id
+    dbsession.flush()
+    two.recurred_into_id = shared.id
+    with pytest.raises(sqlalchemy.exc.IntegrityError):
+        dbsession.flush()
+    dbsession.rollback()
+
+
+# ---------------------------------------------------------------------------
 # spawn_after
 # ---------------------------------------------------------------------------
 
@@ -95,7 +168,7 @@ def test_spawn_after_creates_clone_with_new_due_date(dbsession, admin_user):
     assert new.text == "Water plants"
     assert new.tags == {"chores"}
     assert new.recurrence_id == rule.id
-    assert new.recurred_from_id == parent.id
+    assert parent.recurred_into_id == new.id
     assert new.status == TodoStatus.todo
     assert new.due_date == datetime.date(2026, 5, 17)
 
@@ -139,7 +212,7 @@ def test_spawn_every_on_completion_creates_next_instance(dbsession, admin_user):
     )
     assert len(pending) == 1
     assert pending[0].due_date == datetime.date(2026, 5, 6)
-    assert pending[0].recurred_from_id == todo.id
+    assert todo.recurred_into_id == pending[0].id
     assert pending[0] is spawned
 
 
@@ -395,25 +468,30 @@ def test_sweep_concurrent_calls_collapse_to_one(dbsession, admin_user):
 # ---------------------------------------------------------------------------
 
 
-def test_chain_history_walks_oldest_first(dbsession, admin_user):
+def _chain(dbsession, admin_user, rule, *texts):
+    """Build a chain of todos, each one spawned by the one before it."""
+    todos = [
+        _make_todo(dbsession, text=text, recurrence_id=rule.id, owner=admin_user)
+        for text in texts
+    ]
+    for earlier, later in zip(todos, todos[1:]):
+        earlier.recurred_into_id = later.id
+    dbsession.flush()
+    return todos
+
+
+def test_chain_history_reads_oldest_first(dbsession, admin_user):
     rule = _make_rule(dbsession, "every", "week", n=1)
-    a = _make_todo(dbsession, text="A", recurrence_id=rule.id, owner=admin_user)
-    b = _make_todo(
-        dbsession,
-        text="B",
-        recurrence_id=rule.id,
-        recurred_from_id=a.id,
-        owner=admin_user,
-    )
-    c = _make_todo(
-        dbsession,
-        text="C",
-        recurrence_id=rule.id,
-        recurred_from_id=b.id,
-        owner=admin_user,
-    )
-    chain = chain_history(dbsession, c)
-    assert [t.text for t in chain] == ["A", "B", "C"]
+    a, b, c = _chain(dbsession, admin_user, rule, "A", "B", "C")
+    assert [t.text for t in chain_history(dbsession, c)] == ["A", "B", "C"]
+
+
+def test_chain_history_reads_the_same_from_anywhere_in_the_chain(dbsession, admin_user):
+    """It is one chain, so it should not matter which link you ask."""
+    rule = _make_rule(dbsession, "every", "week", n=1)
+    a, b, c = _chain(dbsession, admin_user, rule, "A", "B", "C")
+    for member in (a, b, c):
+        assert [t.text for t in chain_history(dbsession, member)] == ["A", "B", "C"]
 
 
 def test_chain_history_single_item_when_no_parent(dbsession, admin_user):
@@ -573,3 +651,182 @@ def test_ensure_protocol_has_run_no_op_without_recurrence(dbsession, admin_user)
         dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).count()
         == 0
     )
+
+
+# ---------------------------------------------------------------------------
+# The migration's clean-up of branches that already exist
+# ---------------------------------------------------------------------------
+
+
+def _prune_branches(dbsession) -> int:
+    """Run the migration's own SQL against the test database.
+
+    Imported from the migration rather than copied, so what is tested is what
+    ships. The file name starts with a date, hence the long way round.
+    """
+    import importlib.util
+    import pathlib
+
+    path = (
+        pathlib.Path(__file__).parent.parent
+        / "alembic"
+        / "versions"
+        / "20260920_c1f4a7e3b210.py"
+    )
+    spec = importlib.util.spec_from_file_location("_migration_c1f4a7e3b210", path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    removed = migration.prune_branches(dbsession.connection())
+    dbsession.expire_all()
+    return removed
+
+
+def _fork(dbsession, admin_user, rule):
+    """A chain that branched: A spawned B, and C — a copy of A — spawned D.
+
+    What parallel spawning used to leave behind. It can no longer be built
+    through the spawn helpers, hence the direct links.
+    """
+    a, b = _chain(dbsession, admin_user, rule, "A", "B")
+    c, d = _chain(dbsession, admin_user, rule, "C", "D")
+    return a, b, c, d
+
+
+def test_a_rule_that_never_branched_is_left_alone(dbsession, admin_user):
+    rule = _make_rule(dbsession, "every", "week", n=1)
+    _chain(dbsession, admin_user, rule, "A", "B", "C")
+
+    assert _prune_branches(dbsession) == 0
+
+    left = dbsession.query(Todo).filter(Todo.recurrence_id == rule.id).all()
+    assert sorted(t.text for t in left) == ["A", "B", "C"]
+
+
+def test_only_the_newest_chain_survives(dbsession, admin_user):
+    rule = _make_rule(dbsession, "every", "week", n=1)
+    _fork(dbsession, admin_user, rule)
+
+    assert _prune_branches(dbsession) == 2
+
+    # D is the newest, so its chain — C then D — is what the rule is up to.
+    left = dbsession.query(Todo).filter(Todo.recurrence_id == rule.id).all()
+    assert sorted(t.text for t in left) == ["C", "D"]
+
+
+def test_completed_instances_on_a_branch_go_too(dbsession, admin_user):
+    """They are a copy of history, not history."""
+    rule = _make_rule(dbsession, "every", "week", n=1)
+    a, b, c, d = _fork(dbsession, admin_user, rule)
+    a.status = TodoStatus.done
+    a.done_at = _now()
+    dbsession.flush()
+
+    _prune_branches(dbsession)
+
+    assert dbsession.query(Todo).filter(Todo.text == "A").count() == 0
+
+
+def test_other_rules_are_left_alone(dbsession, admin_user):
+    rule = _make_rule(dbsession, "every", "week", n=1)
+    other = _make_rule(dbsession, "every", "week", n=2)
+    _fork(dbsession, admin_user, rule)
+    _chain(dbsession, admin_user, other, "X", "Y")
+
+    _prune_branches(dbsession)
+
+    kept = dbsession.query(Todo).filter(Todo.recurrence_id == other.id).all()
+    assert sorted(t.text for t in kept) == ["X", "Y"]
+
+
+def test_a_todo_with_no_rule_at_all_is_left_alone(dbsession, admin_user):
+    rule = _make_rule(dbsession, "every", "week", n=1)
+    _fork(dbsession, admin_user, rule)
+    _make_todo(dbsession, text="ordinary", owner=admin_user)
+
+    _prune_branches(dbsession)
+
+    assert dbsession.query(Todo).filter(Todo.text == "ordinary").count() == 1
+
+
+def test_a_protocol_runs_todo_is_kept_where_it_is(dbsession, admin_user):
+    """Deleting it would take the run with it."""
+    protocol = Protocol(title="Bins", owner_id=admin_user.id)
+    dbsession.add(protocol)
+    dbsession.flush()
+    run = ProtocolRun(
+        protocol_id=protocol.id, spawned_at=_now(), owner_id=admin_user.id
+    )
+    dbsession.add(run)
+    dbsession.flush()
+
+    rule = _make_rule(dbsession, "every", "week", n=1)
+    a, b, c, d = _fork(dbsession, admin_user, rule)
+    a.protocol_run_id = run.id
+    dbsession.flush()
+
+    # A stays, and B — which it pointed at — still goes.
+    assert _prune_branches(dbsession) == 1
+    left = sorted(
+        t.text for t in dbsession.query(Todo).filter(Todo.recurrence_id == rule.id)
+    )
+    assert left == ["A", "C", "D"]
+    assert dbsession.get(Todo, a.id).recurred_into_id is None
+
+
+def test_the_migration_copes_with_the_column_it_is_replacing(
+    clean_db, dbengine, ini_file
+):
+    """The branches are still pointed at by whatever spawned them.
+
+    Deleting one while the old predecessor column is still there fails on its
+    foreign key. Only a round trip through the migration can catch that:
+    anything built afterwards has no old column to trip over, which is why
+    this went out green and fell over on a real database.
+    """
+    import alembic.command
+    import alembic.config
+    from sqlalchemy import text
+
+    config = alembic.config.Config(ini_file)
+    alembic.command.downgrade(config, "a9df32556402")
+    try:
+        with dbengine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO recurrence_rules (id, kind, interval_value,
+                                                  interval_unit)
+                         VALUES (1, 'every', 1, 'week')
+                    """
+                )
+            )
+            # A forked chain: 1 spawned both 2 and 3, and 3 spawned 4.
+            for todo_id, parent in ((1, None), (2, 1), (3, 1), (4, 3)):
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO todos (id, text, tags, assignees, status,
+                                           created_at, recurrence_id,
+                                           recurred_from_id)
+                             VALUES (:id, :text, '{}', '{}', 'todo', now(), 1,
+                                     :parent)
+                        """
+                    ),
+                    {"id": todo_id, "text": f"T{todo_id}", "parent": parent},
+                )
+
+        alembic.command.upgrade(config, "head")
+
+        with dbengine.begin() as conn:
+            left = sorted(
+                row[0] for row in conn.execute(text("SELECT id FROM todos")).fetchall()
+            )
+            # 4 is newest, so its chain — 1, 3, 4 — stays and 2 goes.
+            assert left == [1, 3, 4]
+            successors = dict(
+                conn.execute(text("SELECT id, recurred_into_id FROM todos")).fetchall()
+            )
+            assert successors == {1: 3, 3: 4, 4: None}
+    finally:
+        # Whatever happened, the rest of the suite needs the schema back.
+        alembic.command.upgrade(config, "head")

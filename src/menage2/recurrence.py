@@ -19,6 +19,7 @@ import threading
 from typing import TYPE_CHECKING, Iterable, Optional
 
 from sqlalchemy import select
+from sqlalchemy import update as sqla_update
 
 import menage2.models.protocol
 from menage2.dateparse import RecurrenceSpec, next_occurrence
@@ -82,7 +83,6 @@ def _clone_for_recurrence(
         created_at=now_utc,
         due_date=due_date,
         recurrence_id=parent.recurrence_id,
-        recurred_from_id=parent.id,
         owner_id=parent.owner_id,
         links_rel=[
             TodoLink(label=lnk.label, url=lnk.url, position=lnk.position)
@@ -100,6 +100,43 @@ def _clone_for_recurrence(
     )
 
 
+def _claim_successor(dbsession, parent: Todo, child: Todo) -> bool:
+    """Record `child` as what `parent` spawned, if nothing else has.
+
+    This is the whole of the chain guarantee. The UPDATE only matches while
+    the successor is still unset, so of two requests spawning from the same
+    item exactly one comes back with a row — the other learns it lost instead
+    of quietly adding a second branch.
+    """
+    claimed = dbsession.execute(
+        sqla_update(Todo)
+        .where(Todo.id == parent.id, Todo.recurred_into_id.is_(None))
+        .values(recurred_into_id=child.id)
+    )
+    if claimed.rowcount != 1:
+        return False
+    dbsession.expire(parent, ["recurred_into_id"])
+    return True
+
+
+def _spawn_linked(
+    dbsession, parent: Todo, due_date: datetime.date, now_utc: datetime.datetime
+) -> Todo | None:
+    """Add the next instance after `parent`, or nothing if it already has one."""
+    if parent.recurred_into_id is not None:
+        return None
+    child = _clone_for_recurrence(parent, due_date, now_utc)
+    dbsession.add(child)
+    dbsession.flush()
+    if not _claim_successor(dbsession, parent, child):
+        # Somebody else got there first. Take ours back out rather than leave
+        # it behind as the branch this is all meant to prevent.
+        dbsession.delete(child)
+        dbsession.flush()
+        return None
+    return child
+
+
 def spawn_after(
     completed_todo: Todo,
     completion_date: datetime.date,
@@ -112,10 +149,7 @@ def spawn_after(
     if rule is None or rule.kind != RecurrenceKind.after:
         return None
     next_date = next_occurrence(rule_to_spec(rule), completion_date)
-    new_todo = _clone_for_recurrence(completed_todo, next_date, now_utc)
-    dbsession.add(new_todo)
-    dbsession.flush()
-    return new_todo
+    return _spawn_linked(dbsession, completed_todo, next_date, now_utc)
 
 
 def spawn_every_on_completion(
@@ -180,13 +214,9 @@ def _spawn_every_chain(
         return None
     spec = rule_to_spec(rule)
     anchor = _latest_due_for_rule(dbsession, rule.id) or anchor_todo.due_date or today
-    parent = anchor_todo
     while (nxt := next_occurrence(spec, anchor)) < today:
         anchor = nxt
-    new_todo = _clone_for_recurrence(parent, nxt, now_utc)
-    dbsession.add(new_todo)
-    dbsession.flush()
-    return new_todo
+    return _spawn_linked(dbsession, anchor_todo, nxt, now_utc)
 
 
 def _today_marker(today: datetime.date) -> str:
@@ -447,16 +477,40 @@ def _sweep_every_protocols(
 # ---------------------------------------------------------------------------
 
 
+def _predecessor(dbsession, todo: Todo) -> Todo | None:
+    """Whatever spawned `todo`. At most one, because the column is UNIQUE."""
+    return dbsession.execute(
+        select(Todo).where(Todo.recurred_into_id == todo.id)
+    ).scalar_one_or_none()
+
+
 def chain_history(dbsession, todo: Todo) -> list[Todo]:
-    """Walk ``recurred_from_id`` backwards. Returns oldest-first list."""
-    chain = [todo]
-    cursor = todo
+    """The whole chain `todo` belongs to, oldest first.
+
+    Walks back to the first instance and then forward to the last, so it
+    reads the same from whichever member it is handed. The `seen` guard is
+    for data that predates the UNIQUE column rather than for anything the
+    chain can do now.
+    """
     seen = {todo.id}
-    while cursor.recurred_from_id is not None:
-        prev = dbsession.get(Todo, cursor.recurred_from_id)
-        if prev is None or prev.id in seen:
+
+    earlier: list[Todo] = []
+    cursor = todo
+    while (previous := _predecessor(dbsession, cursor)) is not None:
+        if previous.id in seen:
             break
-        chain.append(prev)
-        seen.add(prev.id)
-        cursor = prev
-    return list(reversed(chain))
+        earlier.append(previous)
+        seen.add(previous.id)
+        cursor = previous
+
+    later: list[Todo] = []
+    cursor = todo
+    while cursor.recurred_into_id is not None:
+        following = dbsession.get(Todo, cursor.recurred_into_id)
+        if following is None or following.id in seen:
+            break
+        later.append(following)
+        seen.add(following.id)
+        cursor = following
+
+    return list(reversed(earlier)) + [todo] + later

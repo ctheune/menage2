@@ -136,7 +136,18 @@ class Todo(Base):
     assignees = Column(TagSet, nullable=False, server_default="{}")
 
     recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
-    recurred_from_id = Column(Integer, ForeignKey("todos.id"), nullable=True)
+
+    #: The instance this one spawned, if any — the chain is written forwards.
+    #:
+    #: A predecessor pointer cannot keep a chain straight: two requests that
+    #: both spawn from the same item each write their own row, nothing
+    #: collides, and the chain quietly becomes a tree. Written forwards there
+    #: is one column per item to hold a successor, so a second spawn has
+    #: nowhere to put itself, and UNIQUE stops two items claiming the same
+    #: successor. Claiming it is a conditional UPDATE, so the loser finds out.
+    recurred_into_id = Column(
+        Integer, ForeignKey("todos.id"), nullable=True, unique=True
+    )
 
     # 1-to-1 link to a ProtocolRun. Set when this todo was spawned for a
     # protocol run (the user's calendar trigger). UNIQUE so each run has
@@ -164,8 +175,8 @@ class Todo(Base):
         order_by="TodoLink.position",
     )
     recurrence = relationship("RecurrenceRule", lazy="joined")
-    recurred_from = relationship(
-        "Todo", remote_side="Todo.id", foreign_keys=[recurred_from_id]
+    recurred_into = relationship(
+        "Todo", remote_side="Todo.id", foreign_keys=[recurred_into_id]
     )
     protocol_run = relationship(
         "ProtocolRun",
