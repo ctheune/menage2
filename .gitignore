@@ -40,3 +40,6 @@ devenv.local.yaml
 TODO
 var
 node_modules
+
+# Database dumps — production data, never the repository's business
+*.sql
