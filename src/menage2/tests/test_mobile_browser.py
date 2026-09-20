@@ -1158,3 +1158,126 @@ def test_the_fields_keep_their_breathing_room(page, context, live_server):
     field = page.locator("#m-note").bounding_box()
     assert field["x"] > sheet["x"]
     assert field["x"] + field["width"] < sheet["x"] + sheet["width"]
+
+
+# ---------------------------------------------------------------------------
+# A picker closes once something in it has been picked
+# ---------------------------------------------------------------------------
+
+
+def _pick(page, within: str, typed: str, wanted: str) -> None:
+    """Type into a field and tap `wanted` in the picker it opens.
+
+    The picker is re-fetched as you type, so the tap waits for the answer to
+    the last keystroke — otherwise it lands on a row being replaced and is
+    lost, which looks exactly like a picker that ignored you.
+    """
+    page.locator(f"{within} .form-control").click()
+    page.keyboard.type(typed)
+    option = f"{within} .picker li[data-picker-value='{wanted}']"
+    page.wait_for_selector(option, timeout=10000)
+    # The picker asks again 100ms after the last keystroke, so the rows on
+    # screen may be about to be replaced. A time-based wait is the honest
+    # answer to a time-based debounce.
+    page.wait_for_timeout(500)
+    page.wait_for_selector(option, timeout=10000)
+    page.locator(option).click()
+
+
+def _picker_open(page, selector: str) -> bool:
+    return page.evaluate(
+        "s => getComputedStyle(document.querySelector(s)).display !== 'none'",
+        selector,
+    )
+
+
+def test_the_tag_picker_closes_once_a_tag_is_picked(page, context, live_server):
+    """It takes more than one tag, so it used to stay open waiting for the
+    next — the field took the focus straight back and reopened it."""
+    _add_todo(context, live_server, "Something tagged #garden")
+    _add_todo(context, live_server, "Tag me")
+    _open_list(page)
+    _open_edit(page, "Tag me")
+
+    _pick(page, "#field-tags", "gar", "garden")
+
+    page.wait_for_function(
+        "() => getComputedStyle(document.querySelector('#field-tags .picker'))"
+        ".display === 'none'",
+        timeout=5000,
+    )
+    assert page.locator('#field-tags input[name="tags[]"]').input_value() == "garden"
+
+
+def test_the_assignee_picker_closes_once_someone_is_picked(page, context, live_server):
+    _add_todo(context, live_server, "Hand me over")
+    _open_list(page)
+    _open_edit(page, "Hand me over")
+
+    _pick(page, "#field-assignees", "adm", "admin")
+
+    page.wait_for_function(
+        "() => getComputedStyle(document.querySelector('#field-assignees .picker'))"
+        ".display === 'none'",
+        timeout=5000,
+    )
+    assert (
+        page.locator('#field-assignees input[name="assignees[]"]').input_value()
+        == "admin"
+    )
+
+
+def test_the_date_picker_closes_once_a_date_is_picked(page, context, live_server):
+    _add_todo(context, live_server, "Schedule me")
+    _open_list(page)
+    _open_edit(page, "Schedule me")
+
+    page.locator("#m-due").click()
+    page.wait_for_selector("#m-due + .picker li[data-picker-value]", timeout=10000)
+    page.locator("#m-due + .picker li[data-picker-value]").first.click()
+
+    page.wait_for_function(
+        "() => getComputedStyle(document.querySelector('#m-due + .picker'))"
+        ".display === 'none'",
+        timeout=5000,
+    )
+    assert page.locator("#m-due").input_value() != ""
+
+
+def test_picking_a_tag_does_not_take_the_keyboard_back(page, context, live_server):
+    """Tapping a tag is the end of it. Typing one and pressing Enter is not —
+    that leaves the field ready for the next, which is why the two paths are
+    no longer the same handler."""
+    _add_todo(context, live_server, "Something tagged #garden")
+    _add_todo(context, live_server, "Tag me")
+    _open_list(page)
+    _open_edit(page, "Tag me")
+
+    _pick(page, "#field-tags", "gar", "garden")
+
+    page.wait_for_function(
+        "() => !document.activeElement.classList.contains('new-tag')", timeout=5000
+    )
+
+
+def test_typing_a_tag_and_pressing_enter_still_leaves_it_ready(
+    page, context, live_server
+):
+    _add_todo(context, live_server, "Tag me")
+    _open_list(page)
+    _open_edit(page, "Tag me")
+
+    page.locator("#field-tags .form-control").click()
+    page.keyboard.type("kitchen")
+    page.keyboard.press("Enter")
+
+    page.wait_for_function(
+        """() => {
+            const pill = document.querySelector('#field-tags input[name="tags[]"]');
+            return pill && pill.value === 'kitchen';
+        }""",
+        timeout=5000,
+    )
+    assert page.evaluate("document.activeElement.classList.contains('new-tag')"), (
+        "the field should still be ready for the next tag"
+    )

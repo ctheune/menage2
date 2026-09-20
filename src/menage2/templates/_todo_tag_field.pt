@@ -9,10 +9,19 @@
 
   <label>Tags</label>
 
-  <div class="form-control" _="on click or keydown[key is 's' and target is body] from body
+  <div class="form-control" _="on click
+      -- The picker hangs inside this box, so a click on one of its rows
+      -- lands here too. That is a choice being made, not a request to
+      -- type — taking the focus back would reopen the picker that the
+      -- choice just closed.
+      set box to the closest .picker to target
+      if box exit end
       focus first <span.new-tag/> in me
-      then halt
-      ">
+      halt
+
+    on keydown[key is 's' and target is body] from body
+      focus first <span.new-tag/> in me
+      halt">
     <script type="text/hyperscript-template" live>
     #for tag in $tags
       <input type="hidden" name="tags[]" value="$${tag}"/>
@@ -86,7 +95,7 @@
           focus me
         halt
 
-         on keydown[key is 'Enter'] or tagSelected
+         on keydown[key is 'Enter']
            set active to first <li.picker-selected/> in next .picker
            if active
              append active's @data-picker-value to $tags
@@ -99,8 +108,19 @@
            end
            blur me
            clear me
+           -- Typing carries on where it left off: the next tag goes in here.
            focus me
            halt
+
+         on tagSelected
+           -- Picked rather than typed, which is the end of it. Taking the
+           -- focus back would open the picker again on the way.
+           set active to first <li.picker-selected/> in next .picker
+           if active
+             append active's @data-picker-value to $tags
+           end
+           clear me
+           blur me
         "></span>&ZeroWidthSpace;<!-- ensure from control height -->
     <div class="picker"></div>
   </div>

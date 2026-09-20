@@ -27,6 +27,8 @@
       _="on click
           set (previous <input/>)'s value to my @data-picker-value
           blur (previous <input/>)
+          -- Chosen, so there is nothing left to choose from.
+          hide the closest .picker to me
           "
     >
       ${option.label()}

@@ -14,9 +14,19 @@
   <label>Assignees</label>
 
   <div class="form-control"
-       _="on click or keydown[key is '@' and target is body] from body
-            focus first <span.new-assignee/> in me
-            then halt">
+       _="on click
+      -- The picker hangs inside this box, so a click on one of its rows
+      -- lands here too. That is a choice being made, not a request to
+      -- type — taking the focus back would reopen the picker that the
+      -- choice just closed.
+      set box to the closest .picker to target
+      if box exit end
+      focus first <span.new-assignee/> in me
+      halt
+
+    on keydown[key is '@' and target is body] from body
+      focus first <span.new-assignee/> in me
+      halt">
     <script type="text/hyperscript-template" live>
         #for assignee in $assignees
           <input type="hidden" name="assignees[]" value="$${assignee}"/>
