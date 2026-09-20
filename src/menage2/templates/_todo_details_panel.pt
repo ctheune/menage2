@@ -206,6 +206,10 @@
                  on keydown[key is 'Enter']
                    if my textContent then
                      set newUrl to my textContent
+                     -- Emptied before asking, not after: naming takes a round
+                     -- trip, and anything typed in the meantime would be wiped
+                     -- by a clear that arrived late.
+                     clear me
                      -- Ask what it should be called before putting it in the
                      -- list. The same shortening runs on the server either
                      -- way; doing it now means the label is on screen and
@@ -216,9 +220,6 @@
                      fetch labelUrl
                      make an Object from { url: newUrl, label: it } called newLink
                      append newLink to $links
-                     clear me
-                     blur me
-                     focus me
                    end
                    halt
 
