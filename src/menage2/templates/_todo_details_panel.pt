@@ -204,9 +204,16 @@
 
                  on keydown[key is 'Enter']
                    if my textContent then
-                     set $newUrl to my textContent
-                     make an Object from { url: $newUrl, label: $newUrl} called newLink
-                     log newLink
+                     set newUrl to my textContent
+                     -- Ask what it should be called before putting it in the
+                     -- list. The same shortening runs on the server either
+                     -- way; doing it now means the label is on screen and
+                     -- editable straight away, rather than turning up after
+                     -- a save has taken it out of reach.
+                     set labelUrl to '${request.route_url('todo_link_label')}?url='
+                                     + encodeURIComponent(newUrl)
+                     fetch labelUrl
+                     make an Object from { url: newUrl, label: it } called newLink
                      append newLink to $links
                      clear me
                      blur me

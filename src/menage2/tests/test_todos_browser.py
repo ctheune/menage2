@@ -209,6 +209,59 @@ def test_details_pane_shows_existing_links(page):
     assert link.get_attribute("href") == "https://restore.example.com"
 
 
+def test_typing_a_link_names_it_straight_away(page):
+    """The label has to be there while the panel is still open.
+
+    It is the only chance to change it: once a save closes the panel, a
+    label that only appeared then would be out of reach.
+    """
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Read later")
+    _select(page, "Read later")
+    page.wait_for_selector("#field-links .new-link", state="attached", timeout=5000)
+
+    # The entry span is empty and has no size; the box around it hands the
+    # focus on, which is what a click on the field does for a person too.
+    page.locator("#field-links > .form-control").click()
+    page.keyboard.type("https://www.example.com/blog/2024/the-article?utm_source=x")
+    page.keyboard.press("Enter")
+
+    link = page.locator("#field-links .badge a").first
+    page.wait_for_selector("#field-links .badge a", timeout=5000)
+    assert link.inner_text() == "example.com/blog/2024/the-article"
+    # The URL itself is untouched — only what you read of it is shortened.
+    assert link.get_attribute("href") == (
+        "https://www.example.com/blog/2024/the-article?utm_source=x"
+    )
+
+
+def test_a_link_label_can_still_be_changed_by_hand(page):
+    """Naming it automatically must not take the naming away."""
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Rename my link")
+    _select(page, "Rename my link")
+    page.wait_for_selector("#field-links .new-link", state="attached", timeout=5000)
+
+    page.locator("#field-links > .form-control").click()
+    page.keyboard.type("https://example.com/some/page")
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#field-links .badge a", timeout=5000)
+
+    page.locator("#field-links .bi-pencil").first.click()
+    label_field = page.locator('#field-links input[name="link.label"]')
+    label_field.wait_for(state="visible", timeout=5000)
+    label_field.fill("The good bit")
+    page.locator("#field-links button:has-text('Set')").click()
+
+    page.wait_for_function(
+        """() => {
+            const a = document.querySelector('#field-links .badge a');
+            return a && a.textContent.trim() === 'The good bit';
+        }""",
+        timeout=5000,
+    )
+
+
 def test_details_pane_shows_recurrence_label(page):
     page.goto(STATUS_ACTIVE)
     _add_todo(page, "Rec subject *every month", "Rec subject")

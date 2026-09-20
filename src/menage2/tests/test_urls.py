@@ -90,6 +90,9 @@ def test_the_limit_is_honoured_for_every_shape():
         "https://sub.domain.example.co.uk/very/deep/path/to/a/particular/thing",
         "https://" + "x" * 300,
         "https://example.com/" + "y" * 300,
+        "mailto:" + "z" * 300 + "@example.com",
+        "obsidian://open?vault=" + "V" * 300 + "&file=" + "F" * 300,
+        "obsidian://open?vault=Notes&file=" + "/".join("part" for _ in range(50)),
     ]
     for limit in (5, 10, 20, 40, 80):
         for url in urls:
@@ -101,19 +104,58 @@ def test_the_limit_is_honoured_for_every_shape():
 # ---------------------------------------------------------------------------
 
 
-def test_a_non_web_scheme_is_kept_whole():
-    """For these the scheme is the part that says what the link is."""
-    assert shorten_url("mailto:someone@example.com") == "mailto:someone@example.com"
-    assert (
-        shorten_url("obsidian://open?vault=Notes&file=Inbox")
-        == "obsidian://open?vault=Notes&file=Inbox"
-    )
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        # Who it goes to is the whole of what the link says; the scheme only
+        # repeats what the symbol shows.
+        ("mailto:someone@example.com", "✉ someone@example.com"),
+        # The subject and the rest of the headers are not the address.
+        ("mailto:a@b.com?subject=Hello%20there", "✉ a@b.com"),
+        ("mailto:some%2Bone@example.com", "✉ some+one@example.com"),
+        ("mailto:", "✉"),
+    ],
+)
+def test_a_mail_link_is_the_address(url, expected):
+    assert shorten_url(url) == expected
 
 
-def test_a_non_web_scheme_is_still_cut_to_the_limit():
-    result = shorten_url("obsidian://open?vault=" + "N" * 100)
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        # The vault and the file are the two things worth knowing.
+        ("obsidian://open?vault=Notes&file=Inbox", "📝 Notes/Inbox"),
+        ("obsidian://open?vault=Notes&file=Inbox/Today", "📝 Notes/Inbox/Today"),
+        ("obsidian://open?vault=Notes&file=A%20Note", "📝 Notes/A Note"),
+        # Older and alternate spellings of the same thing.
+        ("obsidian://open?vault=Notes&filepath=Inbox", "📝 Notes/Inbox"),
+        # A vault on its own still says where it went.
+        ("obsidian://open?vault=Notes", "📝 Notes"),
+    ],
+)
+def test_an_obsidian_link_is_its_vault_and_file(url, expected):
+    assert shorten_url(url) == expected
+
+
+def test_a_long_obsidian_path_keeps_its_end():
+    url = "obsidian://open?vault=Work&file=Projects/2024/Q1/the-one-that-matters"
+    result = shorten_url(url)
+    assert len(result) <= DEFAULT_LABEL_LENGTH
+    assert result.startswith("📝 Work/…/")
+    assert result.endswith("the-one-that-matters")
+
+
+def test_a_scheme_we_cannot_read_is_kept_whole():
+    """Better a URL nobody shortened than one shortened wrongly."""
+    assert shorten_url("file:///etc/hosts") == "file:///etc/hosts"
+    # Not an obsidian URL we recognise the shape of.
+    assert shorten_url("obsidian://search?q=x") == "obsidian://search?q=x"
+
+
+def test_a_scheme_we_cannot_read_is_still_cut_to_the_limit():
+    result = shorten_url("zoommtg://zoom.us/join?confno=" + "9" * 100)
     assert len(result) == DEFAULT_LABEL_LENGTH
-    assert result.startswith("obsidian://open?vault=")
+    assert result.startswith("zoommtg://zoom.us/join?confno=")
 
 
 # ---------------------------------------------------------------------------

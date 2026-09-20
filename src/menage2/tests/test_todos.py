@@ -1235,13 +1235,13 @@ def test_todo_update_replaces_links(app_request, dbsession, admin_user):
     assert links[0].label == "New"
 
 
-def test_todo_update_names_a_link_that_only_repeats_its_url(
-    app_request, dbsession, admin_user
-):
-    """What the panel's link widget posts.
+def test_todo_update_keeps_the_label_it_was_given(app_request, dbsession, admin_user):
+    """Whatever the link editor posts is what gets stored.
 
-    It has nowhere to shorten a URL — that would be new JavaScript — so the
-    label arrives as the URL itself and is named here instead.
+    The panel shortens a URL as it is typed, by asking `todo_link_label`, so
+    by the time it posts the label is already the one on screen. Setting one
+    by hand through the link's own editor has to survive too — including
+    setting it back to the URL.
     """
     from menage2.models.todo import TodoLink
 
@@ -1261,9 +1261,24 @@ def test_todo_update_names_a_link_that_only_repeats_its_url(
         .scalars()
         .all()
     )
-    # The URL itself is kept whole; only what you read is shortened.
     assert links[0].url == url
-    assert links[0].label == "example.com/…/2024/a-long-enough-title"
+    assert links[0].label == url
+
+
+def test_link_label_endpoint_names_a_url(app_request):
+    """What the panel's link field asks for as you type."""
+    from menage2.views.todo import todo_link_label
+
+    app_request.GET["url"] = "https://www.example.com/blog/2024/a-title?utm=x"
+    response = todo_link_label(app_request)
+    assert response.text == "example.com/blog/2024/a-title"
+    assert response.content_type == "text/plain"
+
+
+def test_link_label_endpoint_copes_with_nothing_to_name(app_request):
+    from menage2.views.todo import todo_link_label
+
+    assert todo_link_label(app_request).text == ""
 
 
 def test_todo_update_clears_links(app_request, dbsession, admin_user):

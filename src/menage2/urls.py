@@ -7,6 +7,7 @@ goes is buried in the middle.
 """
 
 import re
+from urllib.parse import parse_qs, unquote
 
 #: What a label is trimmed to unless asked otherwise.
 DEFAULT_LABEL_LENGTH = 40
@@ -14,12 +15,15 @@ DEFAULT_LABEL_LENGTH = 40
 #: One character wide, which is what makes the arithmetic below honest.
 _ELLIPSIS = "…"
 
+#: Stand-ins for a scheme that has been dropped. A label is stored and shown
+#: as plain text, so this is a character rather than an icon element.
+_MAIL_ICON = "✉"  # ✉
+_NOTE_ICON = "\U0001f4dd"  # 📝
+
 #: `scheme://rest`, or `scheme:rest` for the ones that carry no host.
 _SCHEME_RE = re.compile(r"^([a-zA-Z][a-zA-Z0-9+.\-]*):(//)?")
 
-#: Schemes worth taking apart into host and path. Any other one is kept as it
-#: stands, because for `mailto:` or `obsidian:` the scheme is the part that
-#: says what the link even is.
+#: Schemes whose host-and-path shape is worth taking apart.
 _WEB_SCHEMES = {"", "http", "https"}
 
 
@@ -49,6 +53,73 @@ def _clip_front(value: str, limit: int) -> str:
     return _ELLIPSIS + value[-(limit - 1) :]
 
 
+def _fit(head: str, segments: list[str], limit: int) -> str:
+    """`head` and as much of the end of `segments` as `limit` allows.
+
+    The last segments are what name the thing being linked to, so they are
+    the last to go; the ones in front are the site's own filing system.
+    """
+    if not head:
+        return _clip("/".join(segments), limit)
+
+    whole = "/".join([head, *segments])
+    if len(whole) <= limit:
+        return whole
+
+    # Drop leading segments one at a time, stopping as soon as it fits, so
+    # no more of the path is thrown away than has to be.
+    for first in range(1, len(segments)):
+        candidate = head + "/" + _ELLIPSIS + "/" + "/".join(segments[first:])
+        if len(candidate) <= limit:
+            return candidate
+
+    # Down to the head and one segment, and still too long. The head says
+    # more than a slug does, so the slug gives way — as long as enough of it
+    # is left to read.
+    if segments and len(head) + 5 <= limit:
+        keep = limit - len(head) - 1
+        if len(segments) > 1:
+            keep -= 2  # the "…/" standing in for what was dropped
+            return head + "/" + _ELLIPSIS + "/" + _clip(segments[-1], keep)
+        return head + "/" + _clip(segments[-1], keep)
+
+    return _clip_front(head, limit)
+
+
+def _segments(path: str) -> list[str]:
+    return [segment for segment in path.split("/") if segment]
+
+
+def _mail_label(rest: str, limit: int) -> str:
+    """`mailto:someone@example.com` → `✉ someone@example.com`.
+
+    Who the mail goes to is the whole of what the link says; the scheme only
+    repeats what the symbol already shows.
+    """
+    address = unquote(rest.split("?", 1)[0])
+    if not address:
+        return _MAIL_ICON
+    return _MAIL_ICON + " " + _clip_front(address, max(limit - 2, 1))
+
+
+def _note_label(rest: str, limit: int) -> str:
+    """`obsidian://open?vault=Notes&file=Inbox/Today` → `📝 Notes/Inbox/Today`.
+
+    The vault and the file are the two things worth knowing; everything else
+    in these URLs is how the app is asked to open them.
+    """
+    query = rest.split("?", 1)[1] if "?" in rest else ""
+    params = parse_qs(query)
+    vault = (params.get("vault") or [""])[0]
+    note = (params.get("file") or params.get("filepath") or params.get("path") or [""])[
+        0
+    ]
+    if not vault and not note:
+        return None
+    room = max(limit - 2, 1)
+    return _NOTE_ICON + " " + _fit(vault, _segments(note), room)
+
+
 def shorten_url(url: str, limit: int = DEFAULT_LABEL_LENGTH) -> str:
     """A readable label for `url`, at most `limit` characters long.
 
@@ -62,15 +133,29 @@ def shorten_url(url: str, limit: int = DEFAULT_LABEL_LENGTH) -> str:
 
         >>> shorten_url("https://www.example.com/a/b/page?utm_source=x#top")
         'example.com/a/b/page'
+
+    A scheme that is not the web gets read on its own terms, because there
+    the scheme carries the meaning rather than the plumbing.
+
+        >>> shorten_url("mailto:someone@example.com")
+        '✉ someone@example.com'
     """
     url = (url or "").strip()
     if not url or limit <= 0:
         return ""
 
     scheme, rest = _split_scheme(url)
+
+    if scheme == "mailto":
+        return _mail_label(rest, limit)
+    if scheme == "obsidian":
+        note = _note_label(rest, limit)
+        if note is not None:
+            return note
+
     if scheme not in _WEB_SCHEMES:
-        # Keep it as it stands: `mailto:someone@example.com` says more than
-        # the address alone, and an app's URL is not ours to take apart.
+        # Not one we know how to read: leave it as it stands rather than
+        # take apart somebody else's URL and lose the part that mattered.
         return _clip(url.split("#", 1)[0], limit)
 
     rest = rest.split("#", 1)[0].split("?", 1)[0]
@@ -79,31 +164,5 @@ def shorten_url(url: str, limit: int = DEFAULT_LABEL_LENGTH) -> str:
     host = host.split(":", 1)[0]  # port
     if host.lower().startswith("www."):
         host = host[4:]
-    segments = [segment for segment in path.split("/") if segment]
 
-    if not host:
-        # Nothing but a path — a relative link, or a `file:` one.
-        return _clip("/".join(segments), limit)
-
-    whole = "/".join([host, *segments])
-    if len(whole) <= limit:
-        return whole
-
-    # Drop path segments from the front, one at a time: the last ones name
-    # the thing, the first ones are the site's own filing system.
-    for first in range(1, len(segments)):
-        candidate = host + "/" + _ELLIPSIS + "/" + "/".join(segments[first:])
-        if len(candidate) <= limit:
-            return candidate
-
-    # Down to the host and one segment, and still too long. A host says more
-    # than a slug does, so the slug gives way first — but only to the point
-    # where a few characters of it are still readable.
-    if segments and len(host) + 5 <= limit:
-        keep = limit - len(host) - 1
-        if len(segments) > 1:
-            keep -= 2  # the "…/" standing in for what was dropped
-            return host + "/" + _ELLIPSIS + "/" + _clip(segments[-1], keep)
-        return host + "/" + _clip(segments[-1], keep)
-
-    return _clip_front(host, limit)
+    return _fit(host, _segments(path), limit)

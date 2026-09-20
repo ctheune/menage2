@@ -94,6 +94,7 @@ def includeme(config):
     config.add_route("task_subnav", "/todos/subnav")
 
     config.add_route("todo_details_panel", "/todos/details-panel")
+    config.add_route("todo_link_label", "/todos/link-label")
     config.add_route("recurrence_history", "/todos/{id}/history")
     config.add_route(
         "todo_attachment_thumbnail",

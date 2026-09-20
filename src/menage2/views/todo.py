@@ -64,14 +64,14 @@ _UNSAFE_SCHEMES = frozenset({"javascript", "data", "vbscript"})
 
 
 def _link_label(label: str | None, url: str) -> str:
-    """The label a link is stored with.
+    """The label for a link that arrived without one.
 
-    A link entered without one — or, from the panel's link widget, with the
-    URL standing in for one — is labelled with a readable form of the URL
-    instead of the whole thing. It stays editable afterwards; this is only
-    what it starts out as.
+    Only for links written as markers, where there is no widget to ask: the
+    panel's link field asks `todo_link_label` as you type, so what it posts
+    is already what you saw and can still edit. A label set through the
+    link's own editor is left exactly as typed, empty included.
     """
-    if label and label.strip() and label.strip() != url.strip():
+    if label and label.strip():
         return label
     return shorten_url(url)
 
@@ -1095,7 +1095,7 @@ def todo_update(request):
         for position, link_data in enumerate(validated.links):
             link = TodoLink(
                 todo_id=todo.id,
-                label=_link_label(link_data.label, link_data.url),
+                label=link_data.label,
                 url=link_data.url,
                 position=position,
             )
@@ -1459,6 +1459,23 @@ def todo_assignee_picker(request):
         new = value
 
     return {"value": value, "options": names, "new": new, "highlight": fuzzy_highlight}
+
+
+@view_config(route_name="todo_link_label", request_method="GET")
+def todo_link_label(request):
+    """What to call a link that has just been typed in.
+
+    The panel's link field asks for this as the URL is entered, so the label
+    it shows is the one that gets stored — there to read and to edit, rather
+    than turning up only after a save has closed the panel.
+
+    A label is one string, so it is answered as one rather than wrapped in a
+    JSON object, which is also what hyperscript's `fetch` reads by default.
+    """
+    request.response.content_type = "text/plain"
+    request.response.charset = "utf-8"
+    request.response.text = shorten_url(request.params.get("url", ""))
+    return request.response
 
 
 @view_config(
