@@ -48,6 +48,7 @@ from menage2.recurrence import (
     spawn_protocol_every_on_completion,
     spec_to_rule,
 )
+from menage2.urls import shorten_url
 
 if TYPE_CHECKING:
     from menage2.schemas import UndoEntry
@@ -60,6 +61,19 @@ _PARSE_LINK_RE = re.compile(r"^\[([^\]]*)\]\(([^)\s]+)\)$")
 _INLINE_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
 # Schemes blocked from rendering as <a> to prevent XSS.
 _UNSAFE_SCHEMES = frozenset({"javascript", "data", "vbscript"})
+
+
+def _link_label(label: str | None, url: str) -> str:
+    """The label a link is stored with.
+
+    A link entered without one — or, from the panel's link widget, with the
+    URL standing in for one — is labelled with a readable form of the URL
+    instead of the whole thing. It stays editable afterwards; this is only
+    what it starts out as.
+    """
+    if label and label.strip() and label.strip() != url.strip():
+        return label
+    return shorten_url(url)
 
 
 def _normalize_url(url: str) -> str:
@@ -133,8 +147,7 @@ def parse_link(link_str: str) -> tuple[str, str]:
     if not m:
         return (link_str, "")
     url = _normalize_url(m.group(2))
-    label = m.group(1) or url
-    return (label, url)
+    return (_link_label(m.group(1), url), url)
 
 
 @dataclass
@@ -178,10 +191,11 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
             continue
 
         if token.kind == "link":
+            url = _normalize_url(token.url)
             links.append(
                 TodoLink(
-                    label=token.value,
-                    url=_normalize_url(token.url),
+                    label=_link_label(token.value, url),
+                    url=url,
                     position=len(links),
                 )
             )
@@ -1081,7 +1095,7 @@ def todo_update(request):
         for position, link_data in enumerate(validated.links):
             link = TodoLink(
                 todo_id=todo.id,
-                label=link_data.label,
+                label=_link_label(link_data.label, link_data.url),
                 url=link_data.url,
                 position=position,
             )

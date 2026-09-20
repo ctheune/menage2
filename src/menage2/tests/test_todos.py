@@ -200,9 +200,9 @@ def test_parse_todo_input_url_fragment_not_a_tag():
     assert _link_pairs(parsed) == [("X", "https://x.com#anchor")]
 
 
-def test_parse_todo_input_link_label_empty():
-    parsed = parse_todo_input("task [](https://a.com)")
-    assert _link_pairs(parsed) == [("", "https://a.com")]
+def test_parse_todo_input_link_without_a_label_is_named_after_its_url():
+    parsed = parse_todo_input("task [](https://a.com/some/page?ref=x)")
+    assert _link_pairs(parsed) == [("a.com/some/page", "https://a.com/some/page?ref=x")]
     assert parsed.text == "task"
 
 
@@ -274,10 +274,10 @@ def test_parse_link_with_label():
     assert url == "https://example.com"
 
 
-def test_parse_link_empty_label_falls_back_to_url():
-    label, url = parse_link("[](https://example.com)")
-    assert label == "https://example.com"
-    assert url == "https://example.com"
+def test_parse_link_empty_label_falls_back_to_a_short_form_of_the_url():
+    label, url = parse_link("[](https://www.example.com/docs/guide?v=2)")
+    assert label == "example.com/docs/guide"
+    assert url == "https://www.example.com/docs/guide?v=2"
 
 
 def test_parse_link_invalid_returns_original():
@@ -1233,6 +1233,37 @@ def test_todo_update_replaces_links(app_request, dbsession, admin_user):
     assert len(links) == 1
     assert links[0].url == "https://new.example.com"
     assert links[0].label == "New"
+
+
+def test_todo_update_names_a_link_that_only_repeats_its_url(
+    app_request, dbsession, admin_user
+):
+    """What the panel's link widget posts.
+
+    It has nowhere to shorten a URL — that would be new JavaScript — so the
+    label arrives as the URL itself and is named here instead.
+    """
+    from menage2.models.todo import TodoLink
+
+    todo = _todo("Read up")
+    dbsession.add(todo)
+    dbsession.flush()
+
+    url = "https://www.example.com/blog/2024/a-long-enough-title?utm=x"
+    _json_request(app_request, todo.id, {"links": [{"url": url, "label": url}]})
+    todo_update(app_request)
+    dbsession.flush()
+
+    from sqlalchemy import select as sa_select
+
+    links = (
+        dbsession.execute(sa_select(TodoLink).where(TodoLink.todo_id == todo.id))
+        .scalars()
+        .all()
+    )
+    # The URL itself is kept whole; only what you read is shortened.
+    assert links[0].url == url
+    assert links[0].label == "example.com/…/2024/a-long-enough-title"
 
 
 def test_todo_update_clears_links(app_request, dbsession, admin_user):
