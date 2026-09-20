@@ -1,0 +1,155 @@
+<div metal:use-macro="load: ../layout.pt">
+  <span metal:fill-slot="title-mobile">Tags</span>
+  <span metal:fill-slot="title">Tags</span>
+
+  <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
+
+    <div tal:condition="done" class="alert alert-success">${done}</div>
+
+    <p class="text-body-secondary small">
+      Click a tag to edit it in place. Renaming it to a name already in use
+      merges the two; the other names are offered as you type.
+    </p>
+
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Tag</th>
+              <th>Carried by</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tal:block tal:repeat="entry tags">
+              <tr tal:define="i repeat['entry'].index"
+                  _="on htmx:afterSwap
+                       -- The panel is sized for a half-width column; in here
+                       -- it should fill the cell it hangs under.
+                       if target matches '.picker'
+                         set panel to the first <div/> in target
+                         if panel
+                           remove .w-50 from panel
+                           add .w-100 to panel
+                         end
+                       end
+
+                     on click
+                       -- A picked name replaces the whole field: a tag name
+                       -- is the entire value here, not a word within it.
+                       set option to the closest <li[data-picker-value]/> to target
+                       if no option exit end
+                       set box to the closest .picker to option
+                       if no box exit end
+                       set field to the first <input.tag-target/> in me
+                       set field's value to option@data-picker-value
+                       send change to field
+                       hide box">
+
+                <td>
+                  <!-- The same swap the checklist items use: the text steps
+                       aside for a field holding what it said. -->
+                  <button type="button"
+                          class="tag-view btn btn-link btn-sm p-0 font-monospace text-decoration-none"
+                          data-tag="${entry.tag}"
+                          title="Rename, merge or remove this tag"
+                          _="on click
+                               -- Only one row at a time; another open further
+                               -- up the list is only confusing.
+                               repeat for other in <tr.tag-editing/>
+                                 remove .tag-editing from other
+                                 add .d-none to <.tag-edit/> in other
+                                 remove .d-none from <button.tag-view/> in other
+                               end
+                               set row to the closest <tr/>
+                               add .tag-editing to row
+                               add .d-none to me
+                               remove .d-none from <.tag-edit/> in row
+                               focus the first <input.tag-target/> in row">#${entry.tag}</button>
+
+                  <form class="tag-edit d-none m-0" id="tag-form-${i}"
+                        method="post"
+                        action="${request.route_url('admin_tag_apply')}">
+                    <input type="hidden" name="source" value="${entry.tag}" />
+                    <!-- Starts as the name it had: renaming is usually a small
+                         edit to it rather than a retype. -->
+                    <!-- The same picker the task panel uses, rather than a
+                         browser datalist, which is drawn by the browser and
+                         takes no notice of the theme. -->
+                    <input type="text" name="target"
+                           class="tag-target form-control form-control-sm font-monospace"
+                           value="${entry.tag}" autocomplete="off"
+                           aria-label="New name for this tag"
+                           hx-get="${request.route_url('todo_tag_picker')}"
+                           hx-target="next .picker"
+                           hx-swap="innerHTML"
+                           hx-include="this"
+                           hx-params="target"
+                           hx-trigger="focus, input changed delay:200ms"
+                           _="on focus show the next .picker
+                              on blur hide the next .picker
+                              on keydown[key is 'Escape']
+                                set row to the closest <tr/>
+                                remove .tag-editing from row
+                                add .d-none to <.tag-edit/> in row
+                                remove .d-none from <button.tag-view/> in row
+                                halt" />
+                    <div class="picker position-relative z-3"></div>
+                  </form>
+                </td>
+
+                <td class="text-muted small">
+                  <div>${entry.summary}</div>
+
+                  <div class="tag-edit d-none mt-1">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                      <div class="form-check m-0">
+                        <input class="form-check-input" type="checkbox"
+                               name="children" form="tag-form-${i}"
+                               id="tag-children-${i}" />
+                        <label class="form-check-label" for="tag-children-${i}">
+                          sub-tags
+                        </label>
+                      </div>
+                      <button type="submit" form="tag-form-${i}"
+                              name="action" value="rename"
+                              class="btn btn-sm btn-dark">Rename</button>
+                      <button type="submit" form="tag-form-${i}"
+                              name="action" value="delete"
+                              class="btn btn-sm btn-outline-danger">Delete</button>
+                      <button type="button" class="btn btn-sm btn-link text-body-secondary"
+                              _="on click
+                                   set row to the closest <tr/>
+                                   remove .tag-editing from row
+                                   add .d-none to <.tag-edit/> in row
+                                   remove .d-none from <button.tag-view/> in row">
+                        Cancel
+                      </button>
+                    </div>
+
+                    <!-- What the buttons would be acting on, as it is typed.
+                         It listens to the row rather than hanging off the
+                         field, which has the picker to fetch. -->
+                    <div class="tag-preview mt-1" id="tag-preview-${i}"
+                         hx-get="${request.route_url('admin_tag_preview')}"
+                         hx-include="closest tr"
+                         hx-swap="innerHTML"
+                         hx-trigger="input delay:300ms from:closest tr,
+                                     change from:closest tr"></div>
+                  </div>
+                </td>
+
+              </tr>
+            </tal:block>
+            <tr tal:condition="not tags">
+              <td colspan="2" class="text-muted text-center py-4">
+                Nothing is tagged yet.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>

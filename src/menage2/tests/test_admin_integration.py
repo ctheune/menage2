@@ -138,3 +138,153 @@ def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession, admin_u
 def test_recurrence_sweep_requires_admin(user_testapp):
     """Non-admin users hit the @PERM_ADMIN guard."""
     user_testapp.post("/admin/recurrence-sweep", status=403)
+
+
+# ---------------------------------------------------------------------------
+# Tag maintenance
+# ---------------------------------------------------------------------------
+
+
+def _tagged(dbsession, admin_user, text, tags):
+    import datetime
+
+    from menage2.models.todo import Todo, TodoStatus
+
+    todo = Todo(
+        text=text,
+        tags=set(tags),
+        assignees=set(),
+        status=TodoStatus.todo,
+        owner=admin_user,
+        created_at=datetime.datetime.now(datetime.timezone.utc),
+    )
+    dbsession.add(todo)
+    dbsession.flush()
+    return todo
+
+
+def test_tags_page_lists_what_is_in_use(authenticated_testapp, dbsession, admin_user):
+    _tagged(dbsession, admin_user, "Bread", {"einkaufen:supermarkt"})
+    dbsession.flush()
+
+    res = authenticated_testapp.get("/admin/tags", status=200)
+
+    assert b"einkaufen:supermarkt" in res.body
+    assert b"1 tasks" in res.body
+
+
+def test_tag_preview_says_what_would_change(
+    authenticated_testapp, dbsession, admin_user
+):
+    todo = _tagged(dbsession, admin_user, "Bread", {"alt"})
+    dbsession.flush()
+
+    res = authenticated_testapp.get(
+        "/admin/tags/preview", {"source": "alt", "target": "neu"}, status=200
+    )
+
+    assert b"alt" in res.body and b"neu" in res.body
+    # Nothing has happened yet — that is the point of a preview.
+    assert todo.tags == {"alt"}
+
+
+def test_tag_preview_of_an_unused_tag_offers_nothing(
+    authenticated_testapp, dbsession, admin_user
+):
+    res = authenticated_testapp.get(
+        "/admin/tags/preview", {"source": "nonesuch", "target": "neu"}, status=200
+    )
+    assert b"Nothing carries" in res.body
+    assert b"<form" not in res.body
+
+
+def test_applying_a_merge(authenticated_testapp, dbsession, admin_user):
+    both = _tagged(dbsession, admin_user, "Both", {"alt", "neu"})
+    only = _tagged(dbsession, admin_user, "Only", {"alt"})
+    dbsession.flush()
+
+    res = authenticated_testapp.post(
+        "/admin/tags/apply", {"source": "alt", "target": "neu"}, status=303
+    )
+
+    assert "done=" in res.location
+    assert both.tags == {"neu"}
+    assert only.tags == {"neu"}
+
+
+def test_applying_a_removal(authenticated_testapp, dbsession, admin_user):
+    """Delete ignores whatever is in the name field."""
+    todo = _tagged(dbsession, admin_user, "Junk", {"asdfgh", "keep"})
+    dbsession.flush()
+
+    authenticated_testapp.post(
+        "/admin/tags/apply",
+        {"source": "asdfgh", "target": "asdfgh", "action": "delete"},
+        status=303,
+    )
+
+    assert todo.tags == {"keep"}
+
+
+def test_renaming_without_a_name_is_refused(
+    authenticated_testapp, dbsession, admin_user
+):
+    """Emptying the field is not how a tag is deleted any more."""
+    todo = _tagged(dbsession, admin_user, "Keep me", {"alt"})
+    dbsession.flush()
+
+    authenticated_testapp.post(
+        "/admin/tags/apply",
+        {"source": "alt", "target": "", "action": "rename"},
+        status=400,
+    )
+
+    assert todo.tags == {"alt"}
+
+
+def test_renaming_to_the_same_name_does_nothing(
+    authenticated_testapp, dbsession, admin_user
+):
+    todo = _tagged(dbsession, admin_user, "Bread", {"alt"})
+    dbsession.flush()
+
+    authenticated_testapp.post(
+        "/admin/tags/apply",
+        {"source": "alt", "target": "alt", "action": "rename"},
+        status=303,
+    )
+
+    assert todo.tags == {"alt"}
+
+
+def test_applying_with_sub_tags(authenticated_testapp, dbsession, admin_user):
+    parent = _tagged(dbsession, admin_user, "Parent", {"Schulmaterial"})
+    child = _tagged(dbsession, admin_user, "Child", {"Schulmaterial:Matti"})
+    dbsession.flush()
+
+    authenticated_testapp.post(
+        "/admin/tags/apply",
+        {
+            "source": "Schulmaterial",
+            "target": "schulmaterial",
+            "children": "on",
+            "action": "rename",
+        },
+        status=303,
+    )
+
+    assert parent.tags == {"schulmaterial"}
+    assert child.tags == {"schulmaterial:Matti"}
+
+
+def test_applying_without_a_tag_is_refused(authenticated_testapp):
+    authenticated_testapp.post(
+        "/admin/tags/apply", {"source": "", "action": "delete"}, status=400
+    )
+
+
+def test_tags_page_requires_admin(user_testapp):
+    user_testapp.get("/admin/tags", status=403)
+    user_testapp.post(
+        "/admin/tags/apply", {"source": "x", "action": "delete"}, status=403
+    )

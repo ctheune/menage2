@@ -12,6 +12,7 @@ from ..models.team import Team, TeamMember
 from ..models.user import User
 from ..recurrence import run_sweep
 from ..security import PERM_ADMIN
+from ..tags import apply_retag, list_tags, plan_retag
 from ..views.auth import DASHBOARD_TOKEN_KEY
 
 BASE_NAME_KEY = "base_name"
@@ -247,6 +248,87 @@ def delete_user(request):
 
     request.dbsession.delete(user)
     return HTTPSeeOther(location=request.route_url("admin_users"))
+
+
+# ---------------------------------------------------------------------------
+# Tag maintenance
+# ---------------------------------------------------------------------------
+
+
+def _retag_params(request):
+    """Source, target and whether to take sub-tags along, from the form.
+
+    An empty target means removal, which is why it is None rather than "".
+    """
+    params = request.GET if request.method == "GET" else request.POST
+    source = params.get("source", "").strip()
+    target = params.get("target", "").strip() or None
+    children = params.get("children") in ("on", "true", "1")
+    return source, target, children
+
+
+@view_config(
+    route_name="admin_tags",
+    renderer="menage2:templates/admin/tags.pt",
+    permission=PERM_ADMIN,
+)
+def tags(request):
+    """Every tag in use, and the one form that tidies them up."""
+    return {
+        "tags": list_tags(request.dbsession),
+        "done": request.GET.get("done"),
+    }
+
+
+@view_config(
+    route_name="admin_tag_preview",
+    request_method="GET",
+    renderer="menage2:templates/admin/_tag_preview.pt",
+    permission=PERM_ADMIN,
+)
+def tag_preview(request):
+    """What the form would do, so it can be read before it is done.
+
+    This is the confirmation. Nothing is written here, and the button that
+    does write comes back with it — so there is no way to apply something
+    other than what was just shown.
+    """
+    source, target, children = _retag_params(request)
+    if not source:
+        return {"plan": None, "source": source, "target": target}
+    return {
+        "plan": plan_retag(request.dbsession, source, target, children),
+        "source": source,
+        "target": target,
+    }
+
+
+@view_config(route_name="admin_tag_apply", request_method="POST", permission=PERM_ADMIN)
+def tag_apply(request):
+    """Rename or delete, whichever button was pressed.
+
+    Which one it was decides what happens to the name in the field: Delete
+    ignores it, and Rename will not act without it.
+    """
+    source, target, children = _retag_params(request)
+    if not source:
+        raise HTTPBadRequest("No tag given.")
+
+    if request.POST.get("action") == "delete":
+        target = None
+    elif not target:
+        raise HTTPBadRequest("Give the tag a name, or delete it.")
+    elif target == source:
+        return HTTPSeeOther(location=request.route_url("admin_tags"))
+
+    plan = apply_retag(request.dbsession, source, target, children)
+    what = f"{source} → {target}" if target else f"{source} removed"
+    return HTTPSeeOther(
+        location=request.route_url(
+            "admin_tags",
+            _query={"done": f"{what} ({plan.total_rows} record(s))"},
+        )
+    )
 
 
 # ---------------------------------------------------------------------------

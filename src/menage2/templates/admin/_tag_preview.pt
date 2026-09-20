@@ -1,0 +1,27 @@
+<!-- What the two buttons would be acting on: how much carries this tag, and
+     which tags are involved once sub-tags are counted in. Rendered as the
+     name is typed, so neither button acts on anything unseen. -->
+<tal:block tal:condition="plan is not None">
+
+  <div tal:condition="plan.empty" class="alert alert-secondary mb-0 py-2 small">
+    Nothing carries <span class="font-monospace">${source}</span>.
+  </div>
+
+  <div tal:condition="not plan.empty" class="small">
+    <p class="mb-1">
+      Affects <strong>${plan.total_rows}</strong> record(s):
+      <span tal:repeat="entry python:sorted(plan.rows.items())"
+            class="badge bg-secondary ms-1">${entry[1]} ${entry[0].lower()}</span>
+    </p>
+
+    <ul class="list-unstyled mb-0 font-monospace text-body-secondary">
+      <li tal:repeat="rename plan.renames">
+        ${rename[0]}
+        <tal:block tal:condition="python:rename[1] and rename[1] != rename[0]">
+          → ${rename[1]}
+        </tal:block>
+      </li>
+    </ul>
+  </div>
+
+</tal:block>

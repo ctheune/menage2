@@ -1288,10 +1288,18 @@ def _picker_value(request) -> str | None:
 
     The desktop panel passes it as `value` through an hx-vals JS expression.
     The mobile sheet cannot use one, so it includes the field itself and the
-    text arrives under that field's own name — either way the picker gets
-    what the user has typed so far.
+    text arrives under that field's own name. The tag admin's rename field is
+    called `target`. Either way the picker gets what has been typed so far.
     """
-    for key in ("value", "text", "due_date", "recurrence", "tags", "assignees"):
+    for key in (
+        "value",
+        "text",
+        "due_date",
+        "recurrence",
+        "tags",
+        "assignees",
+        "target",
+    ):
         if key in request.params:
             return request.params[key]
     return None
