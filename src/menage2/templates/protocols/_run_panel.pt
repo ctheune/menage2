@@ -3,7 +3,9 @@
     <span class="fw-semibold">${protocol.title}</span>
     <button type="button"
             class="btn btn-sm text-secondary p-0 ms-auto"
-            onclick="closeDetailsPane()"
+            _="on click
+                 add .d-none to #details-pane
+                 set #details-panel's innerHTML to ''"
             title="Close (Esc)">
       <i class="bi bi-x-lg"></i>
     </button>

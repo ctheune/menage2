@@ -1,15 +1,3 @@
-function initSortables(content) {
-  var sortables = content.querySelectorAll(".sortable");
-  for (var i = 0; i < sortables.length; i++) {
-    var sortable = sortables[i];
-    new Sortable(sortable, {
-      animation: 150,
-      filter: ".non-sortable", // 'filtered' class is not draggable
-      ghostClass: "bg-blue-200",
-    });
-  }
-}
-
 // Full-screen image modal with prev/next navigation
 var _modalImages = [];
 var _modalIndex = 0;
@@ -81,28 +69,6 @@ document.addEventListener("keydown", function (e) {
     _modalNav(1);
   }
 });
-
-// Upload attachments to a todo
-function uploadAttachments(files, todoId) {
-  if (!files || files.length === 0) return;
-
-  var formData = new FormData();
-  for (var i = 0; i < files.length; i++) {
-    formData.append("files[]", files[i]);
-  }
-
-  return fetch("/todos/" + todoId + "/attachments", {
-    method: "POST",
-    body: formData,
-    headers: { "X-Requested-With": "XMLHttpRequest" },
-  }).then(function (r) {
-    if (!r.ok)
-      return r.text().then(function (msg) {
-        throw new Error(msg || "Upload failed");
-      });
-    return r;
-  });
-}
 
 document.body.addEventListener("showValidationError", function (e) {
   var existing = document.getElementById("error-toast");
@@ -374,57 +340,14 @@ document.addEventListener("keydown", function (e) {
 
 // --- Details pane -----------------------------------------------------------
 
-var _detailsItemId = null;
-
+// Closing the details pane. Still reached from the Escape handlers below;
+// the button that used to call it is hyperscript now.
 function closeDetailsPane() {
   var pane = document.getElementById("details-pane");
   var panel = document.getElementById("details-panel");
   if (pane) pane.classList.add("d-none");
   if (panel) panel.innerHTML = "";
-  _detailsItemId = null;
-  var bd = document.getElementById("run-panel-backdrop");
-  if (bd) bd.parentNode.removeChild(bd);
 }
-
-// Keep as alias so templates that still reference closeRunPanel work.
-function closeRunPanel() {
-  closeDetailsPane();
-}
-
-// Details pane close button
-document.addEventListener("click", function (e) {
-  if (!e.target.closest(".details-close-btn")) return;
-  document
-    .querySelectorAll("input.todo-checkbox:checked")
-    .forEach(function (cb) {
-      cb.checked = false;
-    });
-  closeDetailsPane();
-});
-
-// "Start run now" button
-document.addEventListener("click", function (e) {
-  var btn = e.target.closest(".details-start-run");
-  if (!btn) return;
-  e.preventDefault();
-  var panelUrl = btn.dataset.panelUrl;
-  if (!panelUrl) return;
-  var runContent = btn.closest(".details-run-content");
-  if (runContent)
-    runContent.innerHTML = '<div class="p-2 text-muted small">Loading…</div>';
-  fetch(panelUrl + "?inline=1")
-    .then(function (r) {
-      return r.text();
-    })
-    .then(function (html) {
-      if (runContent && runContent.isConnected) {
-        runContent.innerHTML = html;
-        htmx.process(runContent);
-        _runCurrentIdx = 0;
-        _runHighlight();
-      }
-    });
-});
 
 // --- Protocol run page interactions ----------------------------------------
 //
@@ -513,13 +436,11 @@ document.addEventListener("keydown", function (e) {
 // toggle written in hyperscript (protocols/edit.pt, _protocol_item.pt), so
 // there is nothing left to initialise for them here.
 
-htmx.onLoad(function (content) {
+htmx.onLoad(function () {
   ensureHelpOverlay();
-  initSortables(content);
   if (document.getElementById("protocol-run")) _runHighlight();
 });
 ensureHelpOverlay();
-initSortables(document);
 if (document.getElementById("protocol-run")) _runHighlight();
 
 function isCaretAtStart(element) {
