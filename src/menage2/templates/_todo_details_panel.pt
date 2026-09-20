@@ -188,7 +188,8 @@
                        set (next .picker's @data-label) to $links[$${i}].label
                        show next .picker
                        focus last <input/> in next .picker"></i>
-                  <i class="bi bi-x" role="button" aria-label="Remove link"></i>
+                  <i class="bi bi-x" role="button" aria-label="Remove link"
+                     _="on click remove $links[$${i}]"></i>
                 </span>
               #else
                 <input type="hidden" name="clear_fields[]" value="links"/>

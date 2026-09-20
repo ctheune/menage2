@@ -262,6 +262,56 @@ def test_a_link_label_can_still_be_changed_by_hand(page):
     )
 
 
+def test_a_link_can_be_removed_again(page):
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Drop my link")
+    _select(page, "Drop my link")
+    page.wait_for_selector("#field-links .new-link", state="attached", timeout=5000)
+
+    page.locator("#field-links > .form-control").click()
+    page.keyboard.type("https://example.com/keep")
+    page.keyboard.press("Enter")
+    page.keyboard.type("https://example.com/drop")
+    page.keyboard.press("Enter")
+    page.wait_for_function(
+        "document.querySelectorAll('#field-links .badge').length === 2", timeout=5000
+    )
+
+    page.locator('#field-links [aria-label="Remove link"]').last.click()
+    page.wait_for_function(
+        "document.querySelectorAll('#field-links .badge').length === 1", timeout=5000
+    )
+    # The one that went is the one whose cross was clicked.
+    assert page.locator("#field-links .badge a").first.get_attribute("href") == (
+        "https://example.com/keep"
+    )
+
+    # And it stays gone once saved.
+    page.locator("#todo-edit-form input[type='submit']").click()
+    _select(page, "Drop my link")
+    page.wait_for_selector("#field-links .badge", timeout=5000)
+    assert page.locator("#field-links .badge").count() == 1
+
+
+def test_removing_the_only_link_clears_them(page):
+    """A different path: with none left the widget posts `clear_fields`
+    rather than a shorter list."""
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Had one link [Docs](https://example.com/docs)", "Had one link")
+    _select(page, "Had one link")
+    page.wait_for_selector("#field-links .badge", timeout=5000)
+
+    page.locator('#field-links [aria-label="Remove link"]').first.click()
+    page.wait_for_function(
+        "document.querySelectorAll('#field-links .badge').length === 0", timeout=5000
+    )
+
+    page.locator("#todo-edit-form input[type='submit']").click()
+    _select(page, "Had one link")
+    page.wait_for_selector("#field-links .new-link", state="attached", timeout=5000)
+    assert page.locator("#field-links .badge").count() == 0
+
+
 def test_details_pane_shows_recurrence_label(page):
     page.goto(STATUS_ACTIVE)
     _add_todo(page, "Rec subject *every month", "Rec subject")
