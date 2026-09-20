@@ -15,7 +15,7 @@
     </li>
     <li
       class="list-group-item bg-light d-flex justify-content-between align-items-center"
-      tal:condition="not parsed"
+      tal:condition="python:not parsed and value"
     >
       ${value} &nbsp;
       <small class="text-danger-emphasis">invalid date</small>
@@ -23,7 +23,7 @@
     <li
       class="list-group-item d-flex justify-content-between align-items-center"
       tal:repeat="option options"
-      data-picker-value="${option.label}"
+      data-picker-value="${option.date.isoformat()}"
       _="on click
           set (previous <input/>)'s value to my @data-picker-value
           blur (previous <input/>)
