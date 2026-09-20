@@ -33,3 +33,7 @@ needs to be properly respect to avoid crazy local solutions.
   Bad:  tal:attrs="attribute python:expression"
 
   You might need to use tal:attrs if the attribute itself might be optional if expression evaluates to `None`.
+
+# Git
+
+Ensure at every step we are actually working on a proper feature branch. Split commits into proper semantic units, order smaller cleanup/typing/linting commits first.
