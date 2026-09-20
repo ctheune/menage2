@@ -13,11 +13,26 @@ body {
 }
 
 /* Undo toast positioning */
+/* Clickable only while it is still offering the undo. */
+.undo-toast.alert-warning {
+    cursor: pointer;
+}
+
 .undo-toast {
     position: fixed;
     bottom: 1.5rem;
     right: 1.5rem;
     z-index: 9999;
+}
+
+/* The error toast sits opposite the undo one, so the two cannot cover each
+   other when something goes wrong just after an action. */
+.error-toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    z-index: 9999;
+    pointer-events: none;
 }
 
 /* Where a fixed bottom nav exists (the mobile UI), lift the toast clear of it

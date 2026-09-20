@@ -269,7 +269,7 @@ def test_short_swipe_leaves_the_row_alone(page, context, live_server):
     _swipe(page, "Barely moved", 0.1)
     page.wait_for_timeout(1000)
     assert page.locator(_item("Barely moved")).count() == 1
-    assert page.locator("#undo-toast").count() == 0
+    assert not page.locator("#undo-toast").is_visible()
 
 
 def test_swipe_acts_on_the_swiped_row_only(page, context, live_server):
@@ -544,7 +544,7 @@ def test_ticking_selects_but_does_not_complete(page, context, live_server):
     _select(page, "Tick me")
     page.wait_for_timeout(1000)
     assert page.locator(_item("Tick me")).count() == 1
-    assert page.locator("#undo-toast").count() == 0
+    assert not page.locator("#undo-toast").is_visible()
     assert page.locator("#mobile-edit.show").count() == 0
 
 

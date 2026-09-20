@@ -1,0 +1,24 @@
+<!-- Something the server refused. It answers with an HX-Trigger rather than
+     a page, so this sits here empty and fills itself in.
+
+     `on every` rather than `on`: a second complaint should replace the first
+     rather than queue behind its five seconds. The token is what stops the
+     older one's timer from clearing the newer one's message. -->
+<div id="error-toast"
+     class="error-toast alert alert-danger shadow d-none mb-0"
+     role="alert" aria-live="assertive"
+     _="on showValidationError(message) from body
+          send showError(text: message or 'Validation error.') to me
+
+        on showAddTodoError from body
+          send showError(text: 'A todo needs text, not just tags.') to me
+
+        on every showError(text)
+          put text into me
+          remove .d-none from me
+          set :shown to Date.now()
+          set mine to :shown
+          wait 5s
+          if :shown is mine
+            add .d-none to me
+          end"></div>

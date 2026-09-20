@@ -474,6 +474,44 @@ def test_undo_toast_appears_and_u_restores(page):
     page.wait_for_selector(_item("Undo me"), timeout=10000)
 
 
+def test_clicking_the_undo_toast_puts_it_back(page):
+    """The toast is the control, not just a notice."""
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Undo me")
+    _select(page, "Undo me")
+    page.keyboard.press("c")
+    toast = page.locator("#undo-toast")
+    toast.wait_for(state="visible", timeout=5000)
+    assert "Undo" in toast.inner_text()
+    _wait_gone(page, "Undo me")
+
+    toast.click()
+
+    page.wait_for_selector(_item("Undo me"), timeout=10000)
+
+
+def test_the_toast_says_when_the_undo_worked(page):
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Undo me")
+    _select(page, "Undo me")
+    page.keyboard.press("c")
+    page.locator("#undo-toast").wait_for(state="visible", timeout=5000)
+    _wait_gone(page, "Undo me")
+
+    page.keyboard.press("u")
+
+    page.wait_for_function(
+        """() => {
+            const toast = document.getElementById('undo-toast');
+            return toast && toast.textContent.includes('UNDO OK');
+        }""",
+        timeout=10000,
+    )
+    # And it stops offering something that has already happened.
+    assert page.locator("#undo-toast.alert-success").count() == 1
+    assert page.locator("#undo-toast.alert-warning").count() == 0
+
+
 def test_h_key_puts_selected_on_hold(page):
     page.goto(STATUS_ACTIVE)
     _add_todo(page, "Hold me")
@@ -630,3 +668,43 @@ def test_help_overlay_persists_after_htmx_swap(page):
     page.evaluate("document.activeElement && document.activeElement.blur()")
     page.keyboard.press("?")
     page.wait_for_selector("#kbd-help-overlay", state="visible", timeout=5000)
+
+
+def test_a_refused_add_says_why(page):
+    """The server answers with an HX-Trigger rather than a page, and the
+    toast that shows it is declared in the layout now, not built in JS."""
+    page.goto(STATUS_ACTIVE)
+    inp = page.locator("#input-add-todo-text")
+    inp.fill("#foo #bar")
+    inp.press("Enter")
+
+    toast = page.locator("#error-toast")
+    toast.wait_for(state="visible", timeout=5000)
+    assert "needs text" in toast.inner_text()
+
+
+def test_the_toast_goes_away_again(page):
+    page.goto(STATUS_ACTIVE)
+    inp = page.locator("#input-add-todo-text")
+    inp.fill("#foo #bar")
+    inp.press("Enter")
+    page.locator("#error-toast").wait_for(state="visible", timeout=5000)
+
+    page.wait_for_selector("#error-toast", state="hidden", timeout=10000)
+
+
+def test_a_newer_complaint_replaces_the_older_one(page):
+    """Two in a row: the second must not be cleared by the first's timer."""
+    page.goto(STATUS_ACTIVE)
+    inp = page.locator("#input-add-todo-text")
+    inp.fill("#foo #bar")
+    inp.press("Enter")
+    page.locator("#error-toast").wait_for(state="visible", timeout=5000)
+
+    page.wait_for_timeout(3000)
+    inp.fill("#baz")
+    inp.press("Enter")
+
+    # Three seconds after the second one the first's timer has long fired.
+    page.wait_for_timeout(3000)
+    assert page.locator("#error-toast").is_visible()

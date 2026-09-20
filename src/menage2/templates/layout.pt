@@ -184,5 +184,7 @@
     </div>
   </div>
 
+  <div metal:use-macro="load: ./_error_toast.pt"></div>
+
   </body>
 </html>

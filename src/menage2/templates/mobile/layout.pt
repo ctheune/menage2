@@ -184,6 +184,8 @@
 <button type="button" class="d-none" id="mobile-photo-open"
         data-bs-toggle="modal" data-bs-target="#mobile-photo"></button>
 
+  <div metal:use-macro="load: ../_error_toast.pt"></div>
+
 </body>
 
 </html>

@@ -17,3 +17,47 @@
            set #undo-entries's value to entries">
   <input type="hidden" name="entries" id="undo-entries" />
 </form>
+
+<!-- The offer to undo, and the word that it worked.
+
+     Both arrive from the server as an HX-Trigger, so this sits here empty
+     and fills itself in. `on every` rather than `on`: a second action
+     should replace the first's offer rather than queue behind its seven
+     seconds, and the token is what stops the older timer clearing the
+     newer message. -->
+<div id="undo-toast"
+     class="undo-toast alert alert-warning shadow d-none mb-0"
+     role="status"
+     _="on every showUndoToast(label, action) from body
+          put ((label or 'Item') + ' ' + (action or 'completed') + '. (Undo)') into me
+          remove .alert-success from me
+          add .alert-warning to me
+          remove .d-none from me
+          set :shown to Date.now()
+          set mine to :shown
+          wait 7s
+          if :shown is mine
+            add .d-none to me
+          end
+
+        on click
+          -- Only while it is still an offer; once it says it worked there is
+          -- nothing left to ask for.
+          if I match .alert-warning
+            -- The waiting dismissal is no longer the newest, so it will not
+            -- clear what the confirmation puts here.
+            set :shown to Date.now()
+            send undoRequested to body
+          end
+
+        on every showUndoConfirm(label) from body
+          put ((label or 'Item') + ' uncompleted. UNDO OK.') into me
+          remove .alert-warning from me
+          add .alert-success to me
+          remove .d-none from me
+          set :shown to Date.now()
+          set mine to :shown
+          wait 2.5s
+          if :shown is mine
+            add .d-none to me
+          end"></div>
