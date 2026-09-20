@@ -52,6 +52,8 @@ dev = [
     "pytest-cov>=4.1.0,<5",
     "playwright>=1.40.0",
     "pytest-playwright>=0.4.0",
+    "pytest-flakefinder>=1.1.0",
+    "pytest-rerunfailures>=16.1",
 ]
 
 [tool.uv.sources]

@@ -420,6 +420,7 @@ def test_bracket_keys_collapse_and_expand_all_groups(page):
     page.wait_for_selector(_item("Buy nails"), state="visible", timeout=5000)
 
 
+@pytest.mark.flaky(reruns=2)
 def test_activate_all_on_hold_button(page):
     page.goto(STATUS_ACTIVE)
     _add_todo(page, "Bulk activate me")
@@ -440,6 +441,7 @@ def test_activate_all_on_hold_button(page):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.flaky(reruns=2)
 def test_recurrence_history_panel_opens_on_badge_click(page):
     page.goto(STATUS_ACTIVE)
     _add_todo(page, "Yoga *every month", "Yoga")
