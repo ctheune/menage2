@@ -60,7 +60,14 @@
          _="on 'todo-closed' from body
               -- The last item of a checklist has been ticked off, so there is
               -- nothing left in here to look at.
-              call #mobile-edit-close.click()">
+              call #mobile-edit-close.click()
+
+            on show.bs.offcanvas
+              -- Only one sheet's fields at a time: the pills in them hold
+              -- their state in a global. Cleared as this one opens rather
+              -- than as the other one closes, which lands half a second
+              -- later — long enough to wipe fields already on their way in.
+              set #mobile-add-fields's innerHTML to ''">
       <div class="offcanvas-header">
         <h5 class="offcanvas-title" id="mobile-edit-title">Edit task</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas"
@@ -80,17 +87,31 @@
 
     <!-- Add sheet, opened from the bottom nav. -->
     <div class="offcanvas offcanvas-bottom h-75" tabindex="-1" id="mobile-add"
-         aria-labelledby="mobile-add-title">
+         aria-labelledby="mobile-add-title"
+         _="on show.bs.offcanvas set #mobile-edit-body's innerHTML to ''">
       <div class="offcanvas-header">
         <h5 class="offcanvas-title" id="mobile-add-title">New task</h5>
         <button type="button" class="btn-close" aria-label="Close"
                 data-bs-dismiss="offcanvas"></button>
       </div>
       <div class="offcanvas-body">
-        <!-- Same fields as the edit sheet. The title still takes markers, so
-             a quick `Buy bread #shopping` works without touching the rest. -->
+        <!-- The same fields as the edit sheet, fetched when the sheet opens.
+             The pills among them keep their state in hyperscript globals, so
+             two sets in one page would share it — the new sheet would come up
+             holding whatever task was last opened. One at a time, then: each
+             sheet fetches its fields on the way in and drops them on the way
+             out.
+
+             The title still takes markers, so a quick `Buy bread #shopping`
+             works without touching the rest. -->
         <form hx-post="${request.route_url('add_todo')}" hx-target="body">
-          <tal:block tal:replace="structure add_fields_html" />
+          <!-- hx-target is spelled out because the form's "body" is
+               inherited, and the fields would replace the whole page. -->
+          <div id="mobile-add-fields"
+               hx-get="${request.route_url('todo_add_fields')}"
+               hx-trigger="show.bs.offcanvas from:#mobile-add"
+               hx-target="this"
+               hx-swap="innerHTML"></div>
           <div class="d-flex gap-2">
             <button type="button" class="btn btn-outline-secondary flex-grow-1"
                     data-bs-dismiss="offcanvas">Cancel</button>

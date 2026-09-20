@@ -107,6 +107,7 @@ def includeme(config):
     config.add_route("todo_attachment_full", "/todos/{todo_id}/attachment/{uuid}/full")
 
     config.add_route("add_todo", "/todos/add")
+    config.add_route("todo_add_fields", "/todos/add/fields")
 
     config.add_route("todo_update", "/todos/{id:\\d+}")
     config.add_route("todo_batch_action", "/todos/batch-action")

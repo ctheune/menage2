@@ -1,14 +1,14 @@
 <!-- The task fields, shared by the edit and the new sheet.
 
-     `prefix` keeps element ids apart, since both sheets sit in the DOM at
-     once. `todo` is None on the new sheet, and the two sheets differ where a
-     phone wants them to:
+     `prefix` keeps element ids apart. `todo` is None on the new sheet, which
+     is the only difference: editing puts the title in the sheet header (see
+     the details panel), adding has a field for it, and the title still takes
+     markers just like the desktop's add box.
 
-     - editing puts the title in the sheet header (see the details panel) and
-       keeps tags and assignees as the desktop's pills, so a picked tag lands
-       where it belongs;
-     - adding keeps every field a plain text box, so a whole task can be typed
-       in one go — the title takes markers just like the desktop's add box.
+     Everything else is the same widget on both, the desktop's included — the
+     pills for tags and assignees hold their state in hyperscript globals, so
+     only one sheet's fields can be in the page at a time. Each sheet fetches
+     them when it opens and drops them when it closes.
 
      Links and attachments are shown read-only: they are there to look at on a
      phone, and editing them needs a pointer.
@@ -31,25 +31,7 @@
                 remove .w-50 from panel
                 add .w-100 to panel
               end
-            end
-
-          on click
-            -- The new sheet has no pills for the picker to fill, so a pick
-            -- replaces the word being typed in the plain text field.
-            set option to the closest <li[data-picker-value]/> to target
-            if no option exit end
-            set box to the closest .picker to option
-            if no box exit end
-            if box does not match '.picker-words' exit end
-            set field to the previous <input/> from box
-            set typed to field's value
-            set cut to typed.lastIndexOf(' ')
-            if cut is -1
-              set field's value to option@data-picker-value + ' '
-            else
-              set field's value to typed.substring(0, cut + 1) + option@data-picker-value + ' '
-            end
-            focus field">
+            end">
 
     <!-- On the edit sheet the header holds the title and writes it here. -->
     <input tal:condition="has" type="hidden" name="text" id="${p}-text"
@@ -61,29 +43,7 @@
              autocomplete="off" placeholder="What needs doing?" />
     </div>
 
-    <tal:block tal:condition="has">
-      <div metal:use-macro="load: ../_todo_tag_field.pt"></div>
-    </tal:block>
-
-    <div class="mb-3" tal:condition="not:has">
-      <label class="form-label" for="${p}-tags">Tags</label>
-      <!-- The picker matches a single word; this field holds a list, so
-           only the word being typed is sent. -->
-      <input type="hidden" name="value" id="${p}-tags-word" />
-      <input type="text" class="form-control" id="${p}-tags" name="tags"
-             autocomplete="off" placeholder="shopping garden"
-             hx-get="${request.route_url('todo_tag_picker')}"
-             hx-target="next .picker"
-             hx-trigger="${picker_trigger}"
-             hx-include="#${p}-tags-word"
-             hx-params="value"
-             _="on focus show the next .picker
-                on blur hide the next .picker
-                on input or focus
-                  set cut to my value.lastIndexOf(' ')
-                  set #${p}-tags-word's value to my value.substring(cut + 1)" />
-      <div class="picker picker-words"></div>
-    </div>
+    <div metal:use-macro="load: ../_todo_tag_field.pt"></div>
 
     <div class="mb-3">
       <label class="form-label" for="${p}-due">Due</label>
@@ -122,27 +82,7 @@
              tal:attributes="disabled python:'disabled' if (has and todo.recurrence_id) else None" />
     </div>
 
-    <tal:block tal:condition="has">
-      <div metal:use-macro="load: ../_todo_assignee_field.pt"></div>
-    </tal:block>
-
-    <div class="mb-3" tal:condition="not:has">
-      <label class="form-label" for="${p}-assignees">Assignees</label>
-      <input type="hidden" name="value" id="${p}-assignees-word" />
-      <input type="text" class="form-control" id="${p}-assignees" name="assignees"
-             autocomplete="off" placeholder="alice bob"
-             hx-get="${request.route_url('todo_assignee_picker')}"
-             hx-target="next .picker"
-             hx-trigger="${picker_trigger}"
-             hx-include="#${p}-assignees-word"
-             hx-params="value"
-             _="on focus show the next .picker
-                on blur hide the next .picker
-                on input or focus
-                  set cut to my value.lastIndexOf(' ')
-                  set #${p}-assignees-word's value to my value.substring(cut + 1)" />
-      <div class="picker picker-words"></div>
-    </div>
+    <div metal:use-macro="load: ../_todo_assignee_field.pt"></div>
 
     <div class="mb-3">
       <label class="form-label" for="${p}-note">Note</label>

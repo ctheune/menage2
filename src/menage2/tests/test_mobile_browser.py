@@ -635,7 +635,7 @@ def test_adding_a_task_field_by_field(page, context, live_server):
     _open_list(page)
     _open_add(page)
     page.locator("#n-text").fill("Fully specified")
-    page.locator("#n-tags").fill("kitchen")
+    _add_tag(page, "kitchen")
     page.locator("#n-note").fill("from the fields")
     page.locator("#mobile-add form button[type=submit]").click()
     page.wait_for_selector(_item("Fully specified"), timeout=10000)
@@ -663,7 +663,7 @@ def test_markers_in_the_title_and_fields_combine(page, context, live_server):
     _open_list(page)
     _open_add(page)
     page.locator("#n-text").fill("Both ways #fromtitle")
-    page.locator("#n-tags").fill("fromfield")
+    _add_tag(page, "fromfield")
     page.locator("#mobile-add form button[type=submit]").click()
     page.wait_for_selector(_item("Both ways"), timeout=10000)
     assert page.locator('.tag-group-header[data-tag="fromtitle"]').count() == 1
@@ -737,74 +737,66 @@ def test_menu_offers_log_off(page, live_server):
     page.wait_for_url("**/login**", timeout=10000)
 
 
-def _add_sheet_pick(
-    page, field: str, typed: str, wanted: str, attempts: int = 5
-) -> None:
-    """Type into an add-sheet field and tap `wanted` in the picker it opens.
-
-    The field asks the picker again on every keystroke, so a tap can land on a
-    row that htmx is in the middle of replacing. Tapping the same option twice
-    does no harm — the second one writes the same word — so simply retry until
-    the field takes it.
-    """
-    option = f"{field} + .picker li[data-picker-value='{wanted}']"
-    for attempt in range(attempts):
-        # Focusing is what opens the picker, so a retry starts from there.
-        page.locator(field).click()
-        page.locator(field).fill(typed)
-        try:
-            # The field asks again on focus and on every keystroke, so two
-            # answers can be on their way at once. Waiting for the field to be
-            # out of flight means the row tapped below is the one that stays.
-            page.wait_for_function(
-                """([selector, word]) => {
-                    const field = document.querySelector(selector);
-                    if (!field || field.classList.contains('htmx-request')) {
-                        return false;
-                    }
-                    const box = field.nextElementSibling;
-                    return !!box && !!box.querySelector(
-                        `li[data-picker-value="${word}"]`);
-                }""",
-                arg=[field, wanted],
-                timeout=5000,
-            )
-            page.locator(option).click(timeout=3000)
-            # A pick always leaves a trailing space, which is what tells it
-            # apart from the same word simply having been typed.
-            page.wait_for_function(
-                """([selector, word]) => {
-                    const field = document.querySelector(selector);
-                    return field && field.value.endsWith(word + ' ');
-                }""",
-                arg=[field, wanted],
-                timeout=2000,
-            )
-            return
-        except PlaywrightTimeoutError:
-            if attempt == attempts - 1:
-                raise
-
-
-@pytest.mark.flaky(reruns=2)
-def test_tag_picker_fills_the_add_sheet_field(page, context, live_server):
-    """The new sheet has no pills, so a pick replaces the word being typed."""
+def test_the_new_sheet_has_the_same_pills_as_editing(page, context, live_server):
+    """It used to have plain text boxes instead, and a picked tag was written
+    into them as a word — a second way of doing the same thing."""
     _add_todo(context, live_server, "Something tagged #garden")
     _open_list(page)
     _open_add(page)
-    _add_sheet_pick(page, "#n-tags", "gar", "garden")
-    assert page.locator("#n-tags").input_value() == "garden "
-    # A second pick appends rather than overwriting what is already there.
-    _add_sheet_pick(page, "#n-tags", "garden kitch", "kitch")
-    assert page.locator("#n-tags").input_value() == "garden kitch "
+
+    assert page.locator("#mobile-add #field-tags .new-tag").count() == 1
+    assert page.locator("#mobile-add #field-assignees .new-assignee").count() == 1
+
+    _add_tag(page, "garden")
+
+    assert (
+        page.locator('#mobile-add #field-tags input[name="tags[]"]').input_value()
+        == "garden"
+    )
 
 
-@pytest.mark.flaky(reruns=2)
-def test_assignee_picker_fills_the_add_sheet_field(page, context, live_server):
+def test_only_one_sheets_fields_are_in_the_page(page, context, live_server):
+    """The pills keep their state in a hyperscript global, so a second set
+    would share it and whichever loaded last would speak for both — the new
+    sheet came up holding the tags of whatever task was last opened.
+
+    Each sheet clears the other's on its way in.
+    """
+    _add_todo(context, live_server, "Edit me #garden")
+    _open_list(page)
+
+    _open_add(page)
+    assert page.locator("#mobile-add #field-tags").count() == 1
+    page.locator("#mobile-add form button:has-text('Cancel')").click()
+    page.wait_for_selector("#mobile-add.show", state="detached", timeout=5000)
+
+    _open_edit(page, "Edit me")
+
+    assert page.locator("#mobile-add #field-tags").count() == 0, (
+        "the new sheet's fields are still in the page alongside the edit sheet's"
+    )
+    assert page.locator('#field-tags input[name="tags[]"]').input_value() == "garden"
+
+
+def test_a_tag_picked_in_the_new_sheet_becomes_a_pill(page, context, live_server):
+    _add_todo(context, live_server, "Something tagged #garden")
     _open_list(page)
     _open_add(page)
-    _add_sheet_pick(page, "#n-assignees", "adm", "admin")
-    assert page.locator("#n-assignees").input_value() == "admin "
+
+    page.locator("#mobile-add #field-tags .form-control").click()
+    page.keyboard.type("gar")
+    option = "#mobile-add #field-tags .picker li[data-picker-value='garden']"
+    page.wait_for_selector(option, timeout=10000)
+    page.locator(option).click()
+
+    page.wait_for_function(
+        """() => {
+            const pill = document.querySelector(
+                '#mobile-add #field-tags input[name="tags[]"]');
+            return pill && pill.value === 'garden';
+        }""",
+        timeout=5000,
+    )
 
 
 def test_opening_a_picker_does_not_move_the_fields_below_it(page, context, live_server):

@@ -709,7 +709,6 @@ def _list_todos(request):
         "filter_mode": filter_mode,
         "form_html": _render_todo_form(request, request.route_url("list_todos")),
         "undo_form_html": _render_undo_form(request),
-        "add_fields_html": _render_todo_fields(request, None, "n"),
     }
 
 
@@ -737,8 +736,23 @@ def list_todos_mobile(request):
     }
 
 
-#: Fields the mobile new-task sheet posts alongside the title.
-_ADD_FIELDS = ("tags", "assignees", "due_date", "recurrence", "note")
+@view_config(route_name="todo_add_fields", request_method="GET")
+def todo_add_fields(request):
+    """The new-task sheet's fields, fetched when the sheet opens.
+
+    They are the same widgets the edit sheet uses, and the pills among them
+    keep their state in hyperscript globals — so only one sheet's worth can
+    be in the page at a time. Each sheet fetches its own on the way in and
+    drops them on the way out.
+    """
+    request.response.text = _render_todo_fields(request, None, "n")
+    return request.response
+
+
+#: Fields the mobile new-task sheet posts alongside the title. The pills post
+#: one entry each, which is why two of them arrive with brackets.
+_ADD_FIELDS = ("due_date", "recurrence", "note")
+_ADD_LIST_FIELDS = ("tags", "assignees")
 
 
 def _merge_add_fields(request, parsed: ParsedTodoInput) -> ParsedTodoInput:
@@ -752,6 +766,10 @@ def _merge_add_fields(request, parsed: ParsedTodoInput) -> ParsedTodoInput:
     from menage2.schemas import TodoUpdate
 
     present = {key: request.params[key] for key in _ADD_FIELDS if key in request.params}
+    for key in _ADD_LIST_FIELDS:
+        chosen = request.params.getall(f"{key}[]")
+        if chosen:
+            present[key] = set(chosen)
     if not present:
         return parsed
 
