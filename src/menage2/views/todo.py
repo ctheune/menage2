@@ -1142,6 +1142,20 @@ def todo_batch_action(request):
     return request.response
 
 
+def _picker_value(request) -> str | None:
+    """The text a picker should interpret.
+
+    The desktop panel passes it as `value` through an hx-vals JS expression.
+    The mobile sheet cannot use one, so it includes the field itself and the
+    text arrives under that field's own name — either way the picker gets
+    what the user has typed so far.
+    """
+    for key in ("value", "text", "due_date", "recurrence", "tags", "assignees"):
+        if key in request.params:
+            return request.params[key]
+    return None
+
+
 @view_config(
     route_name="todo_date_picker",
     request_method="GET",
@@ -1154,7 +1168,7 @@ def todo_date_picker(request):
 
     """
     today = datetime.date.today()
-    value = request.params.get("value")
+    value = _picker_value(request)
     parsed = parse_date(value, today)
 
     options = [
@@ -1240,7 +1254,7 @@ def todo_recurrence_picker(request):
     This automatically binds to the closest, previous input field.
 
     """
-    value = request.params.get("value")
+    value = _picker_value(request)
 
     # ensure we can parse and provide a preview what the
     # next date would be
@@ -1271,7 +1285,7 @@ def todo_tag_picker(request):
     This automatically binds to the closest, previous input field.
 
     """
-    value = request.params.get("value")
+    value = _picker_value(request)
 
     if not value:
         cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
@@ -1335,7 +1349,7 @@ def todo_assignee_picker(request):
     names.update(request.dbsession.execute(select(User.username)).scalars())
     names.update(request.dbsession.execute(select(Team.name)).scalars())
 
-    value = request.params.get("value")
+    value = _picker_value(request)
     if value:
         names = set(fuzzy_filter(names, value))
 
