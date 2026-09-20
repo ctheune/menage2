@@ -75,6 +75,20 @@ class TodoUpdate(BaseModel):
     attachments: Optional[Set[str]] = None
     clear_fields: Set[str] = Field(default_factory=set)
 
+    @field_validator("tags", "assignees", mode="before")
+    @classmethod
+    def split_words(cls, v: object) -> object:
+        """Accept a plain text field as well as a list.
+
+        The desktop panel posts `tags[]` once per pill; a phone has one text
+        input for the lot, so `"#shop garden"` has to mean the same thing. The
+        marker character is optional — typing it is the habit the add box
+        teaches.
+        """
+        if isinstance(v, str):
+            return {word.lstrip("#@") for word in v.split() if word.strip("#@")}
+        return v
+
     @field_validator("due_date", mode="before")
     @classmethod
     def parse_due_date(cls, v: object) -> date | None:

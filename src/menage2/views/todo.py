@@ -660,6 +660,38 @@ def list_todos_mobile(request):
     return _list_todos(request)
 
 
+#: Fields the mobile new-task sheet posts alongside the title.
+_ADD_FIELDS = ("tags", "assignees", "due_date", "recurrence", "note")
+
+
+def _merge_add_fields(request, parsed: ParsedTodoInput) -> ParsedTodoInput:
+    """Layer the new sheet's separate fields over what the title parsed to.
+
+    The desktop box posts one `text` carrying markers; the mobile sheet posts
+    a field each. Validating those through TodoUpdate reuses its smart-date,
+    recurrence and word-splitting rules, and layering rather than replacing
+    means a phone can still type `#tag` in the title and get both.
+    """
+    from menage2.schemas import TodoUpdate
+
+    present = {key: request.params[key] for key in _ADD_FIELDS if key in request.params}
+    if not present:
+        return parsed
+
+    extra = TodoUpdate(**present)
+    if extra.tags:
+        parsed.tags |= extra.tags
+    if extra.assignees:
+        parsed.assignees |= extra.assignees
+    if extra.due_date is not None:
+        parsed.due_date = extra.due_date
+    if extra.recurrence is not None:
+        parsed.recurrence = extra.recurrence
+    if extra.note:
+        parsed.note = extra.note
+    return parsed
+
+
 @view_config(route_name="add_todo", request_method="POST")
 def add_todo(request):
     raw = request.params.get("text", "").strip()
@@ -672,6 +704,12 @@ def add_todo(request):
         request.response.headers["HX-Reswap"] = "none"
         request.response.hx_trigger("showAddTodoError", {"input": raw})
         return request.response
+    try:
+        parsed = _merge_add_fields(request, parsed)
+    except ValidationError as e:
+        first = e.errors()[0]
+        where = ".".join(str(part) for part in first["loc"]) or "request"
+        return _validation_error(request, f"{where}: {first['msg']}")
     owner_id = request.identity.id if request.identity else None
     todo = Todo(
         text=parsed.text,
