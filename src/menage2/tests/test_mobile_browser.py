@@ -60,6 +60,28 @@ def login(page, context, browser_admin_user, live_server):
     )
 
 
+@pytest.fixture
+def as_alice(playwright, second_user, live_server):
+    """A request context logged in as the other user.
+
+    A task that came *from* somebody else cannot be made through the admin's
+    own session, so the tests that need one post it as her.
+    """
+    request_context = playwright.request.new_context()
+    resp = request_context.post(
+        f"{live_server}/login",
+        form={
+            "username": second_user["username"],
+            "password": "alicepassword1!",
+            "came_from": "/todos",
+        },
+        max_redirects=0,
+    )
+    assert resp.status == 303, f"Alice could not log in: {resp.status}"
+    yield request_context
+    request_context.dispose()
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -69,12 +91,21 @@ def _item(text: str) -> str:
     return f'.todo-item[data-todo-text="{text}"]'
 
 
-def _add_todo(context, live_server, raw: str) -> None:
-    """Create a todo through the add endpoint — mobile has no add form yet."""
-    resp = context.request.post(
+def _add_todo_via(request_context, live_server, raw: str) -> None:
+    """Create a todo through the add endpoint, as whoever that context is.
+
+    The endpoint takes the owner from the session, so who posts decides whose
+    task it becomes — which is the whole difference between the filters.
+    """
+    resp = request_context.post(
         f"{live_server}/todos/add", form={"text": raw}, max_redirects=0
     )
     assert resp.status == 303, f"Adding {raw!r} failed: {resp.status}"
+
+
+def _add_todo(context, live_server, raw: str) -> None:
+    """Create a todo as the logged-in admin."""
+    _add_todo_via(context.request, live_server, raw)
 
 
 def _open_list(page, url: str = "/todos") -> None:
@@ -984,3 +1015,28 @@ def test_a_delegated_task_is_only_reachable_through_its_filter(
     _choose(page, "Whose", "Delegated")
     page.wait_for_selector(_item("Handed off"), timeout=10000)
     assert page.locator(_item("Kept for myself")).count() == 0
+
+
+def test_a_task_from_someone_else_shows_up_under_assigned(
+    page, context, live_server, as_alice
+):
+    """ "Assigned" narrows your own list down to what other people put there."""
+    _add_todo_via(as_alice, live_server, "Please look at this @admin")
+    _add_todo(context, live_server, "Thought of it myself")
+
+    # Both are on the default list: a task assigned to you is yours too.
+    _open_list(page)
+    page.wait_for_selector(_item("Please look at this"), timeout=10000)
+    assert page.locator(_item("Thought of it myself")).count() == 1
+
+    _menu(page)
+    _choose(page, "Whose", "Assigned")
+    page.wait_for_selector(_item("Please look at this"), timeout=10000)
+    assert page.locator(_item("Thought of it myself")).count() == 0
+
+    # And the menu counts it, which is what says the list is worth opening.
+    _menu(page)
+    assigned = page.locator(
+        "#offcanvasBottom h6:has-text('Whose') + .list-group a:has-text('Assigned')"
+    )
+    assert assigned.locator(".badge").inner_text() == "1"
