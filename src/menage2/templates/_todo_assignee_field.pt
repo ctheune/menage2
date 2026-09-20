@@ -1,9 +1,10 @@
 <!-- The assignee field: same widget as the tag field, one per person.
 
-     Needs `todo` in scope.
+     Needs `assignees_text` in scope — a space-separated list, empty for a
+     task that does not exist yet.
 -->
 <div class="mb-3" hx-disinherit="*" id="field-assignees"
-  data-assignees="${' '.join(sorted(todo.assignees) if todo.assignees else [])}"
+  data-assignees="${assignees_text}"
   _="init
        set $assignees to my @data-assignees split by ' ' as Array
        if not $assignees then

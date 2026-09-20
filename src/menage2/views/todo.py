@@ -487,8 +487,9 @@ def _render_todo_fields(request, todo, prefix: str) -> str:
         {
             "todo": todo,
             "prefix": prefix,
-            # The shared tag field reads its pills from here.
+            # The shared pill fields read what is already set from here.
             "tags_json": json.dumps(sorted(todo.tags)) if todo else "[]",
+            "assignees_text": " ".join(sorted(todo.assignees)) if todo else "",
         },
         request=request,
     )
@@ -1614,6 +1615,7 @@ def todo_details_panel(request: Request):
                 ]
             ),
             "tags_json": json.dumps(list(todo.tags)),
+            "assignees_text": " ".join(sorted(todo.assignees)),
             "links_json": json.dumps(
                 [
                     {"label": t.label, "url": t.url}
