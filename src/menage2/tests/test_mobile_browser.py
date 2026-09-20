@@ -9,7 +9,10 @@ Swipe distances are measured against a threshold of a quarter of the row width,
 so the offsets here are expressed in those terms rather than raw pixels.
 """
 
+import re
+
 import pytest
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 IPHONE_UA = (
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
@@ -77,22 +80,73 @@ def _open_list(page, url: str = "/todos") -> None:
     page.wait_for_selector("#todo-list .todo-item, .todo-list-empty", timeout=10000)
 
 
-def _wait_swipe_ready(page, text: str) -> None:
-    """Wait until hyperscript has wired the row's gesture handlers.
+def _wait_wired(page, selector: str) -> None:
+    """Wait until hyperscript has wired the element's handlers.
 
-    The list arrives by htmx swap and hyperscript initialises the new rows
-    afterwards; a touch sequence dispatched in between is simply dropped.
+    The list arrives by htmx swap and hyperscript initialises the new nodes
+    afterwards; a gesture or tap dispatched in between is simply dropped.
     `_hyperscript.initialized` is the flag hyperscript sets once it has.
     """
-    page.wait_for_selector(_item(text), timeout=10000)
+    page.wait_for_selector(selector, timeout=10000)
     page.wait_for_function(
         """(selector) => {
             const el = document.querySelector(selector);
             return !!(el && el._hyperscript && el._hyperscript.initialized);
         }""",
-        arg=_item(text),
+        arg=selector,
         timeout=10000,
     )
+
+
+def _wait_swipe_ready(page, text: str) -> None:
+    _wait_wired(page, _item(text))
+
+
+def _select(page, text: str) -> None:
+    """Tick a row's checkbox. Ticking selects; it does not act on its own."""
+    checkbox = f"{_item(text)} .todo-checkbox"
+    page.wait_for_selector(checkbox, timeout=10000)
+    page.locator(checkbox).click()
+    page.wait_for_selector("#mobile-selection-actions:not(.d-none)", timeout=5000)
+
+
+def _save_edit(page) -> None:
+    """Save the edit sheet.
+
+    A field with a picker leaves its dropdown over the buttons. Moving focus to
+    the title closes it first — which is what a real tap does too, since the
+    blur lands before the click.
+    """
+    page.locator("#mobile-edit-title").click()
+    page.locator("#mobile-edit-form button[type=submit]").click()
+
+
+def _set_title(page, text: str) -> None:
+    """Retitle the open task.
+
+    The title lives in the sheet header and edits in place, the way it does on
+    the desktop panel; hyperscript writes it through to the form's field.
+    """
+    page.locator("#mobile-edit-title").fill(text)
+
+
+def _add_tag(page, tag: str) -> None:
+    """Type a tag into the pill field and commit it with a space.
+
+    The entry span is empty, so it has no size to tap; the box around it is
+    what takes the tap and hands the focus on, on a phone as on the desktop.
+    """
+    page.locator("#field-tags .form-control").click()
+    page.keyboard.type(tag)
+    page.keyboard.press(" ")
+
+
+def _remove_tag(page, tag: str) -> None:
+    page.locator(f'#field-tags .badge:has-text("{tag}") .bi-x').click()
+
+
+def _act(page, label: str) -> None:
+    page.locator(f"#mobile-selection-actions button:has-text('{label}')").click()
 
 
 def _swipe(page, text: str, fraction: float) -> None:
@@ -306,3 +360,434 @@ def test_undo_after_a_hold_swipe_restores_the_row(page, context, live_server):
 
     page.locator("#undo-toast").click()
     page.wait_for_selector(_item("Held then back"), timeout=10000)
+
+
+# ---------------------------------------------------------------------------
+# The edit sheet
+# ---------------------------------------------------------------------------
+
+
+def _open_edit(page, text: str, attempts: int = 3):
+    """Tap a row's text — the checkbox is the other target and completes it.
+
+    The span carries both the hx-get and the hyperscript that opens the sheet,
+    so it has to be wired first; and because opening is idempotent, a tap the
+    list swallowed mid-swap can simply be repeated.
+    """
+    target = f"{_item(text)} .flex-grow-1"
+    for attempt in range(attempts):
+        _wait_wired(page, target)
+        page.locator(target).first.click()
+        try:
+            page.wait_for_selector("#mobile-edit.show #mobile-edit-form", timeout=3000)
+            return
+        except PlaywrightTimeoutError:
+            if attempt == attempts - 1:
+                raise
+
+
+def test_tapping_a_row_opens_the_edit_sheet_filled_in(page, context, live_server):
+    _add_todo(context, live_server, "Edit me #garden ^today ~water it")
+    _open_list(page)
+    _open_edit(page, "Edit me")
+    assert page.locator("#mobile-edit-title").inner_text() == "Edit me"
+    assert page.locator("#m-text").input_value() == "Edit me"
+    assert page.locator('#field-tags input[name="tags[]"]').input_value() == "garden"
+    assert page.locator("#m-due").input_value() != ""
+    assert page.locator("#m-note").input_value() == "water it"
+
+
+def test_editing_the_title_saves_and_closes_the_sheet(page, context, live_server):
+    _add_todo(context, live_server, "Old title")
+    _open_list(page)
+    _open_edit(page, "Old title")
+    _set_title(page, "New title")
+    _save_edit(page)
+    page.wait_for_selector(_item("New title"), timeout=10000)
+    page.wait_for_selector("#mobile-edit.show", state="detached", timeout=10000)
+
+
+def test_editing_tags_as_pills(page, context, live_server):
+    _add_todo(context, live_server, "Retag me #old")
+    _open_list(page)
+    _open_edit(page, "Retag me")
+    _remove_tag(page, "old")
+    _add_tag(page, "kitchen")
+    _add_tag(page, "garden")
+    _save_edit(page)
+    page.wait_for_selector('.tag-group-header[data-tag="garden"]', timeout=10000)
+    assert page.locator('.tag-group-header[data-tag="kitchen"]').count() == 1
+    assert page.locator('.tag-group-header[data-tag="old"]').count() == 0
+
+
+def test_editing_accepts_a_smart_due_date(page, context, live_server):
+    _add_todo(context, live_server, "Schedule me")
+    _open_list(page)
+    _open_edit(page, "Schedule me")
+    page.locator("#m-due").fill("next week")
+    _save_edit(page)
+    _wait_gone(page, "Schedule me")
+    page.goto("/todos?status=scheduled")
+    page.wait_for_selector(_item("Schedule me"), timeout=10000)
+
+
+def test_clearing_the_repeat_field_removes_the_rule(page, context, live_server):
+    _add_todo(context, live_server, "Stop repeating *every week")
+    _open_list(page)
+    page.wait_for_selector(f"{_item('Stop repeating')} .todo-recurrence", timeout=10000)
+    _open_edit(page, "Stop repeating")
+    assert "every week" in page.locator("#m-recurrence").input_value()
+    page.locator("#m-recurrence").fill("")
+    _save_edit(page)
+    page.wait_for_function(
+        f"document.querySelectorAll('{_item('Stop repeating')} .todo-recurrence')"
+        ".length === 0",
+        timeout=10000,
+    )
+
+
+def test_cancel_closes_the_sheet_without_saving(page, context, live_server):
+    _add_todo(context, live_server, "Leave me be")
+    _open_list(page)
+    _open_edit(page, "Leave me be")
+    _set_title(page, "changed")
+    page.locator("#mobile-edit-form button:has-text('Cancel')").click()
+    page.wait_for_selector("#mobile-edit.show", state="detached", timeout=5000)
+    page.reload()
+    page.wait_for_selector(_item("Leave me be"), timeout=10000)
+
+
+def test_the_title_edits_in_the_sheet_header(page, context, live_server):
+    """The header carries the title, and writes it through to the form."""
+    _add_todo(context, live_server, "Header title")
+    _open_list(page)
+    _open_edit(page, "Header title")
+    title = page.locator("#mobile-edit-title")
+    assert title.get_attribute("contenteditable") == "plaintext-only"
+    # The body has no title field of its own; the header stands in for it.
+    assert page.locator("#mobile-edit-body input[type=text][name=text]").count() == 0
+    title.fill("Retitled from the header")
+    assert page.locator("#m-text").input_value() == "Retitled from the header"
+
+
+def test_editing_assignees_as_pills(page, context, live_server):
+    _add_todo(context, live_server, "Hand me over @admin")
+    _open_list(page)
+    _open_edit(page, "Hand me over")
+    pill = page.locator('#field-assignees input[name="assignees[]"]')
+    assert pill.input_value() == "admin"
+    page.locator('#field-assignees .badge:has-text("admin") .bi-x').click()
+    _save_edit(page)
+    _open_edit(page, "Hand me over")
+    page.wait_for_selector(
+        '#field-assignees input[name="assignees[]"]', state="detached", timeout=10000
+    )
+
+
+def test_links_are_shown_but_not_editable(page, context, live_server):
+    """Links are there to follow on a phone; editing one needs a pointer."""
+    _add_todo(context, live_server, "Read up [Docs](https://docs.example.com)")
+    _open_list(page)
+    _open_edit(page, "Read up")
+    link = page.locator("#m-links a").first
+    assert link.inner_text() == "Docs"
+    assert link.get_attribute("href") == "https://docs.example.com"
+    assert page.locator("#m-links .new-link").count() == 0
+
+
+# ---------------------------------------------------------------------------
+# Checking off is a separate target from editing
+# ---------------------------------------------------------------------------
+
+
+def test_ticking_selects_but_does_not_complete(page, context, live_server):
+    """Ticking is a selection; the row stays until an action is chosen."""
+    _add_todo(context, live_server, "Tick me")
+    _open_list(page)
+    _select(page, "Tick me")
+    page.wait_for_timeout(1000)
+    assert page.locator(_item("Tick me")).count() == 1
+    assert page.locator("#undo-toast").count() == 0
+    assert page.locator("#mobile-edit.show").count() == 0
+
+
+def test_the_action_bar_appears_only_with_a_selection(page, context, live_server):
+    _add_todo(context, live_server, "Pick me")
+    _open_list(page)
+    assert page.locator("#mobile-selection-actions.d-none").count() == 1
+    _select(page, "Pick me")
+    page.locator(f"{_item('Pick me')} .todo-checkbox").click()
+    page.wait_for_selector(
+        "#mobile-selection-actions.d-none", state="attached", timeout=5000
+    )
+
+
+def test_completing_a_selection_from_the_action_bar(page, context, live_server):
+    _add_todo(context, live_server, "Finish me")
+    _open_list(page)
+    _select(page, "Finish me")
+    _act(page, "Done")
+    _wait_gone(page, "Finish me")
+    page.goto("/todos?status=done")
+    page.wait_for_selector(_item("Finish me"), timeout=10000)
+
+
+def test_a_held_task_can_be_brought_back(page, context, live_server):
+    """Activate is why the checkbox is a selection rather than a shortcut."""
+    _add_todo(context, live_server, "Held thing")
+    _open_list(page)
+    _swipe(page, "Held thing", -0.4)
+    _wait_gone(page, "Held thing")
+
+    page.goto("/todos?status=on_hold")
+    _select(page, "Held thing")
+    _act(page, "Activate")
+    _wait_gone(page, "Held thing")
+    page.goto("/todos?status=active")
+    page.wait_for_selector(_item("Held thing"), timeout=10000)
+
+
+def test_a_finished_task_can_be_brought_back(page, context, live_server):
+    _add_todo(context, live_server, "Finished thing")
+    _open_list(page)
+    _select(page, "Finished thing")
+    _act(page, "Done")
+    _wait_gone(page, "Finished thing")
+
+    page.goto("/todos?status=done")
+    _select(page, "Finished thing")
+    _act(page, "Activate")
+    _wait_gone(page, "Finished thing")
+    page.goto("/todos?status=active")
+    page.wait_for_selector(_item("Finished thing"), timeout=10000)
+
+
+def test_an_action_bar_completion_raises_an_undo_bubble(page, context, live_server):
+    _add_todo(context, live_server, "Tick then undo")
+    _open_list(page)
+    _select(page, "Tick then undo")
+    _act(page, "Done")
+    page.wait_for_selector("#undo-toast", timeout=10000)
+    _wait_gone(page, "Tick then undo")
+    page.locator("#undo-toast").click()
+    page.wait_for_selector(_item("Tick then undo"), timeout=10000)
+
+
+# ---------------------------------------------------------------------------
+# Adding, filtering, logging out
+# ---------------------------------------------------------------------------
+
+
+def _open_add(page):
+    page.locator("nav a[aria-label='New task']").click()
+    page.wait_for_selector("#mobile-add.show #n-text", timeout=5000)
+
+
+def test_adding_a_task_from_the_bottom_nav(page, context, live_server):
+    """The title still takes markers, so a one-liner works untouched."""
+    _open_list(page)
+    _open_add(page)
+    page.locator("#n-text").fill("Added on the phone #errands")
+    page.locator("#mobile-add form button[type=submit]").click()
+    page.wait_for_selector(_item("Added on the phone"), timeout=10000)
+    assert page.locator('.tag-group-header[data-tag="errands"]').count() == 1
+
+
+def test_adding_a_task_field_by_field(page, context, live_server):
+    """The new sheet has the same fields as the edit sheet."""
+    _open_list(page)
+    _open_add(page)
+    page.locator("#n-text").fill("Fully specified")
+    page.locator("#n-tags").fill("kitchen")
+    page.locator("#n-note").fill("from the fields")
+    page.locator("#mobile-add form button[type=submit]").click()
+    page.wait_for_selector(_item("Fully specified"), timeout=10000)
+    assert page.locator('.tag-group-header[data-tag="kitchen"]').count() == 1
+    note = page.locator(f"{_item('Fully specified')} .todo-note-display")
+    assert "from the fields" in note.inner_text()
+
+
+def test_adding_with_a_smart_due_date_field(page, context, live_server):
+    _open_list(page)
+    _open_add(page)
+    page.locator("#n-text").fill("Due next week")
+    page.locator("#n-due").fill("next week")
+    # Dismiss the picker it opened — it sits over the buttons below.
+    page.locator("#n-text").click()
+    page.locator("#mobile-add form button[type=submit]").click()
+    # The add swaps the whole body; navigating before that lands would race it.
+    page.wait_for_selector("#mobile-add.show", state="detached", timeout=10000)
+    page.goto("/todos?status=scheduled")
+    page.wait_for_selector(_item("Due next week"), timeout=10000)
+
+
+def test_markers_in_the_title_and_fields_combine(page, context, live_server):
+    """A tag typed in the title is kept alongside one typed in the field."""
+    _open_list(page)
+    _open_add(page)
+    page.locator("#n-text").fill("Both ways #fromtitle")
+    page.locator("#n-tags").fill("fromfield")
+    page.locator("#mobile-add form button[type=submit]").click()
+    page.wait_for_selector(_item("Both ways"), timeout=10000)
+    assert page.locator('.tag-group-header[data-tag="fromtitle"]').count() == 1
+    assert page.locator('.tag-group-header[data-tag="fromfield"]').count() == 1
+
+
+# ---------------------------------------------------------------------------
+# The desktop pickers, on the phone
+# ---------------------------------------------------------------------------
+
+
+def test_due_field_opens_the_date_picker_and_fills_from_it(page, context, live_server):
+    """A quick option hands over the date it resolved, not the label it shows."""
+    _open_list(page)
+    _open_add(page)
+    page.locator("#n-due").click()
+    page.wait_for_selector("#n-due + .picker .todo-mini-cal", timeout=10000)
+    option = page.locator("#n-due + .picker li[data-picker-value]").first
+    picked = option.get_attribute("data-picker-value")
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", picked)
+    option.click()
+    assert page.locator("#n-due").input_value() == picked
+
+
+def test_repeat_field_opens_the_recurrence_picker(page, context, live_server):
+    _open_list(page)
+    _open_add(page)
+    page.locator("#n-recurrence").click()
+    page.wait_for_selector(
+        "#n-recurrence + .picker li[data-picker-value]", timeout=10000
+    )
+
+
+def test_edit_sheet_pickers_see_the_current_value(page, context, live_server):
+    """The picker echoes what is typed, which is what mobile has to pass along."""
+    _add_todo(context, live_server, "Picker echo")
+    _open_list(page)
+    _open_edit(page, "Picker echo")
+    page.locator("#m-due").fill("tomorrow")
+    # The first row is what the picker made of the text it was given, which is
+    # the bit mobile has to pass along without a JS expression. The picker
+    # answers on focus too, so wait for the one carrying the typed text.
+    page.wait_for_function(
+        """() => {
+            const row = document.querySelector('#m-due + .picker li');
+            return !!row && row.textContent.includes('tomorrow');
+        }""",
+        timeout=10000,
+    )
+
+
+def test_menu_switches_which_items_are_shown(page, context, live_server):
+    _add_todo(context, live_server, "An active one")
+    _add_todo(context, live_server, "A held one")
+    _open_list(page)
+    _swipe(page, "A held one", -0.4)
+    _wait_gone(page, "A held one")
+
+    page.locator("nav a[aria-label='Menu']").click()
+    page.wait_for_selector("#offcanvasBottom.show", timeout=5000)
+    page.locator("#offcanvasBottom a:has-text('On hold')").click()
+    page.wait_for_selector(_item("A held one"), timeout=10000)
+    assert page.locator(_item("An active one")).count() == 0
+
+
+def test_menu_offers_log_off(page, live_server):
+    _open_list(page)
+    page.locator("nav a[aria-label='Menu']").click()
+    page.wait_for_selector("#offcanvasBottom.show", timeout=5000)
+    page.locator("#offcanvasBottom button:has-text('Log off')").click()
+    page.wait_for_url("**/login**", timeout=10000)
+
+
+def _add_sheet_pick(
+    page, field: str, typed: str, wanted: str, attempts: int = 5
+) -> None:
+    """Type into an add-sheet field and tap `wanted` in the picker it opens.
+
+    The field asks the picker again on every keystroke, so a tap can land on a
+    row that htmx is in the middle of replacing. Tapping the same option twice
+    does no harm — the second one writes the same word — so simply retry until
+    the field takes it.
+    """
+    option = f"{field} + .picker li[data-picker-value='{wanted}']"
+    for attempt in range(attempts):
+        # Focusing is what opens the picker, so a retry starts from there.
+        page.locator(field).click()
+        page.locator(field).fill(typed)
+        try:
+            # The field asks again on focus and on every keystroke, so two
+            # answers can be on their way at once. Waiting for the field to be
+            # out of flight means the row tapped below is the one that stays.
+            page.wait_for_function(
+                """([selector, word]) => {
+                    const field = document.querySelector(selector);
+                    if (!field || field.classList.contains('htmx-request')) {
+                        return false;
+                    }
+                    const box = field.nextElementSibling;
+                    return !!box && !!box.querySelector(
+                        `li[data-picker-value="${word}"]`);
+                }""",
+                arg=[field, wanted],
+                timeout=5000,
+            )
+            page.locator(option).click(timeout=3000)
+            # A pick always leaves a trailing space, which is what tells it
+            # apart from the same word simply having been typed.
+            page.wait_for_function(
+                """([selector, word]) => {
+                    const field = document.querySelector(selector);
+                    return field && field.value.endsWith(word + ' ');
+                }""",
+                arg=[field, wanted],
+                timeout=2000,
+            )
+            return
+        except PlaywrightTimeoutError:
+            if attempt == attempts - 1:
+                raise
+
+
+@pytest.mark.flaky(reruns=2)
+def test_tag_picker_fills_the_add_sheet_field(page, context, live_server):
+    """The new sheet has no pills, so a pick replaces the word being typed."""
+    _add_todo(context, live_server, "Something tagged #garden")
+    _open_list(page)
+    _open_add(page)
+    _add_sheet_pick(page, "#n-tags", "gar", "garden")
+    assert page.locator("#n-tags").input_value() == "garden "
+    # A second pick appends rather than overwriting what is already there.
+    _add_sheet_pick(page, "#n-tags", "garden kitch", "kitch")
+    assert page.locator("#n-tags").input_value() == "garden kitch "
+
+
+@pytest.mark.flaky(reruns=2)
+def test_assignee_picker_fills_the_add_sheet_field(page, context, live_server):
+    _open_list(page)
+    _open_add(page)
+    _add_sheet_pick(page, "#n-assignees", "adm", "admin")
+    assert page.locator("#n-assignees").input_value() == "admin "
+
+
+def test_opening_a_picker_does_not_move_the_fields_below_it(page, context, live_server):
+    """The picker floats over the sheet.
+
+    Laid out inline it pushed everything under it down as it opened and closed,
+    so moving from field to field made the whole page jump.
+    """
+    _open_list(page)
+    _open_add(page)
+    page.locator("#n-note").click()
+    before = page.locator("#n-note").bounding_box()["y"]
+    page.locator("#n-due").click()
+    page.wait_for_selector("#n-due + .picker .todo-mini-cal", timeout=10000)
+    assert page.locator("#n-note").bounding_box()["y"] == before
+    # Tapping straight through an open picker hits the picker, so close it the
+    # way a thumb does — somewhere clear of it first.
+    page.locator("#mobile-add-title").click()
+    page.locator("#n-recurrence").click()
+    page.wait_for_selector(
+        "#n-recurrence + .picker li[data-picker-value]", timeout=10000
+    )
+    assert page.locator("#n-note").bounding_box()["y"] == before

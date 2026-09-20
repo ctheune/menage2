@@ -1,0 +1,176 @@
+<!-- The task fields, shared by the edit and the new sheet.
+
+     `prefix` keeps element ids apart, since both sheets sit in the DOM at
+     once. `todo` is None on the new sheet, and the two sheets differ where a
+     phone wants them to:
+
+     - editing puts the title in the sheet header (see the details panel) and
+       keeps tags and assignees as the desktop's pills, so a picked tag lands
+       where it belongs;
+     - adding keeps every field a plain text box, so a whole task can be typed
+       in one go — the title takes markers just like the desktop's add box.
+
+     Links and attachments are shown read-only: they are there to look at on a
+     phone, and editing them needs a pointer.
+-->
+<tal:block tal:define="
+    p prefix;
+    has python:todo is not None;
+    picker_trigger string:focus, input changed delay:200ms;
+    ">
+
+  <div _="on htmx:afterSwap
+            -- Float the picker over what follows rather than letting it push
+            -- the fields down: an inline panel resizes the sheet, so moving
+            -- between fields makes the whole page jump.
+            if target matches '.picker'
+              add .position-relative to target
+              add .z-3 to target
+              set panel to the first <div/> in target
+              if panel
+                remove .w-50 from panel
+                add .w-100 to panel
+              end
+            end
+
+          on click
+            -- The new sheet has no pills for the picker to fill, so a pick
+            -- replaces the word being typed in the plain text field.
+            set option to the closest <li[data-picker-value]/> to target
+            if no option exit end
+            set box to the closest .picker to option
+            if no box exit end
+            if box does not match '.picker-words' exit end
+            set field to the previous <input/> from box
+            set typed to field's value
+            set cut to typed.lastIndexOf(' ')
+            if cut is -1
+              set field's value to option@data-picker-value + ' '
+            else
+              set field's value to typed.substring(0, cut + 1) + option@data-picker-value + ' '
+            end
+            focus field">
+
+    <!-- On the edit sheet the header holds the title and writes it here. -->
+    <input tal:condition="has" type="hidden" name="text" id="${p}-text"
+           value="${todo.text}" />
+
+    <div class="mb-3" tal:condition="not:has">
+      <label class="form-label" for="${p}-text">Task</label>
+      <input type="text" class="form-control" id="${p}-text" name="text"
+             autocomplete="off" placeholder="What needs doing?" />
+    </div>
+
+    <tal:block tal:condition="has">
+      <div metal:use-macro="load: ../_todo_tag_field.pt"></div>
+    </tal:block>
+
+    <div class="mb-3" tal:condition="not:has">
+      <label class="form-label" for="${p}-tags">Tags</label>
+      <!-- The picker matches a single word; this field holds a list, so
+           only the word being typed is sent. -->
+      <input type="hidden" name="value" id="${p}-tags-word" />
+      <input type="text" class="form-control" id="${p}-tags" name="tags"
+             autocomplete="off" placeholder="shopping garden"
+             hx-get="${request.route_url('todo_tag_picker')}"
+             hx-target="next .picker"
+             hx-trigger="${picker_trigger}"
+             hx-include="#${p}-tags-word"
+             hx-params="value"
+             _="on focus show the next .picker
+                on blur hide the next .picker
+                on input or focus
+                  set cut to my value.lastIndexOf(' ')
+                  set #${p}-tags-word's value to my value.substring(cut + 1)" />
+      <div class="picker picker-words"></div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="${p}-due">Due</label>
+      <input type="text" class="form-control" id="${p}-due" name="due_date"
+             autocomplete="off" placeholder="tomorrow, next week, 2026-05-01"
+             value="${todo.due_date.isoformat() if has and todo.due_date else ''}"
+             hx-get="${request.route_url('todo_date_picker')}"
+             hx-target="next .picker"
+             hx-trigger="${picker_trigger}"
+             hx-include="this"
+             hx-params="due_date"
+             _="on focus show the next .picker
+                on blur hide the next .picker" />
+      <div class="picker"></div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="${p}-recurrence">Repeat</label>
+      <input type="text" class="form-control" id="${p}-recurrence" name="recurrence"
+             autocomplete="off" placeholder="every week"
+             value="${_recurrence_label(todo) or '' if has else ''}"
+             hx-get="${request.route_url('todo_recurrence_picker')}"
+             hx-target="next .picker"
+             hx-trigger="${picker_trigger}"
+             hx-include="this"
+             hx-params="recurrence"
+             _="on focus show the next .picker
+                on blur hide the next .picker
+                on input or change
+                  -- An emptied field has to say so explicitly: the schema
+                  -- cannot tell 'not sent' from 'sent empty', clear_fields can.
+                  set #${p}-clear-recurrence's disabled to (my value is not '')" />
+      <div class="picker"></div>
+      <input type="hidden" name="clear_fields[]" value="recurrence"
+             id="${p}-clear-recurrence"
+             tal:attributes="disabled python:'disabled' if (has and todo.recurrence_id) else None" />
+    </div>
+
+    <tal:block tal:condition="has">
+      <div metal:use-macro="load: ../_todo_assignee_field.pt"></div>
+    </tal:block>
+
+    <div class="mb-3" tal:condition="not:has">
+      <label class="form-label" for="${p}-assignees">Assignees</label>
+      <input type="hidden" name="value" id="${p}-assignees-word" />
+      <input type="text" class="form-control" id="${p}-assignees" name="assignees"
+             autocomplete="off" placeholder="alice bob"
+             hx-get="${request.route_url('todo_assignee_picker')}"
+             hx-target="next .picker"
+             hx-trigger="${picker_trigger}"
+             hx-include="#${p}-assignees-word"
+             hx-params="value"
+             _="on focus show the next .picker
+                on blur hide the next .picker
+                on input or focus
+                  set cut to my value.lastIndexOf(' ')
+                  set #${p}-assignees-word's value to my value.substring(cut + 1)" />
+      <div class="picker picker-words"></div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="${p}-note">Note</label>
+      <textarea class="form-control" id="${p}-note" name="note"
+                rows="3">${todo.note or '' if has else ''}</textarea>
+    </div>
+
+    <div class="mb-3" tal:condition="python:has and todo.links_rel" id="${p}-links">
+      <label class="form-label">Links</label>
+      <div class="form-control d-flex flex-wrap gap-1">
+        <span class="badge rounded-pill text-bg-secondary text-nowrap"
+              tal:repeat="link python:sorted(todo.links_rel, key=lambda t: t.position)">
+          <a target="_blank" rel="noopener noreferrer" class="link-light"
+             href="${link.url}">${link.label}</a>
+        </span>
+      </div>
+    </div>
+
+    <div class="mb-3" tal:condition="python:has and todo.attachments" id="${p}-attachments">
+      <label class="form-label">Files</label>
+      <div class="form-control d-flex flex-wrap gap-2">
+        <img class="rounded object-fit-cover" width="72" height="72"
+             tal:repeat="attachment todo.attachments"
+             alt="${attachment.original_filename}"
+             src="${request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=attachment.uuid)}" />
+      </div>
+    </div>
+
+  </div>
+
+</tal:block>

@@ -20,6 +20,12 @@ body {
     z-index: 9999;
 }
 
+/* Where a fixed bottom nav exists (the mobile UI), lift the toast clear of it
+   — otherwise the nav sits on top and swallows the tap that undoes. */
+body:has(.navbar.fixed-bottom) .undo-toast {
+    bottom: 5.5rem;
+}
+
 @media (min-width: 768px) {
     .undo-toast {
         bottom: auto;

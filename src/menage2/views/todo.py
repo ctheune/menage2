@@ -463,6 +463,24 @@ def _todo_order(date_column, newest_first: bool = False):
     return (nulls_last(by_date), asc(Todo.id))
 
 
+def _render_todo_fields(request, todo, prefix: str) -> str:
+    """The task fields both mobile sheets are built from.
+
+    `prefix` keeps element ids apart — the edit and the new sheet are in the
+    DOM at the same time.
+    """
+    return render(
+        "menage2:templates/mobile/_todo_fields.pt",
+        {
+            "todo": todo,
+            "prefix": prefix,
+            # The shared tag field reads its pills from here.
+            "tags_json": json.dumps(sorted(todo.tags)) if todo else "[]",
+        },
+        request=request,
+    )
+
+
 def _render_undo_form(request) -> str:
     """The undo control both the desktop and the mobile list hang off."""
     return render("menage2:templates/_undo_form.pt", {}, request=request)
@@ -643,6 +661,7 @@ def _list_todos(request):
         "filter_mode": filter_mode,
         "form_html": _render_todo_form(request, request.route_url("list_todos")),
         "undo_form_html": _render_undo_form(request),
+        "add_fields_html": _render_todo_fields(request, None, "n"),
     }
 
 
@@ -1396,6 +1415,41 @@ def todo_assignee_picker(request):
         new = value
 
     return {"value": value, "options": names, "new": new, "highlight": fuzzy_highlight}
+
+
+@view_config(
+    route_name="todo_details_panel",
+    request_method="GET",
+    header=HEADER_MOBILE_DEVICE,
+)
+def todo_details_panel_mobile(request: Request):
+    """Render the mobile edit sheet for one todo.
+
+    A phone edits one task at a time, so there is no multi-selection case:
+    anything other than exactly one id renders the empty panel, which is what
+    closes the sheet after a save.
+    """
+    raw_ids = request.params.getall("todo_ids[]")
+    todo_ids = [int(x) for x in raw_ids]
+
+    if request.params.get("updated", False):
+        request.response.hx_trigger("todo-updated")
+
+    todo = request.dbsession.get(Todo, todo_ids[0]) if len(todo_ids) == 1 else None
+    if todo is None:
+        return render_to_response(
+            "menage2:templates/mobile/_todo_details_panel_empty.pt",
+            {},
+            request=request,
+            response=request.response,
+        )
+
+    return render_to_response(
+        "menage2:templates/mobile/_todo_details_panel.pt",
+        {"todo": todo, "fields_html": _render_todo_fields(request, todo, "m")},
+        request=request,
+        response=request.response,
+    )
 
 
 @view_config(route_name="todo_details_panel", request_method="GET")

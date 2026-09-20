@@ -9,7 +9,7 @@
 -->
 
 <tal:block tal:repeat="group groups">
-  <div class="tag-group-header" data-open="true" _="on click
+  <div class="tag-group-header" data-tag="${group['full_tag']}" data-open="true" _="on click
          if @data-open is 'true'
            set @data-open to 'false'
            add .d-none to the next <ul/>
@@ -23,7 +23,7 @@
 
   <ul class="todo-group-list mb-0 list-unstyled">
     <li tal:repeat="todo group['items']" id="todo-${todo.id}" class="todo-item" data-todo-id="${todo.id}"
-      data-todo-text="${todo.text}" _="
+        data-todo-text="${todo.text}" _="
          init
             set :swipe to 0
             set :origin to 0
@@ -42,10 +42,9 @@
               remove {background-color}
               exit
             else
-              -- Hand the row to the batch form and let its hidden button submit,
-              -- so a swipe goes through exactly the same endpoint, undo toast
-              -- included, as the desktop batch menu.
-              set #swipe-todo-id's value to my @data-todo-id
+              -- A swipe ticks its own row and submits the batch form, so the
+              -- checkbox is the single way an action learns what to act on.
+              set (the first <input.todo-checkbox/> in me)'s checked to true
               if :swipeAction is 'done' then call #swipe-done.click() end
               if :swipeAction is 'hold' then call #swipe-hold.click() end
               if :swipeAction is 'postpone' then call #swipe-postpone.click() end
@@ -73,16 +72,33 @@
               end
             end
           ">
-      <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2">
-        <span class="flex-grow-1 d-flex align-items-center gap-2 small" style="min-width: 0">
+      <div class="todo-content d-flex py-2 px-3 align-items-center gap-2">
+        <!-- Selecting and editing are separate targets: the box picks the
+             row out, anywhere else opens it. Ticking does not act on its own
+             — the action bar above the list does, once something is picked. -->
+        <span class="flex-shrink-0">
+          <input type="checkbox"
+                 name="todo_ids[]"
+                 value="${todo.id}"
+                 class="form-check-input todo-checkbox"
+                 id="todo-checkbox-${todo.id}"
+                 aria-label="Select"
+                 hx-preserve />
+        </span>
+        <span class="flex-grow-1 d-flex align-items-center gap-2 small" style="min-width: 0"
+              hx-get="${request.route_url('todo_details_panel', _query=[('todo_ids[]', todo.id)])}"
+              hx-target="#mobile-edit-body"
+              hx-swap="innerHTML"
+              hx-params="none"
+              _="on htmx:afterOnLoad call #mobile-edit-open.click()">
           <span class="text-truncate" style="min-width: 0">
             <span class="todo-title">${todo.text}</span>
             <span class="d-block" tal:condition="todo.note or todo.links_rel">
               <span tal:condition="todo.note" class="todo-note-display text-muted"
-                tal:content="structure render_note_html(todo.note)"></span>
+                    tal:content="structure render_note_html(todo.note)"></span>
               <tal:block tal:condition="todo.links_rel" tal:repeat="link todo.links_rel">
                 <a tal:attributes="href link.url" target="_blank" rel="noopener noreferrer"
-                  class="todo-link-badge d-inline-block text-decoration-none me-1">
+                   class="todo-link-badge d-inline-block text-decoration-none me-1">
                   <i class="bi bi-link-45deg"></i>
                   <tal:block tal:condition="link.label">
                     ${link.label}</tal:block>
@@ -112,7 +128,7 @@
         </tal:block>
 
         <span tal:condition="todo.recurrence_id" class="todo-recurrence flex-shrink-0 small"
-          tal:attributes="title python:_recurrence_label(todo)">
+              tal:attributes="title python:_recurrence_label(todo)">
           ↻
           <span class="todo-recurrence-label d-none d-sm-inline">${_recurrence_label(todo)}</span>
         </span>
@@ -133,31 +149,3 @@
 <div tal:condition="not groups" class="todo-list-empty">
   <span>Nothing to do!</span>
 </div>
-
-<div class="offcanvas offcanvas-bottom" tabindex="-1" id="offcanvasBottom" aria-labelledby="offcanvasBottomLabel">
-  <div class="offcanvas-header">
-    <h5 class="offcanvas-title" id="offcanvasBottomLabel">Offcanvas bottom</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-  </div>
-  <div class="offcanvas-body small">
-    ...
-  </div>
-</div>
-
-
-<nav class="nav navbar nav-pills bg-body-tertiary fixed-bottom">
-
-  <a href="#offcanvasBottom" class="nav-link link-secondary" data-bs-toggle="offcanvas" role="button"
-    aria-controls="offcanvasBottom">
-    <i class="bi bi-list fs-1"></i>
-  </a>
-  <a href="asdf" class="nav-link active">
-    <i class="bi bi-check2-square fs-1"></i>
-  </a>
-  <a href="#" class="nav-link link-secondary">
-    <i class="bi bi-pencil-square fs-1"></i>
-  </a>
-  <a href="#" class="nav-link link-secondary">
-    <i class="bi bi-plus-square fs-1"></i>
-  </a>
-</nav>

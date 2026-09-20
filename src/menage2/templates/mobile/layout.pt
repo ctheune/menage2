@@ -24,7 +24,80 @@
 
 <body>
 
-  <div metal:define-slot="content">No content</div>
+  <!-- min-vh-100 keeps the page background under a short list; the padding
+       clears the fixed bottom nav so the last row stays reachable. -->
+  <div class="bg-body-secondary min-vh-100 pb-5">
+    <div metal:define-slot="content">No content</div>
+    <div class="pb-4"></div>
+  </div>
+
+
+<div class="fixed-bottom">
+
+  <!-- Actions for whatever is ticked, sitting directly above the nav. At the
+       top of the page the notch and the header swallow them. Hidden until
+       something is selected, so the bar does not crowd the list. -->
+  <div class="d-flex gap-2 p-2 bg-body-tertiary border-top d-none" id="mobile-selection-actions"
+       _="on change from #todo-list
+            -- Count them: an empty query result is still truthy, so a bare
+            -- `if` would leave the bar up after the last untick.
+            set picked to <input.todo-checkbox:checked/> in #todo-list
+            if picked.length > 0
+              remove .d-none from me
+            else
+              add .d-none to me
+            end">
+    <button type="submit" form="mobile-batch-form" name="action" value="done"
+            class="btn btn-sm btn-primary flex-grow-1">Done</button>
+    <button type="submit" form="mobile-batch-form" name="action" value="hold"
+            class="btn btn-sm btn-outline-secondary flex-grow-1">Hold</button>
+    <button type="submit" form="mobile-batch-form" name="action" value="activate"
+            class="btn btn-sm btn-outline-secondary flex-grow-1">Activate</button>
+  </div>
+
+  <nav class="nav navbar nav-pills bg-body-tertiary justify-content-around">
+
+  <a href="#offcanvasBottom" class="nav-link link-secondary" data-bs-toggle="offcanvas" role="button"
+    aria-controls="offcanvasBottom" aria-label="Menu">
+    <i class="bi bi-list fs-1"></i>
+  </a>
+  <a href="${request.route_url('list_todos')}" class="nav-link active" aria-label="Tasks">
+    <i class="bi bi-check2-square fs-1"></i>
+  </a>
+  <!-- Adding is a sheet on the list page rather than a route of its own, so
+       the list underneath keeps its place. -->
+  <a href="#mobile-add" class="nav-link link-secondary" role="button" aria-label="New task"
+     data-bs-toggle="offcanvas" aria-controls="mobile-add">
+    <i class="bi bi-plus-square fs-1"></i>
+  </a>
+  </nav>
+
+</div>
+
+<div class="offcanvas offcanvas-bottom h-auto" tabindex="-1" id="offcanvasBottom"
+     aria-labelledby="offcanvasBottomLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="offcanvasBottomLabel">Tasks</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <!-- Which items to show. Full page loads: the status is in the URL, so
+         the list, its refresh trigger and the back button all stay in step. -->
+    <div class="list-group mb-3"
+         tal:define="current python:request.params.get('status', 'active')">
+      <a tal:repeat="entry python:[('active', 'Active'), ('scheduled', 'Scheduled'), ('on_hold', 'On hold'), ('done', 'Done')]"
+         href="${request.route_url('list_todos', _query=dict(status=entry[0]))}"
+         class="list-group-item list-group-item-action ${'active' if entry[0] == current else ''}"
+         aria-current="${'page' if entry[0] == current else None}">${entry[1]}</a>
+    </div>
+
+    <form method="post" action="${request.route_url('logout')}" class="m-0 d-grid">
+      <button type="submit" class="btn btn-outline-secondary">
+        <i class="bi bi-door-open"></i> Log off
+      </button>
+    </form>
+  </div>
+</div>
 
 </body>
 

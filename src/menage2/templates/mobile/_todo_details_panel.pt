@@ -1,0 +1,32 @@
+<!-- Mobile edit sheet.
+
+     The fields are the shared partial, so editing and adding stay the same
+     shape. Saving PUTs to todo_update, which redirects to the empty panel —
+     that is what closes the sheet, while its `todo-updated` refreshes the list.
+-->
+
+<!-- The title edits in place in the sheet header, the way it does on the
+     desktop panel, and writes through to the form's hidden field. It is
+     swapped out of band because the header sits outside the sheet body. -->
+<h5 class="offcanvas-title flex-grow-1 me-2" id="mobile-edit-title"
+    hx-swap-oob="true" contenteditable="plaintext-only"
+    _="bind me to #m-text
+       on keydown[key is 'Enter']
+         blur me
+         halt
+       on keydown[key is 'Escape'] blur me">${todo.text}</h5>
+
+<form id="mobile-edit-form"
+      hx-put="${request.route_url('todo_update', id=todo.id)}"
+      hx-ext="form-json"
+      hx-target="#mobile-edit-body"
+      hx-swap="innerHTML">
+
+  <tal:block tal:replace="structure fields_html" />
+
+  <div class="d-flex gap-2">
+    <button type="button" class="btn btn-outline-secondary flex-grow-1"
+            data-bs-dismiss="offcanvas">Cancel</button>
+    <button type="submit" class="btn btn-primary flex-grow-1">Save</button>
+  </div>
+</form>
