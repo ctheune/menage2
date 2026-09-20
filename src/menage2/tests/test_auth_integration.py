@@ -276,3 +276,41 @@ def test_reset_password_post_changes_password(testapp, admin_user, dbsession):
     # admin_user is in the shared session; check in-memory values
     assert admin_user.password_reset_token is None
     assert _ph.verify(admin_user.password_hash, "new-strong-password")
+
+
+# ---------------------------------------------------------------------------
+# How long a login lasts
+# ---------------------------------------------------------------------------
+
+
+A_WEEK = 7 * 24 * 60 * 60
+
+
+def test_a_login_lasts_a_week_of_not_being_used(app_settings):
+    assert int(app_settings["session.timeout"]) == A_WEEK
+
+
+def test_the_week_slides_rather_than_running_out(app_settings):
+    """Beaker writes the access time back on every load, which is what makes
+    the window slide — and it refuses a timeout without it."""
+    assert app_settings.get("session.save_accessed_time", "true").lower() != "false"
+
+
+def test_the_cookie_outlives_the_browser(testapp, admin_user):
+    """It used to expire on its own, three days after it was handed out, no
+    matter how much it was used: Beaker only re-sends a cookie for a session
+    that is new, so nothing ever pushed that deadline out.
+
+    It carries nothing but the session id, and the session is what expires.
+    """
+    res = testapp.post(
+        "/login",
+        {"username": "admin", "password": "correct-password"},
+        status=303,
+    )
+
+    cookie = res.headers["Set-Cookie"]
+    assert "menage_session=" in cookie
+    # Not a browser-session cookie, and not one with a deadline of its own.
+    assert "expires=" in cookie.lower()
+    assert "2038" in cookie or "2037" in cookie, cookie
