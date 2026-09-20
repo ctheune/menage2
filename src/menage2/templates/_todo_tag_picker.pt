@@ -10,8 +10,10 @@
       data-picker-value="${option}"
       _="on click
           take .picker-selected from <li/> in closest <ul/> for me
-          log previous <.new-tag/>
-          send tagSelected to previous <.new-tag/>
+          -- The new sheet on mobile has no pill widget to tell; there the
+          -- field itself picks the click up.
+          set entry to the previous <.new-tag/>
+          if entry send tagSelected to entry end
           "
     >
       <span tal:content="structure highlight(option, value)"></span>
@@ -22,8 +24,10 @@
       data-picker-value="${new}"
       _="on click
           take .picker-selected from <li/> in closest <ul/> for me
-          log previous <.new-tag/>
-          send tagSelected to previous <.new-tag/>
+          -- The new sheet on mobile has no pill widget to tell; there the
+          -- field itself picks the click up.
+          set entry to the previous <.new-tag/>
+          if entry send tagSelected to entry end
           "
     >
       ${new}
