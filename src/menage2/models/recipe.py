@@ -1,9 +1,10 @@
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, Text
-from sqlalchemy.orm import backref, relationship
+from sqlalchemy.orm import backref, relationship, synonym
 
 from menage2.utils import Seen
 
 from .. import models
+from .item import Item
 from .meta import Base
 
 
@@ -88,12 +89,18 @@ class IngredientUsage(Base):
         return None
 
 
-class Ingredient(Base):
+class Ingredient(Item):
+    """Something you buy. An item like any other, and taggable like one."""
+
     __tablename__ = "ingredients"
 
-    id = Column(Integer, primary_key=True)
-    description = Column(Text)
+    id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), primary_key=True)
     tags = Column(Text)  # comma separated list of tags to use for RTM
+
+    #: An ingredient's text is what it is called.
+    description = synonym("text")
+
+    __mapper_args__ = {"polymorphic_identity": "ingredient"}
 
     KNOWN_TAGS = set(
         [
