@@ -21,8 +21,10 @@ Protocol rules
 NOTE: Team expansion uses Python set intersection on memberships — no inline SQL.
 """
 
+import sqlalchemy
 import sqlalchemy.orm
-from sqlalchemy import select
+from sqlalchemy import and_, exists, func, or_, select
+from sqlalchemy.sql.elements import ColumnElement
 
 from .models.principal import Principal
 from .models.team import TeamMember
@@ -226,6 +228,95 @@ def item_visible_to_user(item, user, memberships: dict[str, str]) -> bool:
         return True
     # An unrecognised kind is not something to guess about.
     return False
+
+
+def _principal_ids(dbsession, names) -> list[int]:
+    names = set(names or ())
+    if not names:
+        return []
+    return list(
+        dbsession.execute(
+            select(Principal.id).where(Principal.name.in_(names))
+        ).scalars()
+    )
+
+
+def visible_items(
+    dbsession,
+    user,
+    memberships: dict[str, str],
+    filter_mode: str,
+    covering: set[str] = frozenset(),
+):
+    """`todo_matches_filter` as a WHERE clause over Item.
+
+    The same seven facts, composed the same four ways -- the docstring at
+    the top of this module is the specification for both. Asking the
+    database means the list stops loading every task in order to throw most
+    of them away, and the counts on the filter tabs stop doing it four
+    times per page.
+
+    `todo_matches_filter` stays for the one-row question, where building a
+    query would be the slower answer. A test asserts the two agree.
+    """
+    from .models.assignee import item_assignees
+    from .models.item import Item
+
+    def assigned_to(ids) -> ColumnElement[bool]:
+        if not ids:
+            return sqlalchemy.false()
+        return exists(
+            select(1).where(
+                item_assignees.c.item_id == Item.id,
+                item_assignees.c.principal_id.in_(ids),
+            )
+        )
+
+    def certain(expression) -> ColumnElement[bool]:
+        """NULL is not true. An unowned item is not owned by somebody else."""
+        return func.coalesce(expression, sqlalchemy.false())
+
+    assignee_teams = {tn for tn, role in memberships.items() if role == "assignee"}
+    supervisor_teams = {tn for tn, role in memberships.items() if role == "supervisor"}
+
+    is_owner = certain(Item.owner_id == user.id)
+    is_unowned = Item.owner_id.is_(None)
+    is_direct_assignee = assigned_to(_principal_ids(dbsession, {user.username}))
+    has_assignees = exists(select(1).where(item_assignees.c.item_id == Item.id))
+    in_assignee_team = assigned_to(_principal_ids(dbsession, assignee_teams))
+    in_supervisor_team = assigned_to(_principal_ids(dbsession, supervisor_teams))
+    covers_for_team = assigned_to(_principal_ids(dbsession, covering))
+
+    if filter_mode == "delegated_out":
+        return or_(
+            and_(
+                is_owner,
+                has_assignees,
+                ~is_direct_assignee,
+                ~in_assignee_team,
+            ),
+            and_(~is_owner, in_supervisor_team),
+        )
+
+    if filter_mode == "delegated_in":
+        return and_(~is_owner, or_(is_direct_assignee, in_assignee_team))
+
+    if filter_mode == "personal":
+        return or_(
+            and_(is_owner, or_(~has_assignees, is_direct_assignee)),
+            is_unowned,
+            is_direct_assignee,
+            in_assignee_team,
+            covers_for_team,
+        )
+
+    return or_(
+        is_owner,
+        is_unowned,
+        is_direct_assignee,
+        in_assignee_team,
+        in_supervisor_team,
+    )
 
 
 def protocol_visible_to_user(protocol, user, memberships: dict[str, str]) -> bool:

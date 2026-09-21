@@ -12,7 +12,7 @@ from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.renderers import render, render_to_response
 from pyramid.request import Request
 from pyramid.view import view_config
-from sqlalchemy import asc, desc, func, nulls_last, or_, select
+from sqlalchemy import and_, asc, desc, func, nulls_last, or_, select
 from sqlalchemy.orm import aliased, joinedload
 
 from menage2.dateparse import (
@@ -43,6 +43,7 @@ from menage2.principals import (
     todo_matches_filter,
     uncovered_teams,
     unknown_principals,
+    visible_items,
 )
 from menage2.recurrence import (
     chain_history,
@@ -566,6 +567,18 @@ def _render_undo_form(request) -> str:
     return render("menage2:templates/_undo_form.pt", {}, request=request)
 
 
+def _visible(dbsession, today: datetime.date, user, filter_mode: str):
+    """The WHERE clause for what this user may see, in this mode.
+
+    Teams this user supervises whose assignees are all away count as the
+    user's own until somebody is back, so working out who is away is part
+    of the question.
+    """
+    memberships = get_user_team_memberships(dbsession, user)
+    covering = uncovered_teams(dbsession, user, memberships, today)
+    return visible_items(dbsession, user, memberships, filter_mode, covering)
+
+
 def _filter_todos(
     dbsession,
     today: datetime.date,
@@ -575,7 +588,7 @@ def _filter_todos(
 ) -> list[Todo]:
     """Items shown in the main list: status=todo and due today/earlier (or undated)."""
 
-    query = dbsession.query(Todo)
+    query = dbsession.query(Todo).where(_visible(dbsession, today, user, filter_mode))
     order = _todo_order(Todo.due_date)
 
     if status == "active":
@@ -592,16 +605,7 @@ def _filter_todos(
         # Finished work reads backwards in time, matching the day groups.
         order = _todo_order(Todo.done_at, newest_first=True)
 
-    todos = query.order_by(*order).all()
-    memberships = get_user_team_memberships(dbsession, user)
-    # Teams this user supervises whose assignees are all away: their work
-    # counts as the supervisor's own until somebody is back.
-    covering = uncovered_teams(dbsession, user, memberships, today)
-    return [
-        t
-        for t in todos
-        if todo_matches_filter(t, user, memberships, filter_mode, covering)
-    ]
+    return query.order_by(*order).all()
 
 
 @view_config(route_name="home")
@@ -624,15 +628,21 @@ def _filter_counts(request) -> dict[str, int]:
     matter more: the filters live behind the menu, so the count is what says
     whether opening one is worth the tap.
     """
+    today = _today()
+    dbsession = request.dbsession
+    active = and_(
+        Todo.status == TodoStatus.todo,
+        or_(Todo.due_date.is_(None), Todo.due_date <= today),
+    )
+    # Counted, not fetched. This used to build all four lists in full on
+    # every page render, which meant loading every active task four times
+    # over to arrive at four numbers.
     return {
-        mode: len(
-            _filter_todos(
-                request.dbsession,
-                _today(),
-                user=request.identity,
-                filter_mode=mode,
-            )
-        )
+        mode: dbsession.execute(
+            select(func.count())
+            .select_from(Todo)
+            .where(active, _visible(dbsession, today, request.identity, mode))
+        ).scalar()
         for mode in _VALID_FILTER_MODES
     }
 

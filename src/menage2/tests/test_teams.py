@@ -669,3 +669,136 @@ def test_is_protocol_editor_assignee_role_not_editor(
     dbsession.add(p)
     dbsession.flush()
     assert is_protocol_editor(regular_user, p, _m(dbsession, regular_user)) is False
+
+
+# ---------------------------------------------------------------------------
+# The same rules, asked of the database
+# ---------------------------------------------------------------------------
+
+
+def _every_arrangement(dbsession, me, mate, team, other_team):
+    """One todo for each shape the filters distinguish."""
+    return [
+        _todo(dbsession, "mine, nobody else's", owner_id=me.id),
+        _todo(
+            dbsession,
+            "mine, handed to a person",
+            owner_id=me.id,
+            assignees={mate.username},
+        ),
+        _todo(
+            dbsession, "mine, handed to myself", owner_id=me.id, assignees={me.username}
+        ),
+        _todo(
+            dbsession, "mine, handed to my team", owner_id=me.id, assignees={team.name}
+        ),
+        _todo(
+            dbsession,
+            "mine, handed to another team",
+            owner_id=me.id,
+            assignees={other_team.name},
+        ),
+        _todo(
+            dbsession, "theirs, handed to me", owner_id=mate.id, assignees={me.username}
+        ),
+        _todo(
+            dbsession,
+            "theirs, handed to my team",
+            owner_id=mate.id,
+            assignees={team.name},
+        ),
+        _todo(
+            dbsession,
+            "theirs, handed to another team",
+            owner_id=mate.id,
+            assignees={other_team.name},
+        ),
+        _todo(dbsession, "theirs, nobody else's", owner_id=mate.id),
+        _todo(dbsession, "nobody's"),
+    ]
+
+
+@pytest.mark.parametrize("role", ["assignee", "supervisor"])
+@pytest.mark.parametrize(
+    "filter_mode", ["personal", "all", "delegated_in", "delegated_out"]
+)
+def test_the_query_and_the_rule_agree(dbsession, admin_user, filter_mode, role):
+    """The predicate in SQL must mean what the one in Python means.
+
+    The list asks the database now; the attachment gate still asks about a
+    single row it has already loaded, because building a query for that
+    would be the slower answer. Two implementations of one rule is a thing
+    worth pinning, so every arrangement the filters distinguish is checked
+    against both.
+    """
+    from menage2.models.item import Item
+    from menage2.principals import visible_items
+
+    mate = User(
+        id=201,
+        username="mate",
+        real_name="Mate",
+        email="mate@example.com",
+        is_active=True,
+        created_at=_now(),
+    )
+    dbsession.add(mate)
+    team = Team(name="mine", created_at=_now())
+    other_team = Team(name="theirs", created_at=_now())
+    dbsession.add_all([team, other_team])
+    dbsession.flush()
+    dbsession.add(TeamMember(team_id=team.id, user_id=admin_user.id, role=role))
+    dbsession.add(TeamMember(team_id=other_team.id, user_id=mate.id, role="assignee"))
+    dbsession.flush()
+
+    todos = _every_arrangement(dbsession, admin_user, mate, team, other_team)
+    memberships = get_user_team_memberships(dbsession, admin_user)
+
+    in_python = {
+        t.id
+        for t in todos
+        if todo_matches_filter(t, admin_user, memberships, filter_mode)
+    }
+    in_sql = set(
+        dbsession.execute(
+            select(Item.id).where(
+                Item.id.in_([t.id for t in todos]),
+                visible_items(dbsession, admin_user, memberships, filter_mode),
+            )
+        ).scalars()
+    )
+
+    assert in_sql == in_python
+
+
+def test_the_query_and_the_rule_agree_about_covering(dbsession, admin_user):
+    """Standing in for a team whose assignees are all away."""
+    from menage2.models.item import Item
+    from menage2.principals import visible_items
+
+    team = Team(name="away", created_at=_now())
+    dbsession.add(team)
+    dbsession.flush()
+    todos = [
+        _todo(dbsession, "theirs", assignees={team.name}),
+        _todo(dbsession, "not theirs", assignees=set()),
+    ]
+    memberships = {"away": "supervisor"}
+    covering = {"away"}
+
+    in_python = {
+        t.id
+        for t in todos
+        if todo_matches_filter(t, admin_user, memberships, "personal", covering)
+    }
+    in_sql = set(
+        dbsession.execute(
+            select(Item.id).where(
+                Item.id.in_([t.id for t in todos]),
+                visible_items(dbsession, admin_user, memberships, "personal", covering),
+            )
+        ).scalars()
+    )
+
+    assert in_sql == in_python
+    assert todos[0].id in in_sql
