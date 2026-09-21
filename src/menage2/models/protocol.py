@@ -46,7 +46,7 @@ class Protocol(Base):
     title: Mapped[str] = mapped_column()
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     tags: Mapped[set] = mapped_column(TagSet, server_default="{}")
-    note: Mapped[str] = mapped_column()
+    note: Mapped[Optional[str]] = mapped_column()
     assignees: Mapped[set] = mapped_column(TagSet, server_default="{}")
     recurrence_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("recurrence_rules.id")

@@ -64,12 +64,6 @@ def upload_attachment(request):
     good_count = 0
     bad_reasons: list[str] = []
 
-    log.warning(
-        "attachment upload: POST keys=%r content_type=%r",
-        list(request.POST.keys()),
-        request.content_type,
-    )
-
     for _key, value in request.POST.items():
         if not hasattr(value, "file"):
             continue

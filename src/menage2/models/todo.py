@@ -30,19 +30,6 @@ class TagSet(TypeDecorator):
         return set(value) if value else set()
 
 
-class LinkList(TypeDecorator):
-    """Ordered PostgreSQL TEXT[] — preserves insertion order, returns list."""
-
-    impl = ARRAY(Text)
-    cache_ok = True
-
-    def process_bind_param(self, value, dialect):
-        return list(value) if value else []
-
-    def process_result_value(self, value, dialect):
-        return list(value) if value else []
-
-
 class TodoStatus(enum.Enum):
     todo = "todo"
     done = "done"
@@ -189,7 +176,6 @@ class Todo(Base):
         Index("ix_todos_due_date", "due_date"),
         Index("ix_todos_recurrence_id", "recurrence_id"),
         Index("ix_todos_owner_id", "owner_id"),
-        Index("ix_todos_assignees", "assignees", postgresql_using="gin"),
     )
 
     def marker_text(self) -> str:
