@@ -11,7 +11,7 @@ from sqlalchemy import (
     LargeBinary,
     Text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from .meta import Base
 
@@ -34,6 +34,25 @@ class User(Base):
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     password_reset_token = Column(Text, nullable=True, unique=True)
     password_reset_token_expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    #: Every user owns one, so that `@name` resolves against a single
+    #: namespace shared with teams. See models/principal.py.
+    principal = relationship(
+        "Principal",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    @validates("username")
+    def _name_the_principal(self, key, value):
+        """Give the principal the name, wherever the user was made."""
+        from .principal import Principal
+
+        if self.principal is None:
+            self.principal = Principal(kind="user")
+        self.principal.name = value
+        return value
 
     passkeys = relationship(
         "Passkey", back_populates="user", cascade="all, delete-orphan"

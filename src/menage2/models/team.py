@@ -9,7 +9,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from .meta import Base
 
@@ -24,6 +24,22 @@ class Team(Base):
         nullable=False,
         default=lambda: datetime.datetime.now(datetime.timezone.utc),
     )
+
+    principal = relationship(
+        "Principal",
+        back_populates="team",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    @validates("name")
+    def _name_the_principal(self, key, value):
+        from .principal import Principal
+
+        if self.principal is None:
+            self.principal = Principal(kind="team")
+        self.principal.name = value
+        return value
 
     members = relationship(
         "TeamMember", cascade="all, delete-orphan", back_populates="team"

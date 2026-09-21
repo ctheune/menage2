@@ -14,6 +14,7 @@ from .planner import (
     Week,
     Weekday,
 )
+from .principal import Principal  # noqa
 from .protocol import (  # noqa
     Protocol,
     ProtocolItem,
