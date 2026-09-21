@@ -11,13 +11,17 @@ Migrates existing todos to be owned by the first admin user.
 
 import sqlalchemy as sa
 from alembic import op
-
-import menage2.models.todo  # noqa: F401 — needed for TagSet type alias
+from sqlalchemy.dialects import postgresql
 
 revision = "20260428_teams"
 down_revision = "99632bc17522"
 branch_labels = None
 depends_on = None
+
+#: The tag/assignee arrays these migrations create. Spelled out rather
+#: than imported from the models: a migration describes the schema as
+#: it was, and the model has since stopped having a type for it.
+TEXT_ARRAY = postgresql.ARRAY(sa.Text())
 
 
 def upgrade():
@@ -52,7 +56,7 @@ def upgrade():
         "todos",
         sa.Column(
             "assignees",
-            menage2.models.todo.TagSet(),
+            TEXT_ARRAY,
             nullable=False,
             server_default="{}",
         ),
@@ -69,7 +73,7 @@ def upgrade():
         "protocols",
         sa.Column(
             "assignees",
-            menage2.models.todo.TagSet(),
+            TEXT_ARRAY,
             nullable=False,
             server_default="{}",
         ),
@@ -83,7 +87,7 @@ def upgrade():
         "protocol_items",
         sa.Column(
             "assignees",
-            menage2.models.todo.TagSet(),
+            TEXT_ARRAY,
             nullable=False,
             server_default="{}",
         ),
@@ -104,7 +108,7 @@ def upgrade():
         "protocol_run_items",
         sa.Column(
             "assignees",
-            menage2.models.todo.TagSet(),
+            TEXT_ARRAY,
             nullable=False,
             server_default="{}",
         ),

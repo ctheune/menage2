@@ -21,25 +21,12 @@ import datetime
 import enum
 
 from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Index, Integer, Text
-from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.types import TypeDecorator
 
 from .assignee import item_assignees, principal_named
 from .meta import Base
 from .nameset import NameSet
 from .tag import item_tags, tag_named
-
-
-class TagSet(TypeDecorator):
-    impl = ARRAY(Text)
-    cache_ok = True
-
-    def process_bind_param(self, value, dialect):
-        return sorted(value) if value else []
-
-    def process_result_value(self, value, dialect):
-        return set(value) if value else set()
 
 
 class TodoStatus(enum.Enum):

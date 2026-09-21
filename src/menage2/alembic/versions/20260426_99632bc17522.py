@@ -10,13 +10,17 @@ Adds the four protocol tables (template + items, run + run-items) and the
 
 import sqlalchemy as sa
 from alembic import op
-
-import menage2.models.todo  # noqa: F401 — needed for TagSet type alias
+from sqlalchemy.dialects import postgresql
 
 revision = "99632bc17522"
 down_revision = "a9b8ea9793d3"
 branch_labels = None
 depends_on = None
+
+#: The tag/assignee arrays these migrations create. Spelled out rather
+#: than imported from the models: a migration describes the schema as
+#: it was, and the model has since stopped having a type for it.
+TEXT_ARRAY = postgresql.ARRAY(sa.Text())
 
 
 def upgrade():
@@ -43,7 +47,7 @@ def upgrade():
         sa.Column("text", sa.Text(), nullable=False),
         sa.Column(
             "tags",
-            menage2.models.todo.TagSet(sa.Text()),
+            TEXT_ARRAY,
             server_default="{}",
             nullable=False,
         ),
@@ -79,7 +83,7 @@ def upgrade():
         sa.Column("text", sa.Text(), nullable=False),
         sa.Column(
             "tags",
-            menage2.models.todo.TagSet(sa.Text()),
+            TEXT_ARRAY,
             server_default="{}",
             nullable=False,
         ),

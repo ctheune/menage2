@@ -1,3 +1,27 @@
+0.1
+---
+
+Todos, checklists, checklist lines, runs and ingredients became one kind of
+thing with five shapes.
+
+- They share a base table. Text, notes, tags, assignees, owner, status,
+  due date and recurrence live there; each kind keeps only what is its own.
+
+- Files and links hang off any of them, so an ingredient can carry a photo
+  of the packaging and a checklist line can carry a link. The tag picker
+  and the assignee field are the same ones everywhere.
+
+- A protocol run and the todo that said it was due were one thing written
+  twice. They are one row now.
+
+- Tags are rows. Renaming one is an update to that row rather than a
+  rewrite of everything carrying it, and the vocabulary is one table rather
+  than four arrays and a comma-separated string.
+
+- An assignee is a reference to a user or a team, so a name that addresses
+  nobody cannot be stored. Users and teams share one namespace, enforced by
+  the database rather than by two admin views remembering to check.
+
 0.0
 ---
 

@@ -33,7 +33,7 @@
     #end
     </script>
 
-    <span class="new-tag" contentEditable="plaintext-only" hx-get="${request.route_url('todo_tag_picker')}"
+    <span class="new-tag" contentEditable="plaintext-only" hx-get="${request.route_url('tag_picker')}"
       hx-target="next .picker" hx-trigger="focus, input delay:100ms" hx-vals="js:{value: this.textContent}"
       hx-params="value" _="
          on focus

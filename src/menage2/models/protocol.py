@@ -35,7 +35,7 @@ from menage2.recurrence import (
     spawn_protocol_run,
 )
 
-from .item import Item, TagSet, TodoStatus
+from .item import Item, TodoStatus
 from .meta import Base
 from .todo import Todo
 

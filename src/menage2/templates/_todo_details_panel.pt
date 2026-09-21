@@ -21,13 +21,13 @@
                on keydown[key is 'Escape'] blur">${todo.text}</h5>
         </div>
 
-        <div metal:use-macro="load: ./_todo_tag_field.pt"></div>
+        <div metal:use-macro="load: ./_tag_field.pt"></div>
 
         <div class="mb-3" hx-disinherit="*" id="field-due-date">
           <label for="due_date" class="form-label">Due</label>
           <input type="text" class="form-control picker-target" name="due_date" placeholder="YYYY-MM-DD or smart date"
             value="${todo.due_date.isoformat() if todo.due_date else ''}"
-            hx-get="${request.route_url('todo_date_picker')}" hx-target="next .picker"
+            hx-get="${request.route_url('date_picker')}" hx-target="next .picker"
             hx-trigger="focus, input changed delay:100ms" hx-vals="js:{value: this.value}" hx-params="value" _="on keydown[key is 'd' and target.matches('body')] from body
             remove .d-none from me
             focus halt
@@ -81,7 +81,7 @@
         <div class="mb-3" hx-disinherit="*" id="field-recurrence">
           <label for="recurrence" class="form-label">Repeat</label>
           <input type="text" class="form-control picker-target" name="recurrence" value="${_recurrence_label(todo)}"
-            hx-get="${request.route_url('todo_recurrence_picker')}"
+            hx-get="${request.route_url('recurrence_picker')}"
             hx-target="next .picker"
             hx-trigger="focus, input changed delay:100ms"
             hx-vals="js:{value: this.value}"
@@ -170,7 +170,7 @@
           </div>
         </div>
 
-        <div metal:use-macro="load: ./_todo_assignee_field.pt"></div>
+        <div metal:use-macro="load: ./_assignee_field.pt"></div>
 
         <div class="mb-3" hx-disinherit="*" id="field-links" data-links="${links_json}"
           _="init

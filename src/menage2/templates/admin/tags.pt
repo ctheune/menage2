@@ -80,7 +80,7 @@
                            class="tag-target form-control form-control-sm font-monospace"
                            value="${entry.tag}" autocomplete="off"
                            aria-label="New name for this tag"
-                           hx-get="${request.route_url('todo_tag_picker')}"
+                           hx-get="${request.route_url('tag_picker')}"
                            hx-target="next .picker"
                            hx-swap="innerHTML"
                            hx-include="this"

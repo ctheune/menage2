@@ -135,11 +135,12 @@ def includeme(config):
     config.add_route("todo_picker_postpone", "/todos/pickers/postpone")  # xxx
     config.add_route("list_principals_json", "/todos/principals.json")  # xxx
 
-    # Helpers
-    config.add_route("todo_date_picker", "/todos/pickers/date")
-    config.add_route("todo_recurrence_picker", "/todos/pickers/recurrence")
-    config.add_route("todo_tag_picker", "/todos/pickers/tag")
-    config.add_route("todo_assignee_picker", "/todos/pickers/assignee")
+    # Pickers. Not a todo's: an ingredient and a checklist open the same
+    # ones, because they are the same kind of thing underneath.
+    config.add_route("date_picker", "/pickers/date")
+    config.add_route("recurrence_picker", "/pickers/recurrence")
+    config.add_route("tag_picker", "/pickers/tag")
+    config.add_route("assignee_picker", "/pickers/assignee")
 
     # Protocols
     config.add_route("list_protocols", "/protocols")

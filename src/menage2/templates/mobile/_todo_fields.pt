@@ -43,14 +43,14 @@
              autocomplete="off" placeholder="What needs doing?" />
     </div>
 
-    <div metal:use-macro="load: ../_todo_tag_field.pt"></div>
+    <div metal:use-macro="load: ../_tag_field.pt"></div>
 
     <div class="mb-3">
       <label class="form-label" for="${p}-due">Due</label>
       <input type="text" class="form-control" id="${p}-due" name="due_date"
              autocomplete="off" placeholder="tomorrow, next week, 2026-05-01"
              value="${todo.due_date.isoformat() if has and todo.due_date else ''}"
-             hx-get="${request.route_url('todo_date_picker')}"
+             hx-get="${request.route_url('date_picker')}"
              hx-target="next .picker"
              hx-trigger="${picker_trigger}"
              hx-include="this"
@@ -65,7 +65,7 @@
       <input type="text" class="form-control" id="${p}-recurrence" name="recurrence"
              autocomplete="off" placeholder="every week"
              value="${_recurrence_label(todo) or '' if has else ''}"
-             hx-get="${request.route_url('todo_recurrence_picker')}"
+             hx-get="${request.route_url('recurrence_picker')}"
              hx-target="next .picker"
              hx-trigger="${picker_trigger}"
              hx-include="this"
@@ -82,7 +82,7 @@
              tal:attributes="disabled python:'disabled' if (has and todo.recurrence_id) else None" />
     </div>
 
-    <div metal:use-macro="load: ../_todo_assignee_field.pt"></div>
+    <div metal:use-macro="load: ../_assignee_field.pt"></div>
 
     <div class="mb-3">
       <label class="form-label" for="${p}-note">Note</label>

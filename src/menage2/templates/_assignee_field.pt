@@ -36,7 +36,7 @@
       </script>
 
     <span class="new-assignee" contentEditable="plaintext-only"
-      hx-get="${request.route_url('todo_assignee_picker')}"
+      hx-get="${request.route_url('assignee_picker')}"
       hx-target="next .picker"
       hx-trigger="focus, input delay:100ms"
       hx-vals="js:{value: this.textContent}"

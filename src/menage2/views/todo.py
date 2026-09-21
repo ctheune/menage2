@@ -1424,11 +1424,11 @@ def _picker_value(request) -> str | None:
 
 
 @view_config(
-    route_name="todo_date_picker",
+    route_name="date_picker",
     request_method="GET",
-    renderer="menage2:templates/_todo_date_picker.pt",
+    renderer="menage2:templates/_date_picker.pt",
 )
-def todo_date_picker(request):
+def date_picker(request):
     """Render a picker for a date.
 
     This automatically binds to the closest, previous input field.
@@ -1497,7 +1497,7 @@ def todo_date_picker(request):
         q: dict[str, str] = {"month": f"{y:04d}-{m:02d}"}
         if value:
             q["value"] = value
-        return request.route_url("todo_date_picker", _query=q)
+        return request.route_url("date_picker", _query=q)
 
     calendar = {
         "month_label": first.strftime("%B %Y"),
@@ -1511,11 +1511,11 @@ def todo_date_picker(request):
 
 
 @view_config(
-    route_name="todo_recurrence_picker",
+    route_name="recurrence_picker",
     request_method="GET",
-    renderer="menage2:templates/_todo_recurrence_picker.pt",
+    renderer="menage2:templates/_recurrence_picker.pt",
 )
-def todo_recurrence_picker(request):
+def recurrence_picker(request):
     """Render a picker for a recurrence.
 
     This automatically binds to the closest, previous input field.
@@ -1542,11 +1542,11 @@ def todo_recurrence_picker(request):
 
 
 @view_config(
-    route_name="todo_tag_picker",
+    route_name="tag_picker",
     request_method="GET",
-    renderer="menage2:templates/_todo_tag_picker.pt",
+    renderer="menage2:templates/_tag_picker.pt",
 )
-def todo_tag_picker(request):
+def tag_picker(request):
     """Render a picker for tags.
 
     This automatically binds to the closest, previous input field.
@@ -1584,11 +1584,11 @@ def todo_tag_picker(request):
 
 
 @view_config(
-    route_name="todo_assignee_picker",
+    route_name="assignee_picker",
     request_method="GET",
-    renderer="menage2:templates/_todo_assignee_picker.pt",
+    renderer="menage2:templates/_assignee_picker.pt",
 )
-def todo_assignee_picker(request):
+def assignee_picker(request):
     """Render a picker for assignees.
 
     This automatically binds to the closest, previous input field.

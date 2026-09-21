@@ -12,7 +12,6 @@ from .item import (  # noqa: F401
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
-    TagSet,
     TodoStatus,
 )
 from .meta import Base

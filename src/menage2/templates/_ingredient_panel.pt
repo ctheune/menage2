@@ -8,7 +8,7 @@
       hx-select="li"
       hx-swap="outerHTML">
 
-  <div metal:use-macro="load: ./_todo_tag_field.pt"></div>
+  <div metal:use-macro="load: ./_tag_field.pt"></div>
   <div metal:use-macro="load: ./_item_files.pt"></div>
 
   <div class="d-flex gap-2">

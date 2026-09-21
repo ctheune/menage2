@@ -7,6 +7,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     Text,
@@ -98,7 +99,14 @@ class Absence(Base):
 
     user = relationship("User", back_populates="absences")
 
-    __table_args__ = (CheckConstraint("ends_on >= starts_on", name="dates"),)
+    __table_args__ = (
+        CheckConstraint("ends_on >= starts_on", name="dates"),
+        # Both exist in the database; they were only ever declared in the
+        # migration, which nothing noticed until the naming convention made
+        # `alembic check` worth running.
+        Index("ix_absences_user_id", "user_id"),
+        Index("ix_absences_dates", "starts_on", "ends_on"),
+    )
 
     @property
     def covers_from(self):
