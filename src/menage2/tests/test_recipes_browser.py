@@ -165,3 +165,59 @@ def test_add_existing_ingredient_via_autocomplete(page, context, live_server):
     assert ingredient_value_b == "Karotte", (
         f"Expected 'Karotte', got {ingredient_value_b!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# An ingredient is an item, and gets an item's affordances
+# ---------------------------------------------------------------------------
+
+
+def _an_ingredient(context, live_server, description):
+    """Make one through the recipe form, which is the only way in."""
+    from sqlalchemy import create_engine, text
+
+    resp = context.request.post(
+        f"{live_server}/ingredients/suggest", form={"q": description}
+    )
+    assert resp.ok
+    return resp
+
+
+def test_an_ingredient_can_be_tagged_from_the_real_vocabulary(
+    page, context, live_server, dbengine
+):
+    """It used to offer six hardcoded tags and nothing else.
+
+    The vocabulary is a table now, shared with tasks and checklists, so the
+    ingredient list gets the same picker everything else uses.
+    """
+    from sqlalchemy import text
+
+    with dbengine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO items (kind, text, created_at) "
+                "VALUES ('ingredient', 'Zimt', now()) RETURNING id"
+            )
+        )
+        item_id = connection.execute(
+            text("SELECT id FROM items WHERE text = 'Zimt'")
+        ).scalar()
+        connection.execute(
+            text("INSERT INTO ingredients (id) VALUES (:id)"), {"id": item_id}
+        )
+
+    page.goto("/ingredient")
+    page.wait_for_selector("#ingredients", timeout=10000)
+    page.locator("#ingredients li", has_text="Zimt").locator("span.flex-grow-1").click()
+    page.wait_for_selector("#field-tags", timeout=10000)
+
+    field = page.locator("#field-tags")
+    field.locator(".form-control").first.click()
+    page.keyboard.type("einkaufen:supermarkt")
+    page.keyboard.press("Enter")
+    page.locator('button:has-text("Save")').click()
+
+    page.wait_for_selector(
+        "#ingredients li:has-text('einkaufen:supermarkt')", timeout=10000
+    )

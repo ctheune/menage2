@@ -31,7 +31,7 @@ from menage2.recurrence import (
     rule_to_spec,
     spawn_protocol_run,
 )
-from menage2.views.todo import _validation_error, parse_todo_input
+from menage2.views.todo import _validation_error, files_of, parse_todo_input
 
 _snapshot_lock = threading.Lock()
 
@@ -197,6 +197,7 @@ def edit_protocol(request):
         "is_editor": is_editor,
         "items_html": _render_protocol_items(request, p, is_editor),
         "filter_mode": request.params.get("filter", "personal"),
+        **files_of(request, p),
     }
 
 

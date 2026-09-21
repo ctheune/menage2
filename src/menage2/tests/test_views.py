@@ -62,3 +62,21 @@ def test_templates_only_name_routes_that_exist():
             named[str(template.relative_to(root))] = missing
 
     assert named == {}
+
+
+def test_the_ingredient_list_renders(authenticated_testapp, dbsession, admin_user):
+    """Nothing covered this page, so a 500 on it went unnoticed.
+
+    It is the one page where ingredients are edited, and it now carries the
+    shared tag field and the files an item can have.
+    """
+    from menage2.models.recipe import Ingredient
+
+    dbsession.add(Ingredient(description="Zimt", tags={"einkaufen:supermarkt"}))
+    dbsession.flush()
+
+    body = authenticated_testapp.get("/ingredient", status=200).body.decode()
+
+    assert "Zimt" in body
+    assert "einkaufen:supermarkt" in body
+    assert "/panel" in body

@@ -1,9 +1,10 @@
 import itertools
+import json
 import uuid
 
 import peppercorn
 import sqlalchemy.orm
-from pyramid.httpexceptions import HTTPSeeOther
+from pyramid.httpexceptions import HTTPNotFound
 from pyramid.view import view_config
 from sqlalchemy.sql import func
 
@@ -16,19 +17,7 @@ from menage2.models import (
     RecipeWeekDays,
     Weekday,
 )
-
-#: The tags the ingredient list offers as toggles. It used to live on the
-#: model as a class constant, which made it look like part of what an
-#: ingredient is rather than what this one page offers. The real picker
-#: replaces it.
-KNOWN_TAGS = {
-    "diet:meat",
-    "diet:animal",
-    "einkaufen:supermarkt",
-    "einkaufen:supermarkt:obst-u-gemuese",
-    "einkaufen:supermarkt:kühlung",
-    "einkaufen:asia-markt",
-}
+from menage2.views.todo import files_of
 
 
 @view_config(
@@ -36,28 +25,15 @@ KNOWN_TAGS = {
     renderer="menage2:templates/list_ingredients.pt",
 )
 def list_ingredients(request):
+    """Every ingredient, by name.
+
+    Sorted through the base table: the name is the item's text now, and an
+    ingredient is an item.
+    """
     ingredients = request.dbsession.query(Ingredient).order_by(
-        func.LOWER(Ingredient.description)
+        func.lower(Ingredient.description)
     )
-
-    def tags(ingredient):
-        for tag in sorted(KNOWN_TAGS):
-            yield TagToggle(tag, tag in ingredient.tags)
-
-    return {"ingredients": ingredients, "tags": tags}
-
-
-class TagToggle:
-    inactive_color = "badge bg-secondary"
-    active_color = "badge bg-info text-dark"
-
-    def __init__(self, name: str, active: bool):
-        self.name = name
-        self.active = active
-
-    @property
-    def color(self):
-        return self.active_color if self.active else self.inactive_color
+    return {"ingredients": ingredients}
 
 
 @view_config(
@@ -73,17 +49,42 @@ def list_ingredient_recipes(request):
 
 
 @view_config(
-    request_method="PATCH",
-    route_name="ingredient_toggle_tag",
+    route_name="ingredient_panel",
+    request_method="GET",
+    renderer="menage2:templates/_ingredient_panel.pt",
 )
-def toggle_ingredient_tag(request):
-    ingredient_id = int(request.matchdict["id"])
-    ingredient = (
-        request.dbsession.query(Ingredient).filter(Ingredient.id == ingredient_id).one()
-    )
-    tag = request.matchdict["tag"]
-    if tag in ingredient.tags:
-        ingredient.tags = ingredient.tags - {tag}
+def ingredient_panel(request):
+    """The editor for one ingredient: the same fields anything else gets."""
+    ingredient = _get(request)
+    return {
+        "ingredient": ingredient,
+        "tags_json": json.dumps(sorted(ingredient.tags)),
+        **files_of(request, ingredient),
+    }
+
+
+@view_config(
+    route_name="ingredient_update",
+    request_method="POST",
+    renderer="menage2:templates/list_ingredients.pt",
+)
+def update_ingredient(request):
+    """Save what the panel changed and give the row back.
+
+    Tags arrive as `tags[]` from the shared field, which is why there is
+    nothing ingredient-shaped about reading them.
+    """
+    ingredient = _get(request)
+    if "tags" in request.params.getall("clear_fields[]"):
+        ingredient.tags = set()
     else:
-        ingredient.tags = ingredient.tags | {tag}
-    return HTTPSeeOther(request.route_url("list_ingredients"))
+        ingredient.tags = set(request.params.getall("tags[]"))
+    request.dbsession.flush()
+    return list_ingredients(request)
+
+
+def _get(request) -> Ingredient:
+    ingredient = request.dbsession.get(Ingredient, int(request.matchdict["id"]))
+    if ingredient is None:
+        raise HTTPNotFound()
+    return ingredient

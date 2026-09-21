@@ -300,3 +300,36 @@ def test_run_item_edit_button_opens_an_inline_field(page, context, live_server):
     view = page.locator(".run-item-view").first
     assert "polished wording" in view.inner_text()
     assert "#later" in view.inner_text()
+
+
+def test_a_checklist_can_carry_a_file(page, context, live_server, attachments_dir):
+    """Files used to hang off todos and nothing else.
+
+    The checklist's own page now offers the same drop zone a task does, and
+    the same endpoint takes it -- which is the point of the whole family
+    sharing a base: the capability arrives everywhere at once rather than
+    being built again per kind.
+    """
+    import io
+
+    from PIL import Image
+
+    pid = _make_protocol(context, live_server, "Spring clean", ["Windows"])
+
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), color=(30, 90, 200)).save(buf, format="JPEG")
+    resp = context.request.post(
+        f"{live_server}/items/{pid}/attachments",
+        multipart={
+            "files[]": {
+                "name": "manual.jpg",
+                "mimeType": "image/jpeg",
+                "buffer": buf.getvalue(),
+            }
+        },
+    )
+    assert resp.ok, f"Uploading to the checklist failed: {resp.status}"
+
+    page.goto(f"/protocols/{pid}/edit")
+    page.wait_for_selector("#field-attachments img", timeout=10000)
+    assert page.locator("#field-attachments img").count() == 1

@@ -57,6 +57,12 @@
                       halt" />
         </form>
       </div>
+
+      <!-- The checklist's own files: the manual, the layout it follows.
+           Same partial the task panel uses; any item can carry them now. -->
+      <div class="card-body border-top" tal:condition="is_editor">
+        <div metal:use-macro="load: ../_item_files.pt"></div>
+      </div>
     </div>
 
     <!-- Items -->

@@ -514,6 +514,35 @@ def _render_todo_fields(request, todo, prefix: str) -> str:
     )
 
 
+def files_of(request, item) -> dict:
+    """What the files partial needs to show an item's attachments.
+
+    Any item can carry files, so this is what a checklist and an ingredient
+    ask for as well as a todo.
+    """
+    return {
+        "attachments_json": json.dumps(
+            [
+                {
+                    "url": request.route_url(
+                        "item_attachment_thumbnail",
+                        item_id=item.id,
+                        uuid=attachment.uuid,
+                    ),
+                    "filename": attachment.original_filename,
+                    "delete_url": request.route_url(
+                        "item_attachment_delete",
+                        item_id=item.id,
+                        uuid=attachment.uuid,
+                    ),
+                }
+                for attachment in item.attachments
+            ]
+        ),
+        "upload_url": request.route_url("item_attachment_upload", id=item.id),
+    }
+
+
 def _render_run(request, todo) -> str:
     """The checklist behind this todo, if it is a run.
 
@@ -1681,20 +1710,7 @@ def todo_details_panel(request: Request):
         {
             "todo": todo,
             "run_html": run_html,
-            "attachments_json": json.dumps(
-                [
-                    {
-                        "url": request.route_url(
-                            "item_attachment_thumbnail", item_id=todo.id, uuid=att.uuid
-                        ),
-                        "filename": att.original_filename,
-                        "delete_url": request.route_url(
-                            "item_attachment_delete", item_id=todo.id, uuid=att.uuid
-                        ),
-                    }
-                    for att in todo.attachments
-                ]
-            ),
+            **files_of(request, todo),
             "tags_json": json.dumps(list(todo.tags)),
             "assignees_json": json.dumps(sorted(todo.assignees)),
             "links_json": json.dumps(

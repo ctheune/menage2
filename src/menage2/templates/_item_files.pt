@@ -1,0 +1,65 @@
+<!-- The files on an item: a photo of the packaging, a scan, a receipt.
+
+     Needs `attachments_json` and `upload_url` in scope. Uploading and
+     removing both happen on the server straight away rather than on Save,
+     because neither is part of whatever form surrounds this.
+
+     Any item can carry files, so this lives on its own: a todo's panel, a
+     checklist and an ingredient all include the same one.
+-->
+<div class="mb-3" hx-disinherit="*" id="field-attachments" data-attachments="${attachments_json}"
+  _="init set $attachments to ((my @data-attachments) as JSON)">
+  <label>Files</label>
+
+  <div class="form-control container">
+    <div class="row">
+    <script type="text/hyperscript-template" live>
+      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; column-gap: 1em;
+  row-gap: 1em;">
+      #for attachment in $attachments indexed by i
+        <div class="position-relative">
+          <img src="$${attachment.url}" alt="$${attachment.filename}" style="width: 100%; height: auto; aspect-ratio: 1 / 1; height: auto; min-width: 0; min-height: 0; object-fit: cover; display: block;" />
+          <!-- Gone on the server straight away, the way the upload
+               arrives straight away: neither is part of the form
+               below, so waiting for Save would be a lie. -->
+          <i class="bi bi-x-circle-fill position-absolute top-0 end-0 m-1 text-danger"
+             role="button" aria-label="Remove file"
+             _="on click
+                  set gone to $attachments[$${i}]
+                  fetch gone.delete_url with method:'POST'
+                  remove gone from $attachments"></i>
+        </div>
+      #end
+      <div class="bg-secondary-subtle d-flex align-items-center justify-content-center"  style="width: 100%; height: auto; aspect-ratio: 1 / 1; height: auto; min-width: 0; min-height: 0; object-fit: cover;"
+        _="on drop(dataTransfer)
+           halt the event
+           remove .bg-info
+           if dataTransfer.files.length > 0 then
+             add .bg-info-subtle
+             make a FormData called fd
+             repeat for file in dataTransfer.files indexed by i
+               call fd.append('file' + i, file)
+             end
+             fetch ${upload_url} with method:'POST', body: fd
+             remove .bg-info-subtle
+             add .bg-secondary-subtle
+           end
+
+         on dragover(dataTransfer)
+           set dataTransfer's dropEffect to 'copy'
+           halt
+
+         on dragenter
+           remove .bg-secondary-subtle
+           add .bg-info
+
+         on dragleave
+           remove .bg-info
+           add .bg-secondary-subtle
+      ">
+          <i class="bi bi-upload" style="pointer-events: none;"></i>
+      </div>
+      </script>
+    </div>
+  </div>
+</div>

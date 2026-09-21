@@ -6,8 +6,12 @@
 
   <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
     <ul id="ingredients" class="list-group">
-      <li tal:repeat="ingredient ingredients" class="list-group-item d-flex align-items-center gap-2">
-        <span class="flex-grow-1">${ingredient.description}</span>
+      <li tal:repeat="ingredient ingredients" class="list-group-item">
+        <div class="d-flex align-items-center gap-2">
+        <span class="flex-grow-1" role="button"
+              hx-get="${request.route_url('ingredient_panel', id=ingredient.id)}"
+              hx-target="next .ingredient-edit"
+              hx-swap="innerHTML">${ingredient.description}</span>
 
         <span class="badge bg-warning text-dark"
           hx-get="${request.route_url('ingredient_recipes', id=ingredient.id)}"
@@ -17,16 +21,18 @@
           <tal:block condition="len(ingredient.recipes) != 1">Rezepte</tal:block>
         </span>
 
+        <span tal:condition="ingredient.attachments"
+              class="badge bg-secondary-subtle text-secondary-emphasis"
+              title="Has files"><i class="bi bi-paperclip"></i></span>
+
         <span>
-          <span tal:repeat="tag tags(ingredient)"
-            class="${tag.color}"
-            hx-patch="${request.route_url('ingredient_toggle_tag', id=ingredient.id, tag=tag.name)}"
-            hx-target="#ingredients" hx-select="#ingredients">
-            ${tag.name}
-          </span>
+          <span tal:repeat="tag python:sorted(ingredient.tags)"
+                class="badge bg-info text-dark">${tag}</span>
         </span>
 
         <div class="recipes ms-2"></div>
+        </div>
+        <div class="ingredient-edit"></div>
       </li>
     </ul>
   </div>
