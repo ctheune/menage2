@@ -43,7 +43,6 @@ class TeamMember(Base):
 
     __table_args__ = (
         UniqueConstraint("team_id", "user_id", name="uq_team_members_team_user"),
-        CheckConstraint(
-            "role IN ('assignee', 'supervisor')", name="ck_team_members_role"
-        ),
+        # Bare name: the ``ck_`` convention prefixes it with the table.
+        CheckConstraint("role IN ('assignee', 'supervisor')", name="role"),
     )

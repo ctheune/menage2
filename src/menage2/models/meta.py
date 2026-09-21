@@ -17,4 +17,8 @@ metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 class Base(DeclarativeBase):
-    pass
+    #: Bound explicitly so ``NAMING_CONVENTION`` above is actually in
+    #: effect. A ``DeclarativeBase`` makes its own ``MetaData`` otherwise,
+    #: which is how every constraint in the database came to be named by
+    #: hand and why ``--autogenerate`` could not be trusted.
+    metadata = metadata

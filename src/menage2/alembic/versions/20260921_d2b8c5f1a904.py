@@ -24,7 +24,7 @@ def upgrade():
         sa.Column("starts_on", sa.Date(), nullable=False),
         sa.Column("ends_on", sa.Date(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint("ends_on >= starts_on", name="ck_absences_dates"),
+        sa.CheckConstraint("ends_on >= starts_on", name=op.f("ck_absences_dates")),
         sa.ForeignKeyConstraint(
             ["user_id"],
             ["users.id"],

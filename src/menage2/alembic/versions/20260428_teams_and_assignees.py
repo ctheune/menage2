@@ -41,7 +41,8 @@ def upgrade():
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("team_id", "user_id", name="uq_team_members_team_user"),
         sa.CheckConstraint(
-            "role IN ('assignee', 'supervisor')", name="ck_team_members_role"
+            "role IN ('assignee', 'supervisor')",
+            name=op.f("ck_team_members_role"),
         ),
     )
 

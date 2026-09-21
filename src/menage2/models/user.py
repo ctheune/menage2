@@ -72,9 +72,7 @@ class Absence(Base):
 
     user = relationship("User", back_populates="absences")
 
-    __table_args__ = (
-        CheckConstraint("ends_on >= starts_on", name="ck_absences_dates"),
-    )
+    __table_args__ = (CheckConstraint("ends_on >= starts_on", name="dates"),)
 
     @property
     def covers_from(self):
