@@ -42,6 +42,7 @@ from menage2.principals import (
     get_user_team_memberships,
     todo_matches_filter,
     uncovered_teams,
+    unknown_principals,
 )
 from menage2.recurrence import (
     chain_history,
@@ -83,6 +84,19 @@ def _link_label(label: str | None, url: str) -> str:
 def _normalize_url(url: str) -> str:
     """Prepend http:// when url has no scheme (e.g. 'example.org/path' → 'http://example.org/path')."""
     return url if _urlparse(url).scheme else "http://" + url
+
+
+def _reject_unknown_assignees(request, names):
+    """An error toast naming the first `@name` that addresses nobody.
+
+    Rejecting rather than quietly dropping it: a task that looks assigned
+    and is not is worse than a save that says what is wrong. The picker is
+    there for finding out who exists.
+    """
+    unknown = sorted(unknown_principals(request.dbsession, names))
+    if not unknown:
+        return None
+    return _validation_error(request, f"No user or team called @{unknown[0]}.")
 
 
 def _validation_error(request, message: str, status: int = 422):
@@ -494,7 +508,7 @@ def _render_todo_fields(request, todo, prefix: str) -> str:
             "prefix": prefix,
             # The shared pill fields read what is already set from here.
             "tags_json": json.dumps(sorted(todo.tags)) if todo else "[]",
-            "assignees_text": " ".join(sorted(todo.assignees)) if todo else "",
+            "assignees_json": json.dumps(sorted(todo.assignees)) if todo else "[]",
         },
         request=request,
     )
@@ -858,6 +872,9 @@ def add_todo(request):
         first = e.errors()[0]
         where = ".".join(str(part) for part in first["loc"]) or "request"
         return _validation_error(request, f"{where}: {first['msg']}")
+    rejected = _reject_unknown_assignees(request, parsed.assignees)
+    if rejected is not None:
+        return rejected
     owner_id = request.identity.id if request.identity else None
     todo = Todo(
         text=parsed.text,
@@ -1146,6 +1163,9 @@ def todo_update(request):
     if "assignees" in clear_fields:
         todo.assignees = set()
     elif validated.assignees is not None:
+        rejected = _reject_unknown_assignees(request, validated.assignees)
+        if rejected is not None:
+            return rejected
         todo.assignees = validated.assignees
     todo.due_date = validated.due_date
     if "note" in clear_fields:
@@ -1320,6 +1340,9 @@ def todo_batch_action(request):
             if "assignees" in clear_fields:
                 todo.assignees = set()
             elif update.assignees is not None:
+                rejected = _reject_unknown_assignees(request, update.assignees)
+                if rejected is not None:
+                    return rejected
                 todo.assignees = update.assignees
             if "due_date" in clear_fields:
                 todo.due_date = None
@@ -1543,19 +1566,26 @@ def todo_assignee_picker(request):
 
     """
 
-    names: set[str] = set()
-
-    names.update(request.dbsession.execute(select(Principal.name)).scalars())
+    # A deactivated account is not somebody to hand work to. The picker
+    # used not to filter them out while get_all_principals did, so the two
+    # disagreed about who exists.
+    names = set(
+        request.dbsession.execute(
+            select(Principal.name)
+            .outerjoin(User, User.id == Principal.user_id)
+            .where(
+                (Principal.kind == "team") | (User.is_active == True)  # noqa: E712
+            )
+        ).scalars()
+    )
 
     value = _picker_value(request)
     if value:
         names = set(fuzzy_filter(names, value))
 
-    new = None
-    if value and value not in names:
-        new = value
-
-    return {"value": value, "options": names, "new": new, "highlight": fuzzy_highlight}
+    # No `new`: a principal cannot be invented by typing one. Offering it
+    # would be offering an assignment the save is about to refuse.
+    return {"value": value, "options": names, "new": None, "highlight": fuzzy_highlight}
 
 
 @view_config(route_name="todo_link_label", request_method="GET")
@@ -1666,7 +1696,7 @@ def todo_details_panel(request: Request):
                 ]
             ),
             "tags_json": json.dumps(list(todo.tags)),
-            "assignees_text": " ".join(sorted(todo.assignees)),
+            "assignees_json": json.dumps(sorted(todo.assignees)),
             "links_json": json.dumps(
                 [
                     {"label": t.label, "url": t.url}

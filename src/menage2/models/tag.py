@@ -15,14 +15,12 @@ of sets of strings, from the tag tree to the marker formatter to the
 templates, and none of it had to change. What changed is where the strings
 are kept.
 
-Setting tags on an item that is not in a session yet -- ``Todo(text=...,
-tags={"garden"})`` -- cannot look a tag up, so the names are held on the
-instance and resolved when the session next flushes. Reading them back
-before that returns what was set, so the buffer is invisible.
+``Item.tags`` is a ``NameSet`` over these rows; see models/nameset.py for
+how a set of strings and a set of rows stay the same thing.
 """
 
 from sqlalchemy import Column, ForeignKey, Index, Integer, Table, Text, event, select
-from sqlalchemy.orm import Mapped, Session, mapped_column, object_session, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from .meta import Base
 
@@ -46,9 +44,6 @@ item_tags = Table(
     ),
     Index("ix_item_tags_tag_id", "tag_id"),
 )
-
-#: Where a pending set of names waits on an instance with no session.
-_PENDING = "_tags_pending"
 
 
 class Tag(Base):
@@ -81,49 +76,6 @@ def tag_named(session: Session, name: str) -> Tag:
         session.add(tag)
     cache[name] = tag
     return tag
-
-
-def resolve(item) -> None:
-    """Turn the names waiting on `item` into the rows it should carry."""
-    names = item.__dict__.pop(_PENDING, None)
-    if names is None:
-        return
-    session = object_session(item)
-    if session is None:  # pragma: no cover -- only reachable mid-detach
-        item.__dict__[_PENDING] = names
-        return
-    wanted = {tag_named(session, name) for name in names}
-    current = set(item.tag_links)
-    for gone in current - wanted:
-        item.tag_links.remove(gone)
-    for added in wanted - current:
-        item.tag_links.add(added)
-
-
-def get_tags(item) -> set[str]:
-    pending = item.__dict__.get(_PENDING)
-    if pending is not None:
-        return set(pending)
-    return {tag.name for tag in item.tag_links}
-
-
-def set_tags(item, names) -> None:
-    if isinstance(names, str):
-        # A string is iterable, so this would otherwise quietly become one
-        # tag per letter. It was a comma-separated string on ingredients
-        # until recently, which is exactly who would try it.
-        raise TypeError(f"tags is a set of names, not one string: {names!r}")
-    item.__dict__[_PENDING] = {str(name) for name in (names or ())}
-    if object_session(item) is not None:
-        resolve(item)
-
-
-@event.listens_for(Session, "before_flush")
-def _resolve_pending_tags(session, flush_context, instances):
-    """Give every item waiting on a session the rows it asked for."""
-    for item in list(session.new) + list(session.dirty):
-        if _PENDING in item.__dict__:
-            resolve(item)
 
 
 @event.listens_for(Session, "after_commit")

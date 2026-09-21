@@ -316,3 +316,64 @@ def test_edit_week_empty_dinner_clears(authenticated_testapp, dbsession):
     )
     # Session is shared; day is the same Python object — no expire_all needed.
     assert day.dinner_id is None
+
+
+# ---------------------------------------------------------------------------
+# Who the shopping list is for
+# ---------------------------------------------------------------------------
+
+
+def _team(dbsession, name):
+    import datetime as _dt
+
+    from menage2.models.team import Team
+
+    team = Team(name=name, created_at=_dt.datetime.now(_dt.timezone.utc))
+    dbsession.add(team)
+    dbsession.flush()
+    return team
+
+
+def test_the_shopping_list_goes_to_the_household(app_request, dbsession):
+    """The name used to be spelled into the view; it still means this."""
+    _team(dbsession, "haushalt")
+    week, _ = _make_week_with_recipe(dbsession)
+    app_request.matchdict = {"id": str(week.id)}
+    app_request.method = "POST"
+
+    send_to_shopping_list(app_request)
+    dbsession.flush()
+
+    tomaten = dbsession.query(Todo).filter(Todo.text == "Tomaten (500 g)").one()
+    assert tomaten.assignees == {"haushalt"}
+
+
+def test_the_shopping_list_can_be_pointed_somewhere_else(app_request, dbsession):
+    from menage2.models.config import ConfigItem
+    from menage2.views.planner import SHOPPING_ASSIGNEE
+
+    _team(dbsession, "haushalt")
+    _team(dbsession, "einkaufsteam")
+    dbsession.add(ConfigItem(key=SHOPPING_ASSIGNEE, value="einkaufsteam"))
+    week, _ = _make_week_with_recipe(dbsession)
+    app_request.matchdict = {"id": str(week.id)}
+    app_request.method = "POST"
+
+    send_to_shopping_list(app_request)
+    dbsession.flush()
+
+    tomaten = dbsession.query(Todo).filter(Todo.text == "Tomaten (500 g)").one()
+    assert tomaten.assignees == {"einkaufsteam"}
+
+
+def test_the_shopping_list_survives_the_household_being_gone(app_request, dbsession):
+    """Renaming that team away must not stop the list being made."""
+    week, _ = _make_week_with_recipe(dbsession)
+    app_request.matchdict = {"id": str(week.id)}
+    app_request.method = "POST"
+
+    send_to_shopping_list(app_request)
+    dbsession.flush()
+
+    tomaten = dbsession.query(Todo).filter(Todo.text == "Tomaten (500 g)").one()
+    assert tomaten.assignees == set()

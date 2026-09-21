@@ -1011,7 +1011,7 @@ def test_the_list_says_which_list_it_is(page, context, live_server):
 
 
 def test_a_delegated_task_is_only_reachable_through_its_filter(
-    page, context, live_server
+    page, context, live_server, second_user
 ):
     """Which is the whole point: handing a task on takes it off your own list,
     and until now a phone had no way back to it."""
@@ -1277,3 +1277,26 @@ def test_typing_a_tag_and_pressing_enter_still_leaves_it_ready(
     assert page.evaluate("document.activeElement.classList.contains('new-tag')"), (
         "the field should still be ready for the next tag"
     )
+
+
+def test_a_name_nobody_answers_to_does_not_become_a_pill(page, context, live_server):
+    """An assignee is a reference, so the field stops inventing them.
+
+    It used to append whatever had been typed, which is where production's
+    211 assignees spelled "eltern @matti" came from. Typed text that the
+    picker had no answer for now stays in the field to be corrected rather
+    than turning into a pill the save would refuse.
+    """
+    _add_todo(context, live_server, "Nobody to hand it to")
+    _open_list(page)
+    _open_edit(page, "Nobody to hand it to")
+
+    field = page.locator("#field-assignees")
+    field.locator(".form-control").click()
+    page.keyboard.type("nobdoy")
+    # Long enough for the picker to have answered, so this is not a race.
+    page.wait_for_timeout(500)
+    page.keyboard.press("Enter")
+
+    assert field.locator('input[name="assignees[]"]').count() == 0
+    assert field.locator(".new-assignee").inner_text() == "nobdoy"

@@ -852,7 +852,7 @@ def test_batch_edit_sets_tags(app_request, dbsession, admin_user):
     assert t2.tags == {"grocery", "errand"}
 
 
-def test_batch_edit_sets_assignees(app_request, dbsession, admin_user):
+def test_batch_edit_sets_assignees(app_request, dbsession, admin_user, cast):
     t1 = _todo("A")
     t2 = _todo("B")
     dbsession.add_all([t1, t2])
@@ -1005,7 +1005,7 @@ def test_todos_done_spawns_every_instance(app_request, dbsession, admin_user):
     assert todo.recurred_into_id == pending[0].id
 
 
-def test_recurrence_clone_preserves_assignees(app_request, dbsession, admin_user):
+def test_recurrence_clone_preserves_assignees(app_request, dbsession, admin_user, cast):
     """Spawning a recurrence preserves assignees."""
     rule = RecurrenceRule(
         kind=RecurrenceKind.after,
@@ -1256,7 +1256,7 @@ def test_todo_update_clears_note(app_request, dbsession, admin_user):
     assert todo.note == ""
 
 
-def test_todo_update_sets_assignees(app_request, dbsession, admin_user):
+def test_todo_update_sets_assignees(app_request, dbsession, admin_user, cast):
     todo = _todo("Fix bug")
     dbsession.add(todo)
     dbsession.flush()
@@ -1267,7 +1267,7 @@ def test_todo_update_sets_assignees(app_request, dbsession, admin_user):
     assert todo.assignees == {"alice", "bob"}
 
 
-def test_todo_update_clears_assignees(app_request, dbsession, admin_user):
+def test_todo_update_clears_assignees(app_request, dbsession, admin_user, cast):
     todo = _todo("Deploy", assignees={"carol"})
     dbsession.add(todo)
     dbsession.flush()
@@ -1706,3 +1706,35 @@ def test_tag_grouping_does_not_resort_items(app_request, dbsession, admin_user):
 
     items = list_todo_groups(app_request)["groups"][0]["items"]
     assert [t.text for t in items] == ["soonest", "middle", "latest"]
+
+
+def test_assigning_to_nobody_is_refused(app_request, dbsession, admin_user):
+    """An assignee is a reference now, so `@nobdoy` has to be told about.
+
+    Dropping it quietly would leave a task that looks handed off and is
+    not, which is the failure this change exists to stop.
+    """
+    from menage2.views.todo import add_todo
+
+    app_request.method = "POST"
+    app_request.POST["text"] = "Take the bins out @nobdoy"
+
+    response = add_todo(app_request)
+
+    assert response.status_int == 422
+    assert "nobdoy" in response.headers["HX-Trigger"]
+    assert dbsession.query(Todo).count() == 0
+
+
+def test_assigning_to_somebody_real_still_works(
+    app_request, dbsession, admin_user, cast
+):
+    from menage2.views.todo import add_todo
+
+    app_request.method = "POST"
+    app_request.POST["text"] = "Take the bins out @alice"
+
+    add_todo(app_request)
+    dbsession.flush()
+
+    assert dbsession.query(Todo).one().assignees == {"alice"}

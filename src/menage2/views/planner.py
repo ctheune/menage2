@@ -2,6 +2,7 @@ import datetime
 
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.view import view_config
+from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from .. import models
@@ -33,6 +34,28 @@ def edit_week_get(request):
         .order_by(models.Recipe.title)
     )
     return {"week": week, "recipes": recipes}
+
+
+#: Who a generated shopping-list task is for. Configurable, because the
+#: name used to be spelled into this file: renaming that team in the admin
+#: would have left the generator addressing somebody who is no longer
+#: there -- which is a refusal now rather than a quiet miss.
+SHOPPING_ASSIGNEE = "planner.shopping_assignee"
+
+
+def _shopping_assignees(dbsession) -> set[str]:
+    """The principal shopping tasks go to, if it is configured and exists."""
+    from menage2.models.config import ConfigItem
+    from menage2.models.principal import Principal
+
+    configured = dbsession.get(ConfigItem, SHOPPING_ASSIGNEE)
+    name = (configured.value or "").strip() if configured else "haushalt"
+    if not name:
+        return set()
+    known = dbsession.execute(
+        select(Principal.name).where(Principal.name == name)
+    ).scalar_one_or_none()
+    return {known} if known else set()
 
 
 @view_config(
@@ -206,7 +229,7 @@ def send_to_shopping_list(request):
                     tags=tags,
                     status=TodoStatus.todo,
                     owner=request.identity,
-                    assignees={"haushalt"},
+                    assignees=_shopping_assignees(request.dbsession),
                     created_at=now,
                     note=note,
                 )

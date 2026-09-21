@@ -203,7 +203,9 @@ def test_clicking_an_item_opens_its_editor_with_the_marker_text(
     )
 
 
-def test_editing_an_item_saves_and_returns_to_view_mode(page, context, live_server):
+def test_editing_an_item_saves_and_returns_to_view_mode(
+    page, context, live_server, second_user
+):
     pid = _make_protocol(context, live_server, "Save flow", ["old text"])
     page.goto(f"/protocols/{pid}/edit")
     page.wait_for_selector(".proto-item-view", timeout=10000)

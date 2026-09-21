@@ -44,6 +44,24 @@ def get_all_principals(dbsession) -> list[dict]:
     return [{"name": name, "type": kind} for name, kind in rows]
 
 
+def unknown_principals(dbsession, names) -> set[str]:
+    """Which of `names` name no user and no team.
+
+    Checked in the views so that somebody who typed `@nobdoy` is told
+    about it; writing the assignment refuses too, but by then the request
+    is failing rather than answering.
+    """
+    names = set(names or ())
+    if not names:
+        return set()
+    known = set(
+        dbsession.execute(
+            select(Principal.name).where(Principal.name.in_(names))
+        ).scalars()
+    )
+    return names - known
+
+
 def get_user_team_memberships(dbsession, user) -> dict[str, str]:
     """Return {team_name: role} for every team the user belongs to."""
     rows = dbsession.execute(

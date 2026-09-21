@@ -24,13 +24,14 @@ from menage2.principals import (
     get_user_team_memberships,
     is_protocol_editor,
     protocol_visible_to_user,
+    unknown_principals,
 )
 from menage2.recurrence import (
     ensure_protocol_has_run,
     rule_to_spec,
     spawn_protocol_run,
 )
-from menage2.views.todo import parse_todo_input
+from menage2.views.todo import _validation_error, parse_todo_input
 
 _snapshot_lock = threading.Lock()
 
@@ -199,6 +200,14 @@ def edit_protocol(request):
     }
 
 
+def _reject_unknown_assignees(request, names):
+    """Same rule as the task views: a name that addresses nobody is refused."""
+    unknown = sorted(unknown_principals(request.dbsession, names))
+    if not unknown:
+        return None
+    return _validation_error(request, f"No user or team called @{unknown[0]}.")
+
+
 @view_config(route_name="edit_protocol", request_method="POST")
 def update_protocol(request):
     p = _get_or_404(request, Protocol)
@@ -224,6 +233,9 @@ def update_protocol(request):
             for run in active_runs:
                 run.text = new_title
         p.tags = parsed.tags
+        rejected = _reject_unknown_assignees(request, parsed.assignees)
+        if rejected is not None:
+            return rejected
         p.assignees = set(parsed.assignees)
         p.note = parsed.note or None
         if parsed.recurrence:
@@ -281,6 +293,9 @@ def add_protocol_item(request):
         ).scalar()
         or 0
     ) + 1
+    rejected = _reject_unknown_assignees(request, parsed.assignees)
+    if rejected is not None:
+        return rejected
     item = ProtocolItem(
         protocol_id=p.id,
         position=next_pos,
@@ -304,6 +319,9 @@ def update_protocol_item(request):
     parsed = parse_todo_input(raw)
     if not parsed.text:
         return HTTPSeeOther(request.route_url("edit_protocol", id=item.protocol_id))
+    rejected = _reject_unknown_assignees(request, parsed.assignees)
+    if rejected is not None:
+        return rejected
     item.text = parsed.text
     item.tags = parsed.tags
     item.assignees = parsed.assignees
@@ -320,6 +338,9 @@ def update_protocol_item_partial(request):
     if raw:
         parsed = parse_todo_input(raw)
         if parsed.text:
+            rejected = _reject_unknown_assignees(request, parsed.assignees)
+            if rejected is not None:
+                return rejected
             item.text = parsed.text
             item.tags = parsed.tags
             item.assignees = parsed.assignees
@@ -415,6 +436,9 @@ def run_item_edit(request):
     parsed = parse_todo_input(raw)
     if not parsed.text:
         return _run_partial_response(request, item.run)
+    rejected = _reject_unknown_assignees(request, parsed.assignees)
+    if rejected is not None:
+        return rejected
     item.text = parsed.text
     item.tags = parsed.tags
     item.assignees = parsed.assignees

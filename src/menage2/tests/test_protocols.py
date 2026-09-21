@@ -116,7 +116,7 @@ def test_edit_protocol_composite_tags_and_note(
 
 
 def test_edit_protocol_composite_assignees(
-    authenticated_testapp, dbsession, admin_user
+    authenticated_testapp, dbsession, admin_user, cast
 ):
     p = _make_protocol(dbsession, admin_user)
     authenticated_testapp.post(
@@ -133,7 +133,7 @@ def test_edit_protocol_composite_assignees(
 
 
 def test_edit_protocol_composite_clears_assignees(
-    authenticated_testapp, dbsession, admin_user
+    authenticated_testapp, dbsession, admin_user, cast
 ):
     p = _make_protocol(dbsession, admin_user)
     p.assignees = {"alice"}
@@ -307,7 +307,7 @@ def test_start_protocol_run_creates_run_and_todo(
 
 
 def test_start_protocol_run_copies_assignees_to_todo(
-    authenticated_testapp, dbsession, admin_user
+    authenticated_testapp, dbsession, admin_user, cast
 ):
     p = _make_protocol(dbsession, admin_user, items=["a"])
     p.assignees = {"alice", "bob"}
@@ -510,7 +510,7 @@ def test_run_all_done_spawns_next_for_after_rule(
 
 
 def test_automatic_protocol_run_copies_assignees_and_tags(
-    authenticated_testapp, dbsession, admin_user
+    authenticated_testapp, dbsession, admin_user, cast
 ):
     rule = RecurrenceRule(
         kind=RecurrenceKind.after,

@@ -322,3 +322,32 @@ def browser_admin_user(clean_db, dbengine):
     session.commit()
     session.close()
     return {"username": "admin", "password": "testpassword1!"}
+
+
+@pytest.fixture
+def cast(dbsession):
+    """Users called alice, bob and carol, so tests can address them.
+
+    An assignee is a reference now, so a test that assigns work to alice
+    needs an alice. The names are the ones the assignee tests have always
+    used; what changed is that they have to exist.
+    """
+    from menage2.models.user import User
+
+    # Explicit ids, well clear of admin_user and regular_user: those pin 1
+    # and 2 without moving the sequence on, so anything drawing from it
+    # lands on top of them.
+    people = [
+        User(
+            id=101 + offset,
+            username=name,
+            real_name=name.title(),
+            email=f"{name}@example.com",
+            is_active=True,
+            created_at=_now(),
+        )
+        for offset, name in enumerate(("alice", "bob", "carol"))
+    ]
+    dbsession.add_all(people)
+    dbsession.flush()
+    return {person.username: person for person in people}

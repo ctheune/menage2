@@ -25,8 +25,10 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
+from .assignee import item_assignees, principal_named
 from .meta import Base
-from .tag import get_tags, item_tags, set_tags
+from .nameset import NameSet
+from .tag import item_tags, tag_named
 
 
 class TagSet(TypeDecorator):
@@ -122,14 +124,18 @@ class Item(Base):
         lazy="selectin",
     )
 
-    @property
-    def tags(self) -> set[str]:
-        """The names this item carries. See models/tag.py."""
-        return get_tags(self)
+    assignee_links = relationship(
+        "Principal",
+        secondary=item_assignees,
+        collection_class=set,
+        lazy="selectin",
+    )
 
-    @tags.setter
-    def tags(self, names) -> None:
-        set_tags(self, names)
+    #: Both are sets of strings in both directions; the rows are underneath.
+    #: A tag is made the first time it is used. A principal has to exist,
+    #: so an item cannot be assigned to somebody who is not there.
+    tags = NameSet("tag_links", tag_named)
+    assignees = NameSet("assignee_links", principal_named)
 
     __table_args__ = (
         Index("ix_items_kind", "kind"),
