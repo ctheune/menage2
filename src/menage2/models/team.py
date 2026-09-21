@@ -9,16 +9,23 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.ext.associationproxy import association_proxy
+from sqlalchemy.orm import relationship
 
 from .meta import Base
+
+
+def _principal(kind: str, name: str):
+    """Deferred: principal.py is imported through models/__init__ too."""
+    from .principal import Principal
+
+    return Principal(kind=kind, name=name)
 
 
 class Team(Base):
     __tablename__ = "teams"
 
     id = Column(Integer, primary_key=True)
-    name = Column(Text, nullable=False, unique=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
@@ -32,14 +39,12 @@ class Team(Base):
         cascade="all, delete-orphan",
     )
 
-    @validates("name")
-    def _name_the_principal(self, key, value):
-        from .principal import Principal
-
-        if self.principal is None:
-            self.principal = Principal(kind="team")
-        self.principal.name = value
-        return value
+    #: See User.username -- one namespace, held on the principal.
+    name = association_proxy(
+        "principal",
+        "name",
+        creator=lambda name: _principal("team", name),
+    )
 
     members = relationship(
         "TeamMember", cascade="all, delete-orphan", back_populates="team"

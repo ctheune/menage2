@@ -1,8 +1,8 @@
 """Principal resolution and todo/protocol visibility helpers.
 
 A *principal* is any named entity that can be addressed with @name in a todo:
-either a User (by username) or a Team (by name).  Both share a unique
-namespace enforced at the application layer.
+either a User or a Team.  Both own a row in `principals`, which is where the
+name lives and where the shared namespace is enforced by a unique index.
 
 Filter modes (todos)
 --------------------
@@ -21,33 +21,34 @@ Protocol rules
 NOTE: Team expansion uses Python set intersection on memberships — no inline SQL.
 """
 
+import sqlalchemy.orm
 from sqlalchemy import select
 
-from .models.team import Team, TeamMember
+from .models.principal import Principal
+from .models.team import TeamMember
 from .models.user import Absence, User
 
 
 def get_all_principals(dbsession) -> list[dict]:
-    """Return sorted list of {name, type} dicts for all active users and teams."""
-    users = (
-        dbsession.execute(
-            select(User.username).where(User.is_active == True)  # noqa: E712
-        )
-        .scalars()
-        .all()
-    )
-    teams = dbsession.execute(select(Team.name)).scalars().all()
-    result = [{"name": u, "type": "user"} for u in users]
-    result += [{"name": t, "type": "team"} for t in teams]
-    result.sort(key=lambda p: p["name"])
-    return result
+    """Return sorted list of {name, type} dicts for all active users and teams.
+
+    One query since both live in `principals`; a deactivated account is left
+    out, which is why the join to `users` is there at all.
+    """
+    rows = dbsession.execute(
+        select(Principal.name, Principal.kind)
+        .outerjoin(User, User.id == Principal.user_id)
+        .where((Principal.kind == "team") | (User.is_active == True))  # noqa: E712
+        .order_by(Principal.name)
+    ).all()
+    return [{"name": name, "type": kind} for name, kind in rows]
 
 
 def get_user_team_memberships(dbsession, user) -> dict[str, str]:
     """Return {team_name: role} for every team the user belongs to."""
     rows = dbsession.execute(
-        select(Team.name, TeamMember.role)
-        .join(TeamMember, TeamMember.team_id == Team.id)
+        select(Principal.name, TeamMember.role)
+        .join(TeamMember, TeamMember.team_id == Principal.team_id)
         .where(TeamMember.user_id == user.id)
     ).all()
     return {name: role for name, role in rows}
@@ -70,7 +71,9 @@ def absent_usernames(dbsession, day) -> set[str]:
 
     away = set(
         dbsession.execute(
-            select(User.username).where(User.is_active == False)  # noqa: E712
+            select(Principal.name)
+            .join(User, User.id == Principal.user_id)
+            .where(User.is_active == False)  # noqa: E712
         )
         .scalars()
         .all()
@@ -78,8 +81,8 @@ def absent_usernames(dbsession, day) -> set[str]:
 
     reach = datetime.timedelta(days=2)
     rows = dbsession.execute(
-        select(Absence, User.username)
-        .join(User, User.id == Absence.user_id)
+        select(Absence, Principal.name)
+        .join(Principal, Principal.user_id == Absence.user_id)
         .where(Absence.starts_on <= day + reach, Absence.ends_on >= day - reach)
     ).all()
     away.update(username for absence, username in rows if absence.covers(day))
@@ -97,11 +100,13 @@ def uncovered_teams(dbsession, user, memberships: dict[str, str], day) -> set[st
     if not supervised:
         return set()
 
+    team = sqlalchemy.orm.aliased(Principal)
+    member = sqlalchemy.orm.aliased(Principal)
     rows = dbsession.execute(
-        select(Team.name, User.username)
-        .join(TeamMember, TeamMember.team_id == Team.id)
-        .join(User, User.id == TeamMember.user_id)
-        .where(Team.name.in_(supervised), TeamMember.role == "assignee")
+        select(team.name, member.name)
+        .join(TeamMember, TeamMember.team_id == team.team_id)
+        .join(member, member.user_id == TeamMember.user_id)
+        .where(team.name.in_(supervised), TeamMember.role == "assignee")
     ).all()
 
     assignees: dict[str, set[str]] = {}

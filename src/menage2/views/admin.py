@@ -8,6 +8,7 @@ from pyramid.view import view_config
 from sqlalchemy import select
 
 from ..models.config import ConfigItem
+from ..models.principal import Principal
 from ..models.team import Team, TeamMember
 from ..models.user import Absence, User
 from ..recurrence import run_sweep
@@ -37,7 +38,12 @@ def _now():
     permission=PERM_ADMIN,
 )
 def list_users(request):
-    users = request.dbsession.query(User).order_by(User.username).all()
+    users = (
+        request.dbsession.query(User)
+        .join(Principal, Principal.user_id == User.id)
+        .order_by(Principal.name)
+        .all()
+    )
     sweep_spawned = request.params.get("sweep_spawned")
     return {
         "users": users,
@@ -79,15 +85,15 @@ def new_user_post(request):
     if not username:
         errors["username"] = "Username is required."
     else:
-        existing = (
-            request.dbsession.query(User).filter(User.username == username).first()
-        )
-        if existing:
-            errors["username"] = "Username already taken."
-        elif request.dbsession.execute(
-            select(Team).where(Team.name == username)
-        ).scalar_one_or_none():
-            errors["username"] = "This name is already taken by a team."
+        taken = request.dbsession.execute(
+            select(Principal).where(Principal.name == username)
+        ).scalar_one_or_none()
+        if taken is not None:
+            errors["username"] = (
+                "Username already taken."
+                if taken.kind == "user"
+                else "This name is already taken by a team."
+            )
 
     if not real_name:
         errors["real_name"] = "Real name is required."
@@ -486,7 +492,15 @@ def recurrence_sweep(request):
     permission=PERM_ADMIN,
 )
 def list_teams(request):
-    teams = request.dbsession.execute(select(Team).order_by(Team.name)).scalars().all()
+    teams = (
+        request.dbsession.execute(
+            select(Team)
+            .join(Principal, Principal.team_id == Team.id)
+            .order_by(Principal.name)
+        )
+        .scalars()
+        .all()
+    )
     return {"teams": teams}
 
 
@@ -502,7 +516,10 @@ def new_team_get(request):
         "errors": {},
         "action": request.route_url("admin_team_new"),
         "users": request.dbsession.execute(
-            select(User).where(User.is_active == True).order_by(User.username)  # noqa: E712
+            select(User)
+            .join(Principal, Principal.user_id == User.id)
+            .where(User.is_active == True)  # noqa: E712
+            .order_by(Principal.name)
         )
         .scalars()
         .all(),
@@ -521,21 +538,25 @@ def new_team_post(request):
     if not name:
         errors["name"] = "Team name is required."
     else:
-        if request.dbsession.execute(
-            select(Team).where(Team.name == name)
-        ).scalar_one_or_none():
-            errors["name"] = "This name is already taken by another team."
-        elif request.dbsession.execute(
-            select(User).where(User.username == name)
-        ).scalar_one_or_none():
-            errors["name"] = "This name is already taken by a user."
+        taken = request.dbsession.execute(
+            select(Principal).where(Principal.name == name)
+        ).scalar_one_or_none()
+        if taken is not None:
+            errors["name"] = (
+                "This name is already taken by another team."
+                if taken.kind == "team"
+                else "This name is already taken by a user."
+            )
     if errors:
         return {
             "team": None,
             "errors": errors,
             "action": request.route_url("admin_team_new"),
             "users": request.dbsession.execute(
-                select(User).where(User.is_active == True).order_by(User.username)  # noqa: E712
+                select(User)
+                .join(Principal, Principal.user_id == User.id)
+                .where(User.is_active == True)  # noqa: E712
+                .order_by(Principal.name)
             )
             .scalars()
             .all(),
@@ -561,7 +582,10 @@ def edit_team_get(request):
         "errors": {},
         "action": request.route_url("admin_team_edit", id=team_id),
         "users": request.dbsession.execute(
-            select(User).where(User.is_active == True).order_by(User.username)  # noqa: E712
+            select(User)
+            .join(Principal, Principal.user_id == User.id)
+            .where(User.is_active == True)  # noqa: E712
+            .order_by(Principal.name)
         )
         .scalars()
         .all(),
@@ -584,22 +608,27 @@ def edit_team_post(request):
     if not name:
         errors["name"] = "Team name is required."
     else:
-        conflict_team = request.dbsession.execute(
-            select(Team).where(Team.name == name, Team.id != team_id)
+        taken = request.dbsession.execute(
+            select(Principal).where(
+                Principal.name == name, Principal.team_id.is_distinct_from(team_id)
+            )
         ).scalar_one_or_none()
-        if conflict_team:
-            errors["name"] = "This name is already taken by another team."
-        elif request.dbsession.execute(
-            select(User).where(User.username == name)
-        ).scalar_one_or_none():
-            errors["name"] = "This name is already taken by a user."
+        if taken is not None:
+            errors["name"] = (
+                "This name is already taken by another team."
+                if taken.kind == "team"
+                else "This name is already taken by a user."
+            )
     if errors:
         return {
             "team": team,
             "errors": errors,
             "action": request.route_url("admin_team_edit", id=team_id),
             "users": request.dbsession.execute(
-                select(User).where(User.is_active == True).order_by(User.username)  # noqa: E712
+                select(User)
+                .join(Principal, Principal.user_id == User.id)
+                .where(User.is_active == True)  # noqa: E712
+                .order_by(Principal.name)
             )
             .scalars()
             .all(),

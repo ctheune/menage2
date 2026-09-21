@@ -11,7 +11,8 @@ from sqlalchemy import (
     LargeBinary,
     Text,
 )
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.ext.associationproxy import association_proxy
+from sqlalchemy.orm import relationship
 
 from .meta import Base
 
@@ -20,11 +21,17 @@ def _now():
     return datetime.now(timezone.utc)
 
 
+def _principal(kind: str, name: str):
+    """Deferred: principal.py is imported through models/__init__ too."""
+    from .principal import Principal
+
+    return Principal(kind=kind, name=name)
+
+
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
-    username = Column(Text, nullable=False, unique=True)
     real_name = Column(Text, nullable=False)
     email = Column(Text, nullable=False, unique=True)
     password_hash = Column(Text, nullable=True)
@@ -44,15 +51,15 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
-    @validates("username")
-    def _name_the_principal(self, key, value):
-        """Give the principal the name, wherever the user was made."""
-        from .principal import Principal
-
-        if self.principal is None:
-            self.principal = Principal(kind="user")
-        self.principal.name = value
-        return value
+    #: The name `@matti` addresses. It lives on the principal, where teams
+    #: keep theirs too, so the two cannot collide. Reading, writing and
+    #: `User.username == x` all still work; projecting or ordering by it
+    #: needs a join to `principals`, which is honest about the cost.
+    username = association_proxy(
+        "principal",
+        "name",
+        creator=lambda name: _principal("user", name),
+    )
 
     passkeys = relationship(
         "Passkey", back_populates="user", cascade="all, delete-orphan"

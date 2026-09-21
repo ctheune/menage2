@@ -22,6 +22,7 @@ from menage2.dateparse import (
 )
 from menage2.fuzzy import fuzzy_filter, fuzzy_highlight
 from menage2.markers import scan
+from menage2.models.principal import Principal
 from menage2.models.team import Team
 from menage2.models.todo import (
     RecurrenceKind,
@@ -1563,8 +1564,7 @@ def todo_assignee_picker(request):
 
     names: set[str] = set()
 
-    names.update(request.dbsession.execute(select(User.username)).scalars())
-    names.update(request.dbsession.execute(select(Team.name)).scalars())
+    names.update(request.dbsession.execute(select(Principal.name)).scalars())
 
     value = _picker_value(request)
     if value:

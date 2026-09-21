@@ -14,6 +14,7 @@ from pyramid.view import forbidden_view_config, view_config
 
 from .. import SETUP_TOKEN_KEY
 from ..models.config import ConfigItem
+from ..models.principal import Principal
 from ..models.user import Passkey, User
 
 _ph = PasswordHasher()
@@ -204,7 +205,12 @@ def login_post(request):
     password = request.POST.get("password", "")
     came_from = request.POST.get("came_from", "")
 
-    user = request.dbsession.query(User).filter(User.username == username).first()
+    user = (
+        request.dbsession.query(User)
+        .join(Principal, Principal.user_id == User.id)
+        .filter(Principal.name == username)
+        .first()
+    )
 
     error = None
     if user is None or not user.is_active or user.password_hash is None:
