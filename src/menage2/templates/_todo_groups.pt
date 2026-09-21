@@ -59,7 +59,9 @@
                         data-run-started python:'true' if todo.protocol_run_id and todo.protocol_run and todo.protocol_run.opened_at else 'false'"
     >
       <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2"
-           tal:define="stand_in python:sorted(covering & todo.assignees);            others python:sorted(todo.assignees - covering)">
+           tal:define="shown python:assignees_shown[todo.id];
+                       stand_in python:shown['stand_in'];
+                       others python:shown['others']">
         <span class="flex-shrink-0">
           <input
             type="checkbox"

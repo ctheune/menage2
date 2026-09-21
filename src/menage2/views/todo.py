@@ -3,7 +3,7 @@ import datetime
 import json
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 from urllib.parse import urlparse as _urlparse
 
 from dateutil.relativedelta import relativedelta
@@ -648,6 +648,36 @@ def task_subnav_partial(request: Request):
     return {"sections": sections}
 
 
+class AssigneeDisplay(TypedDict):
+    """Who a row says it is for.
+
+    `stand_in` is the team whose assignees are all away, which this user
+    supervises and is therefore covering for; `others` is everyone else
+    assigned. They are disjoint on purpose: naming the team twice, once as
+    "covering" and once as an ordinary assignee, only says the same thing
+    less clearly.
+    """
+
+    stand_in: list[str]
+    others: list[str]
+
+
+def _assignee_display(todos, covering: set[str]) -> dict[int, AssigneeDisplay]:
+    """Split each todo's assignees into who is covering and who is assigned.
+
+    In the view rather than in the template because both the desktop and the
+    mobile list want the same answer, and because `assignees` is on its way
+    to becoming something other than a set of strings.
+    """
+    return {
+        todo.id: AssigneeDisplay(
+            stand_in=sorted(covering & todo.assignees),
+            others=sorted(todo.assignees - covering),
+        )
+        for todo in todos
+    }
+
+
 def _list_todo_groups(request):
     today = _today()
     status = request.params.get("status", "active")
@@ -678,21 +708,23 @@ def _list_todo_groups(request):
     else:
         groups = build_tag_tree(todos)
 
+    # Rows for a team whose assignees are all away say so: a task nobody has
+    # seen before, appearing on your list without explanation, is not
+    # obviously yours to do only until they are back.
+    covering = uncovered_teams(
+        request.dbsession,
+        user,
+        get_user_team_memberships(request.dbsession, user),
+        today,
+    )
+
     return {
         "status": status,
         "groups": groups,
         "render_note_html": render_note_html,
         "today": today,
         "parse_link": parse_link,
-        # Rows for a team whose assignees are all away say so: a task nobody
-        # has seen before, appearing on your list without explanation, is not
-        # obviously yours to do only until they are back.
-        "covering": uncovered_teams(
-            request.dbsession,
-            user,
-            get_user_team_memberships(request.dbsession, user),
-            today,
-        ),
+        "assignees_shown": _assignee_display(todos, covering),
     }
 
 

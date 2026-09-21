@@ -73,8 +73,9 @@
             end
           ">
       <div class="todo-content d-flex py-2 px-3 align-items-center gap-2"
-           tal:define="stand_in python:sorted(covering & todo.assignees);
-                       others python:sorted(todo.assignees - covering)">
+           tal:define="shown python:assignees_shown[todo.id];
+                       stand_in python:shown['stand_in'];
+                       others python:shown['others']">
         <!-- Selecting and editing are separate targets: the box picks the
              row out, anywhere else opens it. Ticking does not act on its own
              — the action bar above the list does, once something is picked. -->
