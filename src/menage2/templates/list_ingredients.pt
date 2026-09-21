@@ -5,35 +5,54 @@
   </div>
 
   <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
-    <ul id="ingredients" class="list-group">
-      <li tal:repeat="ingredient ingredients" class="list-group-item">
-        <div class="d-flex align-items-center gap-2">
-        <span class="flex-grow-1" role="button"
-              hx-get="${request.route_url('ingredient_panel', id=ingredient.id)}"
-              hx-target="next .ingredient-edit"
-              hx-swap="innerHTML">${ingredient.description}</span>
+    <div class="row">
 
-        <span class="badge bg-warning text-dark"
-          hx-get="${request.route_url('ingredient_recipes', id=ingredient.id)}"
-          hx-target="next .recipes">
-          ${len(ingredient.recipes)}
-          <tal:block condition="len(ingredient.recipes) == 1">Rezept</tal:block>
-          <tal:block condition="len(ingredient.recipes) != 1">Rezepte</tal:block>
-        </span>
+      <div class="col-lg-6">
+        <!-- disinherit: the rows fetch their own editor, and would
+             otherwise inherit this list's hx-select and swap nothing. -->
+        <ul id="ingredients" class="list-group"
+            hx-disinherit="*"
+            hx-get="${request.route_url('list_ingredients')}"
+            hx-trigger="item-updated from:body"
+            hx-target="#ingredients"
+            hx-select="#ingredients"
+            hx-swap="outerHTML">
+          <li tal:repeat="ingredient ingredients"
+              id="ingredient-${ingredient.id}"
+              class="list-group-item d-flex align-items-center gap-2"
+              role="button"
+              hx-get="${request.route_url('item_panel', id=ingredient.id)}"
+              hx-target="#item-pane"
+              hx-swap="outerHTML"
+              _="on click
+                   remove .active from <li.list-group-item/> in #ingredients
+                   add .active to me">
 
-        <span tal:condition="ingredient.attachments"
-              class="badge bg-secondary-subtle text-secondary-emphasis"
-              title="Has files"><i class="bi bi-paperclip"></i></span>
+            <span class="flex-grow-1">${ingredient.description}</span>
 
-        <span>
-          <span tal:repeat="tag python:sorted(ingredient.tags)"
-                class="badge bg-info text-dark">${tag}</span>
-        </span>
+            <span tal:condition="ingredient.attachments"
+                  class="flex-shrink-0" title="Has files"><i class="bi bi-paperclip"></i></span>
 
-        <div class="recipes ms-2"></div>
-        </div>
-        <div class="ingredient-edit"></div>
-      </li>
-    </ul>
+            <span tal:repeat="tag python:sorted(ingredient.tags)"
+                  class="badge rounded-pill bg-secondary">#${tag}</span>
+
+            <span class="badge bg-warning text-dark flex-shrink-0"
+                  hx-get="${request.route_url('ingredient_recipes', id=ingredient.id)}"
+                  hx-target="next .recipes">
+              ${len(ingredient.recipes)}
+              <tal:block condition="len(ingredient.recipes) == 1">Rezept</tal:block>
+              <tal:block condition="len(ingredient.recipes) != 1">Rezepte</tal:block>
+            </span>
+
+            <div class="recipes ms-2"></div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- The editor, beside the list and staying put while it scrolls.
+           Empty until something is opened; the panel replaces it whole. -->
+      <div class="details-pane d-none" id="item-pane"></div>
+
+    </div>
   </div>
 </div>

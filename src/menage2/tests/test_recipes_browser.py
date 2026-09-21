@@ -2,6 +2,8 @@
 
 import pytest
 
+from ._browser_helpers import click_until, wait_wired
+
 
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args, live_server):
@@ -172,15 +174,30 @@ def test_add_existing_ingredient_via_autocomplete(page, context, live_server):
 # ---------------------------------------------------------------------------
 
 
-def _an_ingredient(context, live_server, description):
-    """Make one through the recipe form, which is the only way in."""
-    from sqlalchemy import create_engine, text
+def _an_ingredient(dbengine, name: str) -> str:
+    """Put one straight in, under a name of its own.
 
-    resp = context.request.post(
-        f"{live_server}/ingredients/suggest", form={"q": description}
-    )
-    assert resp.ok
-    return resp
+    Unique per call: these tests share a database for the session, so a
+    fixed name means the second run of one is looking at the first run's
+    leftovers.
+    """
+    import uuid
+
+    from sqlalchemy import text
+
+    unique = f"{name}-{uuid.uuid4().hex[:8]}"
+    with dbengine.begin() as connection:
+        item_id = connection.execute(
+            text(
+                "INSERT INTO items (kind, text, created_at) "
+                "VALUES ('ingredient', :name, now()) RETURNING id"
+            ),
+            {"name": unique},
+        ).scalar()
+        connection.execute(
+            text("INSERT INTO ingredients (id) VALUES (:id)"), {"id": item_id}
+        )
+    return unique
 
 
 def test_an_ingredient_can_be_tagged_from_the_real_vocabulary(
@@ -216,8 +233,40 @@ def test_an_ingredient_can_be_tagged_from_the_real_vocabulary(
     field.locator(".form-control").first.click()
     page.keyboard.type("einkaufen:supermarkt")
     page.keyboard.press("Enter")
-    page.locator('button:has-text("Save")').click()
+    # The pill is what says the field took it; saving before that would be
+    # saving an empty set and calling it a pass.
+    field.locator('input[name="tags[]"]').wait_for(state="attached", timeout=10000)
+    # The pane arrives by swap; a click before its handlers are attached is
+    # dropped, and saving the same tag twice is harmless.
+    click_until(
+        page,
+        '#item-pane button[type="submit"]',
+        "#ingredients li:has-text('einkaufen:supermarkt')",
+    )
 
-    page.wait_for_selector(
-        "#ingredients li:has-text('einkaufen:supermarkt')", timeout=10000
+
+def test_the_editor_sits_beside_the_list_and_stays_put(
+    page, context, live_server, dbengine
+):
+    """Two columns, and the editor does not scroll away from the list.
+
+    The sticky pane is the same one the task list uses; this pins that the
+    ingredient page actually gets it, because a column that quietly stacks
+    or scrolls off is the sort of thing nothing else would notice.
+    """
+    name = _an_ingredient(dbengine, "Kardamom")
+
+    page.set_viewport_size({"width": 1280, "height": 800})
+    page.goto("/ingredient")
+    click_until(page, f"#ingredients li:has-text('{name}')", "#item-pane #field-tags")
+
+    list_box = page.locator("#ingredients").bounding_box()
+    pane_box = page.locator("#item-pane").bounding_box()
+    assert pane_box["x"] >= list_box["x"] + list_box["width"] - 1
+
+    assert (
+        page.evaluate(
+            "() => getComputedStyle(document.querySelector('#item-pane')).position"
+        )
+        == "sticky"
     )

@@ -1,6 +1,15 @@
 <!-- The whole item list. Adding an item swaps this block, which leaves the
      new-item input (outside it) untouched and still focused. -->
-<div id="proto-items">
+<!-- Refetched when the editor beside it saves something. disinherit,
+     because the pencils inside fetch their own editor and would otherwise
+     inherit this block's hx-select and swap nothing. -->
+<div id="proto-items"
+     hx-disinherit="*"
+     hx-get="${request.route_url('edit_protocol', id=protocol.id)}"
+     hx-trigger="item-updated from:body"
+     hx-target="#proto-items"
+     hx-select="#proto-items"
+     hx-swap="outerHTML">
   <p tal:condition="not items" class="text-muted fst-italic">
     No items yet<tal:block tal:condition="is_editor">. Add the first one below</tal:block>.
   </p>

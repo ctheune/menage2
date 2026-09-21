@@ -15,8 +15,6 @@ def includeme(config):
     config.add_route("suggest_ingredient", "/ingredient/suggest")
     config.add_route("list_ingredients", "/ingredient")
     config.add_route("ingredient_recipes", "/ingredient/{id}/recipes")
-    config.add_route("ingredient_panel", "/ingredient/{id}/panel")
-    config.add_route("ingredient_update", "/ingredient/{id}")
 
     # Auth
     config.add_route("login", "/login")
@@ -123,6 +121,10 @@ def includeme(config):
     config.add_route(
         "item_attachment_delete", "/items/{item_id}/attachment/{uuid}/delete"
     )
+
+    # The shared editor, for everything that is an item but not a todo.
+    config.add_route("item_panel", "/items/{id}/panel")
+    config.add_route("item_update", "/items/{id}")
 
     config.add_route("todos_done", "/todos/done-items")
     config.add_route("todos_hold", "/todos/hold-items")

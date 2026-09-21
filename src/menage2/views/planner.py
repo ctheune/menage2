@@ -249,6 +249,7 @@ def send_to_shopping_list(request):
                 tags=tags,
                 status=TodoStatus.todo,
                 owner=request.identity,
+                assignees=_shopping_assignees(request.dbsession),
                 created_at=now,
                 note=note,
             )

@@ -8,7 +8,7 @@ protocol shows up in the todo list and behaves in the details pane.
 
 import pytest
 
-from ._browser_helpers import click_until, select_row
+from ._browser_helpers import click_until, select_row, wait_wired
 
 
 @pytest.fixture(scope="session")
@@ -331,5 +331,68 @@ def test_a_checklist_can_carry_a_file(page, context, live_server, attachments_di
     assert resp.ok, f"Uploading to the checklist failed: {resp.status}"
 
     page.goto(f"/protocols/{pid}/edit")
-    page.wait_for_selector("#field-attachments img", timeout=10000)
+    # The editor lives beside the list; the pencil on the title opens it.
+    click_until(
+        page,
+        ".proto-title-view [title='Edit, with files']",
+        "#field-attachments img",
+    )
     assert page.locator("#field-attachments img").count() == 1
+
+
+def test_a_checklist_line_can_carry_a_file(page, context, live_server, attachments_dir):
+    """The pencil beside a line opens the same editor an ingredient gets."""
+    import io
+
+    from PIL import Image
+
+    pid = _make_protocol(context, live_server, "Spring clean", ["Windows"])
+
+    page.goto(f"/protocols/{pid}/edit")
+    click_until(
+        page,
+        ".proto-item-view [title='Edit, with files']",
+        "#item-pane #field-attachments",
+    )
+
+    # The line's own id, taken from the form the panel just rendered.
+    action = page.locator("#item-pane form").get_attribute("hx-post")
+    item_id = action.rstrip("/").split("/")[-1]
+
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), color=(200, 90, 30)).save(buf, format="JPEG")
+    resp = context.request.post(
+        f"{live_server}/items/{item_id}/attachments",
+        multipart={
+            "files[]": {
+                "name": "shelf.jpg",
+                "mimeType": "image/jpeg",
+                "buffer": buf.getvalue(),
+            }
+        },
+    )
+    assert resp.ok, f"Uploading to the line failed: {resp.status}"
+
+    page.reload()
+    page.wait_for_selector(".proto-item-view .bi-paperclip", timeout=10000)
+
+
+def test_editing_a_line_in_the_pane_saves_it(page, context, live_server):
+    pid = _make_protocol(context, live_server, "Spring clean", ["Windows"])
+
+    page.goto(f"/protocols/{pid}/edit")
+    click_until(
+        page,
+        ".proto-item-view [title='Edit, with files']",
+        "#item-pane #item-text",
+    )
+    wait_wired(page, "#item-pane #field-tags .new-tag")
+
+    page.locator("#item-pane #item-text").fill("Windows, inside and out")
+    # The pane arrives by swap and its handlers are attached afterwards, so a
+    # click in between is dropped; saving the same text twice is harmless.
+    click_until(
+        page,
+        '#item-pane button[type="submit"]',
+        ".proto-item-view:has-text('Windows, inside and out')",
+    )

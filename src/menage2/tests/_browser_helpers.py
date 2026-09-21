@@ -49,3 +49,24 @@ def click_until(page, selector: str, expect: str, attempts: int = 3) -> None:
         except PlaywrightTimeoutError:
             if attempt == attempts - 1:
                 raise
+
+
+def wait_wired(page, selector: str) -> None:
+    """Wait until hyperscript has wired the element's handlers.
+
+    Anything that arrives by htmx swap -- a list row, an editor pane --
+    has its handlers attached afterwards, and a click or a keystroke
+    dispatched in between is simply dropped. `_hyperscript.initialized` is
+    the flag hyperscript sets once it has done the work.
+    """
+    # Attached, not visible: an empty contentEditable span has no size, and
+    # being wired is the question here rather than being on screen.
+    page.wait_for_selector(selector, state="attached", timeout=10000)
+    page.wait_for_function(
+        """(selector) => {
+            const el = document.querySelector(selector);
+            return !!(el && el._hyperscript && el._hyperscript.initialized);
+        }""",
+        arg=selector,
+        timeout=10000,
+    )

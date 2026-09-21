@@ -16,6 +16,8 @@ import pytest
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
+from ._browser_helpers import wait_wired
+
 IPHONE_UA = (
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
@@ -113,26 +115,8 @@ def _open_list(page, url: str = "/todos") -> None:
     page.wait_for_selector("#todo-list .todo-item, .todo-list-empty", timeout=10000)
 
 
-def _wait_wired(page, selector: str) -> None:
-    """Wait until hyperscript has wired the element's handlers.
-
-    The list arrives by htmx swap and hyperscript initialises the new nodes
-    afterwards; a gesture or tap dispatched in between is simply dropped.
-    `_hyperscript.initialized` is the flag hyperscript sets once it has.
-    """
-    page.wait_for_selector(selector, timeout=10000)
-    page.wait_for_function(
-        """(selector) => {
-            const el = document.querySelector(selector);
-            return !!(el && el._hyperscript && el._hyperscript.initialized);
-        }""",
-        arg=selector,
-        timeout=10000,
-    )
-
-
 def _wait_swipe_ready(page, text: str) -> None:
-    _wait_wired(page, _item(text))
+    wait_wired(page, _item(text))
 
 
 def _select(page, text: str) -> None:
@@ -413,7 +397,7 @@ def _open_edit(page, text: str, attempts: int = 3):
     """
     target = f"{_item(text)} .flex-grow-1"
     for attempt in range(attempts):
-        _wait_wired(page, target)
+        wait_wired(page, target)
         page.locator(target).first.click()
         try:
             page.wait_for_selector("#mobile-edit.show .tab-content", timeout=3000)
@@ -877,7 +861,7 @@ def test_tapping_a_picture_opens_it_instead_of_the_edit_sheet(
     _open_list(page)
     _attach(context, live_server, _todo_id(page, "Look at this"), "holiday.jpg")
     page.reload()
-    _wait_wired(page, f"{_item('Look at this')} .todo-attachment-thumbs")
+    wait_wired(page, f"{_item('Look at this')} .todo-attachment-thumbs")
 
     # The row fetches its edit panel the moment it is tapped, so recording
     # what was asked for says more than looking at the sheet, which would not
@@ -901,7 +885,7 @@ def test_a_single_picture_offers_nothing_to_page_through(
     _open_list(page)
     _attach(context, live_server, _todo_id(page, "Just the one"), "only.jpg")
     page.reload()
-    _wait_wired(page, f"{_item('Just the one')} .todo-attachment-thumbs")
+    wait_wired(page, f"{_item('Just the one')} .todo-attachment-thumbs")
 
     _open_photo(page, "Just the one")
     assert page.locator("#mobile-photo-nav.d-none").count() == 1
@@ -919,7 +903,7 @@ def test_paging_through_a_row_of_pictures(page, context, live_server, attachment
         "third.jpg",
     )
     page.reload()
-    _wait_wired(page, f"{_item('Three of them')} .todo-attachment-thumbs")
+    wait_wired(page, f"{_item('Three of them')} .todo-attachment-thumbs")
 
     _open_photo(page, "Three of them", nth=1)
     assert page.locator("#mobile-photo-name").inner_text() == "second.jpg"
@@ -950,7 +934,7 @@ def test_tapping_the_picture_closes_the_viewer(
     _open_list(page)
     _attach(context, live_server, _todo_id(page, "Close me"), "shut.jpg")
     page.reload()
-    _wait_wired(page, f"{_item('Close me')} .todo-attachment-thumbs")
+    wait_wired(page, f"{_item('Close me')} .todo-attachment-thumbs")
 
     _open_photo(page, "Close me")
     page.locator("#mobile-photo-image").click()

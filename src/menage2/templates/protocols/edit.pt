@@ -18,6 +18,8 @@
   </span>
 
   <div metal:fill-slot="content" class="container-fluid px-3 pt-3">
+    <div class="row">
+      <div class="col-lg-6">
 
     <!-- Title / tags / recurrence / note. Same view-or-edit line as the items;
          saving reloads the page because the title also heads it. -->
@@ -32,6 +34,19 @@
                   remove .d-none from form
                   focus the first <input/> in form">
           <strong class="flex-grow-1">${protocol.title}</strong>
+          <span tal:condition="protocol.attachments"
+                class="flex-shrink-0" title="Has files"><i class="bi bi-paperclip"></i></span>
+          <!-- The same pair the lines offer: the line itself is the quick
+               edit, the pencil is the full one beside the list. -->
+          <button tal:condition="is_editor"
+                  type="button"
+                  class="btn btn-link btn-sm p-0 flex-shrink-0"
+                  hx-get="${request.route_url('item_panel', id=protocol.id)}"
+                  hx-target="#item-pane"
+                  hx-swap="outerHTML"
+                  title="Edit, with files">
+            <i class="bi bi-pencil"></i>
+          </button>
           <span tal:repeat="t python:sorted(protocol.tags)"
                 class="badge rounded-pill bg-secondary">#${t}</span>
           <span tal:repeat="a python:sorted(protocol.assignees)"
@@ -57,12 +72,6 @@
                       halt" />
         </form>
       </div>
-
-      <!-- The checklist's own files: the manual, the layout it follows.
-           Same partial the task panel uses; any item can carry them now. -->
-      <div class="card-body border-top" tal:condition="is_editor">
-        <div metal:use-macro="load: ../_item_files.pt"></div>
-      </div>
     </div>
 
     <!-- Items -->
@@ -87,5 +96,13 @@
              placeholder="New item — text #tag @who ~note" />
     </form>
 
+      </div>
+
+      <!-- The editor, beside the list and staying put while it scrolls.
+           The same one an ingredient opens: a checklist, its lines and an
+           ingredient are the same kind of thing underneath. -->
+      <div class="details-pane d-none" id="item-pane"></div>
+
+    </div>
   </div>
 </div>

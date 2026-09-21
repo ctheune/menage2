@@ -12,11 +12,24 @@
               remove .d-none from form
               focus the first <input/> in form">
       <span class="flex-grow-1">${item.text}</span>
+      <span tal:condition="item.attachments"
+            class="flex-shrink-0" title="Has files"><i class="bi bi-paperclip"></i></span>
       <span tal:repeat="t python:sorted(item.tags)"
             class="badge rounded-pill bg-secondary">#${t}</span>
       <span tal:repeat="a python:sorted(item.assignees)"
             class="badge rounded-pill todo-assignee-pill-sm">@${a}</span>
       <span tal:condition="item.note" class="text-muted small">~${item.note}</span>
+      <!-- The pencil opens the full editor beside the list; clicking the
+           line itself still gives the quick marker input. -->
+      <button tal:condition="is_editor"
+              type="button"
+              class="btn btn-link btn-sm p-0 flex-shrink-0"
+              hx-get="${request.route_url('item_panel', id=item.id)}"
+              hx-target="#item-pane"
+              hx-swap="outerHTML"
+              title="Edit, with files">
+        <i class="bi bi-pencil"></i>
+      </button>
       <button tal:condition="is_editor"
               type="button"
               class="btn btn-link btn-sm p-0 text-danger flex-shrink-0"

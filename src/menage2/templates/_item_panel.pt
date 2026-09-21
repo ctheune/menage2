@@ -1,0 +1,46 @@
+<!-- Editing one item: text, tags, assignees, a note and its files.
+
+     The same form for a checklist, a checklist line and an ingredient,
+     because underneath they are the same thing. A todo keeps its own,
+     richer panel: it has a status, a due date, a repetition and sometimes
+     a checklist behind it, none of which these have.
+
+     It renders the pane around itself rather than being swapped into one:
+     a pane that something else has to un-hide depends on hyperscript
+     having been wired before the click, which is a race nothing can win
+     reliably. Arriving already visible has no such step.
+
+     Needs `item`, `tags_json`, `assignees_json`, `attachments_json` and
+     `upload_url` in scope.
+-->
+<div class="details-pane" id="item-pane">
+ <div class="todo-list-wrap card-body">
+
+  <form hx-post="${request.route_url('item_update', id=item.id)}"
+        hx-target="#item-pane"
+        hx-swap="outerHTML">
+
+    <div class="mb-3">
+      <label for="item-text">${text_label}</label>
+      <input type="text" class="form-control" id="item-text" name="text"
+             autocomplete="off" value="${item.text}"
+             _="on keydown[key is 'Enter'] send submit to closest <form/> then halt" />
+    </div>
+
+    <div metal:use-macro="load: ./_tag_field.pt"></div>
+    <div metal:use-macro="load: ./_assignee_field.pt"
+         tal:condition="wants_assignees"></div>
+
+    <div class="mb-3">
+      <label for="item-note">Note</label>
+      <textarea class="form-control" id="item-note" name="note"
+                rows="2">${python:item.note or ''}</textarea>
+    </div>
+
+    <div metal:use-macro="load: ./_item_files.pt"></div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+  </form>
+
+ </div>
+</div>
