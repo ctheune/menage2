@@ -37,6 +37,7 @@ from menage2.recurrence import (
 
 from .item import Item, TagSet, TodoStatus
 from .meta import Base
+from .todo import Todo
 
 
 class Protocol(Item):
@@ -71,7 +72,9 @@ class Protocol(Item):
     runs: Mapped[list["ProtocolRun"]] = relationship(
         "ProtocolRun",
         back_populates="protocol",
-        order_by="ProtocolRun.spawned_at.desc()",
+        order_by="ProtocolRun.created_at.desc()",
+        # A run belongs to a protocol, and both are items; this is belonging.
+        foreign_keys="ProtocolRun.protocol_id",
     )
     recurrence: Mapped[Optional["RecurrenceRule"]] = relationship(
         "RecurrenceRule", lazy="joined"
@@ -122,34 +125,41 @@ class ProtocolItem(Item):
         )
 
 
-class ProtocolRun(Base):
+class ProtocolRun(Todo):
+    """One working-through of a checklist -- and the task that says it is due.
+
+    These used to be two rows: a run, and a todo paired with it 1-to-1 whose
+    text, tags, due date and status were the run's in everything but name.
+    Ticking the todo closed the run and closing the run ticked the todo,
+    which is a long way of saying they were the same thing. A run is a todo
+    that has a checklist behind it.
+    """
+
     __tablename__ = "protocol_runs"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, ForeignKey("todos.id", ondelete="CASCADE"), primary_key=True)
     protocol_id = Column(Integer, ForeignKey("protocols.id"), nullable=False)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    spawned_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-    )
+    #: When the items were snapshotted -- the one date that is the run's own.
+    #: Spawning is `created_at` and closing is `done_at`, on the item.
     opened_at = Column(DateTime(timezone=True))
-    closed_at = Column(DateTime(timezone=True))
 
-    protocol = relationship("Protocol", back_populates="runs")
-    owner = relationship("User", foreign_keys=[owner_id])
+    __mapper_args__ = {
+        "polymorphic_identity": "protocol_run",
+        "inherit_condition": id == Todo.id,
+        # The task list loads todos and runs together; without this each run
+        # row on the list costs a query of its own.
+        "polymorphic_load": "selectin",
+    }
+
+    protocol = relationship(
+        "Protocol", back_populates="runs", foreign_keys=[protocol_id]
+    )
     items = relationship(
         "ProtocolRunItem",
         back_populates="run",
         order_by="ProtocolRunItem.position",
         cascade="all, delete-orphan",
-    )
-    # 1-to-1 with Todo via Todo.protocol_run_id (the FK lives on Todo).
-    todo = relationship(
-        "Todo",
-        back_populates="protocol_run",
-        uselist=False,
-        foreign_keys="Todo.protocol_run_id",
+        foreign_keys="ProtocolRunItem.run_id",
     )
 
     def sorted_items(self) -> list["ProtocolRunItem"]:
@@ -187,20 +197,21 @@ class ProtocolRun(Base):
         self.opened_at = datetime.datetime.now(datetime.timezone.utc)
 
     def maybe_close_run(self):
-        """Close the run + auto-complete its todo when every item is resolved."""
-        now = datetime.datetime.now(datetime.timezone.utc)
-        today = now.date()
+        """Tick it off when every item is resolved.
+
+        Closing the run and completing the task are one act now; they were
+        always meant to be the same one.
+        """
         if any(i.is_pending for i in self.items):
             return
-        if self.closed_at is None:
-            self.closed_at = now
-        todo = self.todo
-        if todo and todo.status == TodoStatus.todo:
-            todo.status = TodoStatus.done
-            todo.done_at = now
-            dbsession = object_session(self)
-            spawn_protocol_after(self, today, now, dbsession)
-            spawn_protocol_every_on_completion(self, today, now, dbsession)
+        if self.status != TodoStatus.todo:
+            return
+        now = datetime.datetime.now(datetime.timezone.utc)
+        self.status = TodoStatus.done
+        self.done_at = now
+        dbsession = object_session(self)
+        spawn_protocol_after(self, now.date(), now, dbsession)
+        spawn_protocol_every_on_completion(self, now.date(), now, dbsession)
 
 
 class ProtocolRunItem(Item):
@@ -220,7 +231,7 @@ class ProtocolRunItem(Item):
         "inherit_condition": id == Item.id,
     }
 
-    run = relationship("ProtocolRun", back_populates="items")
+    run = relationship("ProtocolRun", back_populates="items", foreign_keys=[run_id])
 
     @property
     def is_pending(self) -> bool:

@@ -59,16 +59,6 @@ class Todo(Item):
         Integer, ForeignKey("todos.id"), nullable=True, unique=True
     )
 
-    # 1-to-1 link to a ProtocolRun. Set when this todo was spawned for a
-    # protocol run (the user's calendar trigger). UNIQUE so each run has
-    # exactly one todo.
-    protocol_run_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("protocol_runs.id"),
-        unique=True,
-        nullable=True,
-    )
-
     attachments: Mapped[list["TodoAttachment"]] = relationship(
         "TodoAttachment",
         back_populates="todo",
@@ -85,12 +75,6 @@ class Todo(Item):
     )
     recurred_into = relationship(
         "Todo", remote_side="Todo.id", foreign_keys=[recurred_into_id]
-    )
-    protocol_run = relationship(
-        "ProtocolRun",
-        back_populates="todo",
-        foreign_keys=[protocol_run_id],
-        lazy="joined",
     )
 
     __mapper_args__ = {"polymorphic_identity": "todo"}

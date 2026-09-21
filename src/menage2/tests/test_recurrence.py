@@ -3,6 +3,7 @@
 import datetime
 
 import pytest
+import sqlalchemy
 
 from menage2.dateparse import RecurrenceSpec
 from menage2.models.protocol import Protocol, ProtocolRun
@@ -531,17 +532,18 @@ def _make_protocol(dbsession, admin_user, title="Weekly inventory", recurrence=N
     return p
 
 
-def test_spawn_protocol_run_creates_run_and_todo(dbsession, admin_user):
+def test_spawn_protocol_run_creates_the_task_that_is_the_run(dbsession, admin_user):
+    """One row, not two: the run is the task on the list."""
     p = _make_protocol(dbsession, admin_user)
     today = datetime.date(2026, 4, 29)
     run = spawn_protocol_run(p, today, _now(), dbsession)
     assert run.protocol_id == p.id
     assert run.opened_at is None
-    assert run.closed_at is None
-    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
-    assert todo.text == "Weekly inventory"
-    assert todo.due_date == today
-    assert todo.status == TodoStatus.todo
+    assert run.text == "Weekly inventory"
+    assert run.due_date == today
+    assert run.status == TodoStatus.todo
+    # It is on the task list, because it is a todo.
+    assert dbsession.query(Todo).filter(Todo.id == run.id).one() is run
 
 
 def test_spawn_protocol_after_creates_next_run(dbsession, admin_user):
@@ -551,8 +553,7 @@ def test_spawn_protocol_after_creates_next_run(dbsession, admin_user):
     completion = datetime.date(2026, 5, 2)  # completed 3 days late
     new_run = spawn_protocol_after(initial, completion, _now(), dbsession)
     assert new_run is not None
-    new_todo = dbsession.query(Todo).filter(Todo.protocol_run_id == new_run.id).one()
-    assert new_todo.due_date == datetime.date(2026, 5, 9)
+    assert new_run.due_date == datetime.date(2026, 5, 9)
 
 
 def test_spawn_protocol_after_no_op_for_every(dbsession, admin_user):
@@ -569,20 +570,17 @@ def test_spawn_protocol_every_on_completion_creates_next(dbsession, admin_user):
     rule = _make_rule(dbsession, "every", "week", weekday=2)
     p = _make_protocol(dbsession, admin_user, recurrence=rule)
     run = spawn_protocol_run(p, today, _now(), dbsession)
-    # Simulate completion: mark the run's todo done so the future-active check
-    # no longer counts it.
-    run.todo.status = TodoStatus.done
-    run.todo.done_at = _now()
-    run.closed_at = _now()
+    # Simulate completion, so the future-active check no longer counts it.
+    run.status = TodoStatus.done
+    run.done_at = _now()
     dbsession.flush()
     spawned = spawn_protocol_every_on_completion(run, today, _now(), dbsession)
     assert spawned == 1
     futures = (
-        dbsession.query(Todo)
-        .join(ProtocolRun, ProtocolRun.id == Todo.protocol_run_id)
+        dbsession.query(ProtocolRun)
         .filter(
             ProtocolRun.protocol_id == p.id,
-            Todo.due_date >= today + datetime.timedelta(days=1),
+            ProtocolRun.due_date >= today + datetime.timedelta(days=1),
         )
         .all()
     )
@@ -611,9 +609,8 @@ def test_daily_sweep_includes_protocols(dbsession, admin_user):
     spawned = run_sweep(dbsession, today, _now())
     assert spawned >= 1
     actives = (
-        dbsession.query(Todo)
-        .join(ProtocolRun, ProtocolRun.id == Todo.protocol_run_id)
-        .filter(ProtocolRun.protocol_id == p.id, Todo.due_date >= today)
+        dbsession.query(ProtocolRun)
+        .filter(ProtocolRun.protocol_id == p.id, ProtocolRun.due_date >= today)
         .count()
     )
     assert actives >= 1
@@ -640,10 +637,7 @@ def test_ensure_protocol_has_run_creates_first_run(dbsession, admin_user):
     ensure_protocol_has_run(p, today, _now(), dbsession)
     runs = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).all()
     assert len(runs) >= 1
-    todos = [
-        dbsession.query(Todo).filter(Todo.protocol_run_id == r.id).one() for r in runs
-    ]
-    assert any(t.due_date >= today for t in todos)
+    assert any(r.due_date >= today for r in runs)
 
 
 def test_ensure_protocol_has_run_no_op_when_active_exists(dbsession, admin_user):
@@ -696,7 +690,10 @@ def _prune_branches(dbsession) -> int:
     # removes the todo; the migration names both so its own SQL can still
     # be what runs here. See _BRANCHES_SQL in that file.
     removed = migration.prune_branches(
-        dbsession.connection(), rules="items", rows="items"
+        dbsession.connection(),
+        rules="items",
+        rows="items",
+        runs="SELECT id FROM protocol_runs",
     )
     dbsession.expire_all()
     return removed
@@ -774,15 +771,21 @@ def test_a_protocol_runs_todo_is_kept_where_it_is(dbsession, admin_user):
     protocol = Protocol(title="Bins", owner_id=admin_user.id)
     dbsession.add(protocol)
     dbsession.flush()
-    run = ProtocolRun(
-        protocol_id=protocol.id, spawned_at=_now(), owner_id=admin_user.id
-    )
-    dbsession.add(run)
-    dbsession.flush()
 
     rule = _make_rule(dbsession, "every", "week", n=1)
     a, b, c, d = _fork(dbsession, admin_user, rule)
-    a.protocol_run_id = run.id
+    # A is a run: the same row, wearing the subtype. Deleting it would take
+    # the checklist with it.
+    dbsession.execute(
+        sqlalchemy.text("UPDATE items SET kind = 'protocol_run' WHERE id = :id"),
+        {"id": a.id},
+    )
+    dbsession.execute(
+        sqlalchemy.text(
+            "INSERT INTO protocol_runs (id, protocol_id) VALUES (:id, :protocol)"
+        ),
+        {"id": a.id, "protocol": protocol.id},
+    )
     dbsession.flush()
 
     # A stays, and B — which it pointed at — still goes.

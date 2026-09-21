@@ -56,7 +56,7 @@
       tal:attributes="data-recurrence python:_recurrence_label(todo);
                         data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments]);
                         data-todo-links python:__import__('json').dumps(['[' + (l.label or '') + '](' + l.url + ')' for l in todo.links_rel]);
-                        data-run-started python:'true' if todo.protocol_run_id and todo.protocol_run and todo.protocol_run.opened_at else 'false'"
+                        data-run-started python:'true' if getattr(todo, 'opened_at', None) else 'false'"
     >
       <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2"
            tal:define="shown python:assignees_shown[todo.id];
@@ -131,7 +131,7 @@
         </span>
 
         <span
-          tal:condition="todo.protocol_run_id"
+          tal:condition="python:todo.kind == 'protocol_run'"
           class="todo-protocol-link flex-shrink-0 small"
         >
           <i class="bi bi-clipboard-check"></i>

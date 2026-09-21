@@ -270,26 +270,23 @@ def spawn_protocol_run(
     dbsession,
     owner_id: int | None = None,
 ) -> menage2.models.ProtocolRun:
-    """Create one ProtocolRun + its calendar Todo. Items are NOT snapshotted
-    yet — that happens lazily when the user opens the run page.
+    """Create one ProtocolRun. Items are NOT snapshotted yet — that happens
+    lazily when the user opens the run page.
+
+    The run is the task on the list; there is no second row for it.
     """
     effective_owner = owner_id if owner_id is not None else protocol.owner_id
     run = menage2.models.ProtocolRun(
-        protocol_id=protocol.id, spawned_at=now_utc, owner_id=effective_owner
-    )
-    dbsession.add(run)
-    dbsession.flush()
-    todo = Todo(
+        protocol_id=protocol.id,
         text=protocol.title,
         tags=set(protocol.tags) if protocol.tags else set(),
         assignees=set(protocol.assignees) if protocol.assignees else set(),
         status=TodoStatus.todo,
         created_at=now_utc,
         due_date=due_date,
-        protocol_run_id=run.id,
         owner_id=effective_owner,
     )
-    dbsession.add(todo)
+    dbsession.add(run)
     dbsession.flush()
     return run
 
@@ -298,17 +295,14 @@ def _has_today_or_future_active_run(
     dbsession, protocol_id: int, today: datetime.date
 ) -> bool:
     """Whether the protocol has an active run-todo due today or later."""
+    ProtocolRun = menage2.models.protocol.ProtocolRun
     return (
         dbsession.execute(
-            select(Todo.id)
-            .join(
-                menage2.models.protocol.ProtocolRun,
-                menage2.models.protocol.ProtocolRun.id == Todo.protocol_run_id,
-            )
+            select(ProtocolRun.id)
             .where(
-                menage2.models.protocol.ProtocolRun.protocol_id == protocol_id,
-                Todo.status == TodoStatus.todo,
-                Todo.due_date >= today,
+                ProtocolRun.protocol_id == protocol_id,
+                ProtocolRun.status == TodoStatus.todo,
+                ProtocolRun.due_date >= today,
             )
             .limit(1)
         ).scalar()
@@ -320,10 +314,12 @@ def _latest_run_due_for_protocol(dbsession, protocol_id: int) -> datetime.date |
     """The most recent due_date of any run-todo for this protocol."""
     ProtocolRun = menage2.models.protocol.ProtocolRun
     return dbsession.execute(
-        select(Todo.due_date)
-        .join(ProtocolRun, ProtocolRun.id == Todo.protocol_run_id)
-        .where(ProtocolRun.protocol_id == protocol_id, Todo.due_date.is_not(None))
-        .order_by(Todo.due_date.desc())
+        select(ProtocolRun.due_date)
+        .where(
+            ProtocolRun.protocol_id == protocol_id,
+            ProtocolRun.due_date.is_not(None),
+        )
+        .order_by(ProtocolRun.due_date.desc())
         .limit(1)
     ).scalar()
 

@@ -31,11 +31,12 @@ depends_on = None
 #: is on. Ids only go up, so the newest is the tip of the chain the rule is
 #: actually up to, and walking back from it along the successor pointer gives
 #: the rest of that chain. Everything else with the same rule is a branch.
-#: `rules` is whatever table holds `recurrence_id`, and `rows` is the table a
-#: todo is deleted from. Both are `todos` when this migration runs, which is
-#: what it was written against. They are named rather than spelled so the
-#: tests can run this very SQL against the schema of the day -- recurrence_id
-#: moved to `items` later on, and deleting the item is what removes the todo.
+#: Three schema facts, named rather than spelled, so the tests can run this
+#: very SQL against the schema of the day rather than a copy of it. All three
+#: are `todos` columns when this migration runs, which is what it was written
+#: against; each has moved since. `rules` holds `recurrence_id`, `rows` is
+#: what a todo is deleted from, and `runs` says which todos stand for a
+#: protocol run and must be kept where they are.
 _BRANCHES_SQL = """
 WITH RECURSIVE tips AS (
         SELECT recurrence_id, MAX(id) AS id
@@ -49,38 +50,43 @@ WITH RECURSIVE tips AS (
         SELECT earlier.id
           FROM todos AS earlier JOIN chain ON earlier.recurred_into_id = chain.id
 ), branches AS (
-        SELECT todos.id, todos.protocol_run_id
+        SELECT todos.id,
+               (todos.id IN ({runs})) AS is_run
           FROM todos JOIN {rules} AS rule ON rule.id = todos.id
          WHERE rule.recurrence_id IS NOT NULL
            AND todos.id NOT IN (SELECT id FROM chain)
 )
 """
 
-_BRANCHES = _BRANCHES_SQL.format(rules="todos")
+_RUNS = "SELECT id FROM todos WHERE protocol_run_id IS NOT NULL"
 
-_RUN_TODOS_SQL = "SELECT COUNT(*) FROM branches WHERE protocol_run_id IS NOT NULL"
+_BRANCHES = _BRANCHES_SQL.format(rules="todos", runs=_RUNS)
+
+_RUN_TODOS_SQL = "SELECT COUNT(*) FROM branches WHERE is_run"
 
 #: Nothing may still point at a row that is about to go, including a kept
 #: item whose successor was on a branch.
 _UNLINK_SQL = """
 UPDATE todos
    SET recurred_into_id = NULL
- WHERE recurred_into_id IN (SELECT id FROM branches WHERE protocol_run_id IS NULL)
+ WHERE recurred_into_id IN (SELECT id FROM branches WHERE NOT is_run)
 """
 
 _DELETE_SQL = """
 DELETE FROM {rows}
- WHERE id IN (SELECT id FROM branches WHERE protocol_run_id IS NULL)
+ WHERE id IN (SELECT id FROM branches WHERE NOT is_run)
 """
 
 
-def prune_branches(bind, rules: str = "todos", rows: str = "todos") -> int:
+def prune_branches(
+    bind, rules: str = "todos", rows: str = "todos", runs: str = _RUNS
+) -> int:
     """Remove the branches, returning how many todos went. Used by the test.
 
     See `_BRANCHES_SQL` for what `rules` and `rows` name. The defaults are
     the schema this migration runs against.
     """
-    branches = _BRANCHES_SQL.format(rules=rules)
+    branches = _BRANCHES_SQL.format(rules=rules, runs=runs)
     bind.execute(sa.text(branches + _UNLINK_SQL))
     return bind.execute(sa.text(branches + _DELETE_SQL.format(rows=rows))).rowcount
 

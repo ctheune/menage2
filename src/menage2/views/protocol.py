@@ -215,15 +215,14 @@ def update_protocol(request):
                 request.dbsession.execute(
                     select(ProtocolRun).where(
                         ProtocolRun.protocol_id == p.id,
-                        ProtocolRun.closed_at.is_(None),
+                        ProtocolRun.status == TodoStatus.todo,
                     )
                 )
                 .scalars()
                 .all()
             )
             for run in active_runs:
-                if run.todo and run.todo.status.value == "todo":
-                    run.todo.text = new_title
+                run.text = new_title
         p.tags = parsed.tags
         p.assignees = set(parsed.assignees)
         p.note = parsed.note or None
@@ -363,7 +362,7 @@ def _run_partial_response(request, run):
 
     """
     request.response.hx_trigger("todo-updated")
-    if run.closed_at:
+    if run.status != TodoStatus.todo:
         request.response.hx_trigger("todo-closed")
     return render_to_response(
         "menage2:templates/_protocol_run_partial.pt",

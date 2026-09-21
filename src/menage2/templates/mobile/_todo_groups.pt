@@ -126,7 +126,7 @@
           </span>
         </span>
 
-        <span tal:condition="todo.protocol_run_id" class="todo-protocol-link flex-shrink-0 small">
+        <span tal:condition="python:todo.kind == 'protocol_run'" class="todo-protocol-link flex-shrink-0 small">
           <i class="bi bi-clipboard-check"></i>
         </span>
 

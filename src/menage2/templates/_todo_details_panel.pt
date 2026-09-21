@@ -346,7 +346,7 @@
     </form>
 
     <!-- Protocol run checklist — same partial the run actions swap in -->
-    <tal:block tal:condition="todo.protocol_run">
+    <tal:block tal:condition="run_html">
       <div class="card-body">
         <h5>Checklist</h5>
       </div>

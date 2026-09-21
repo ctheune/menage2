@@ -299,7 +299,7 @@ def test_start_protocol_run_creates_run_and_todo(
     p = _make_protocol(dbsession, admin_user, items=["a", "b"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    todo = run  # the run is the task; one row, not two
     assert todo.text == p.title
     assert todo.due_date == _today()
     assert run.opened_at is None
@@ -314,7 +314,7 @@ def test_start_protocol_run_copies_assignees_to_todo(
     dbsession.flush()
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    todo = run  # the run is the task; one row, not two
     assert todo.assignees == {"alice", "bob"}
 
 
@@ -326,7 +326,7 @@ def test_start_protocol_run_copies_tags_to_todo(
     dbsession.flush()
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    todo = run  # the run is the task; one row, not two
     assert todo.tags == {"maintenance", "weekly"}
 
 
@@ -336,7 +336,7 @@ def test_show_run_snapshots_items_on_first_open(
     p = _make_protocol(dbsession, admin_user, items=["alpha", "beta", "gamma"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    todo = run  # the run is the task; one row, not two
     res = authenticated_testapp.get(
         f"/todos/details-panel?todo_ids[]={todo.id}", status=200
     )
@@ -356,7 +356,7 @@ def test_show_run_reuses_snapshot_after_template_edit(
     p = _make_protocol(dbsession, admin_user, items=["original-1", "original-2"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    todo = run  # the run is the task; one row, not two
     authenticated_testapp.get(f"/todos/details-panel?todo_ids[]={todo.id}", status=200)
     # Now mutate the template
     authenticated_testapp.post(
@@ -379,7 +379,7 @@ def test_show_run_reuses_snapshot_after_template_edit(
 def _start_and_open_run(testapp, dbsession, p):
     testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    todo = run  # the run is the task; one row, not two
     testapp.get(f"/todos/details-panel?todo_ids[]={todo.id}", status=200)
     dbsession.flush()
     dbsession.refresh(run)
@@ -444,8 +444,8 @@ def test_run_auto_closes_when_all_resolved(
         )
     dbsession.flush()
     dbsession.refresh(run)
-    assert run.closed_at is not None
-    todo = run.todo
+    assert run.status == TodoStatus.done
+    todo = run
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.done
@@ -462,13 +462,13 @@ def test_completing_protocol_run_todo_closes_run(
     p = _make_protocol(dbsession, admin_user, items=["x"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    todo = run  # the run is the task; one row, not two
     authenticated_testapp.post(
         "/todos/done-items", {"todo_ids": str(todo.id)}, status=200
     )
     dbsession.flush()
     dbsession.refresh(run)
-    assert run.closed_at is not None
+    assert run.status == TodoStatus.done
 
 
 def test_edit_protocol_title_syncs_to_active_run_todos(
@@ -477,7 +477,7 @@ def test_edit_protocol_title_syncs_to_active_run_todos(
     p = _make_protocol(dbsession, admin_user, title="Old title", items=["x"])
     authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
     run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    todo = dbsession.query(Todo).filter(Todo.protocol_run_id == run.id).one()
+    todo = run  # the run is the task; one row, not two
     assert todo.text == "Old title"
     authenticated_testapp.post(
         f"/protocols/{p.id}/edit", {"composite": "New title"}, status=303
@@ -525,7 +525,7 @@ def test_automatic_protocol_run_copies_assignees_and_tags(
     p.tags = {"automated"}
     dbsession.flush()
     run = _start_and_open_run(authenticated_testapp, dbsession, p)
-    first_todo = run.todo
+    first_todo = run
     assert first_todo.assignees == {"carol"}
     assert first_todo.tags == {"automated"}
     # Now complete and spawn the next run
@@ -537,14 +537,12 @@ def test_automatic_protocol_run_copies_assignees_and_tags(
     runs = (
         dbsession.query(ProtocolRun)
         .filter(ProtocolRun.protocol_id == p.id)
-        .order_by(ProtocolRun.spawned_at)
+        .order_by(ProtocolRun.created_at)
         .all()
     )
     assert len(runs) == 2
     second_run = runs[1]
-    second_todo = (
-        dbsession.query(Todo).filter(Todo.protocol_run_id == second_run.id).one()
-    )
+    second_todo = second_run
     assert second_todo.assignees == {"carol"}
     assert second_todo.tags == {"automated"}
 
@@ -566,9 +564,7 @@ def test_completing_protocol_todo_with_after_rule_spawns_next(
     first_run = (
         dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
     )
-    first_todo = (
-        dbsession.query(Todo).filter(Todo.protocol_run_id == first_run.id).one()
-    )
+    first_todo = first_run
     authenticated_testapp.post(
         "/todos/done-items", {"todo_ids": str(first_todo.id)}, status=200
     )
@@ -577,7 +573,7 @@ def test_completing_protocol_todo_with_after_rule_spawns_next(
     new_todo = (
         dbsession.query(Todo)
         .filter(
-            Todo.protocol_run_id.in_([r.id for r in runs]),
+            Todo.id.in_([r.id for r in runs]),
             Todo.status == TodoStatus.todo,
         )
         .one()

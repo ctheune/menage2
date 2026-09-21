@@ -23,6 +23,7 @@ from menage2.dateparse import (
 from menage2.fuzzy import fuzzy_filter, fuzzy_highlight
 from menage2.markers import scan
 from menage2.models.principal import Principal
+from menage2.models.protocol import ProtocolRun
 from menage2.models.team import Team
 from menage2.models.todo import (
     RecurrenceKind,
@@ -498,19 +499,19 @@ def _render_todo_fields(request, todo, prefix: str) -> str:
 
 
 def _render_run(request, todo) -> str:
-    """The checklist of the protocol run this todo stands for, if it is one.
+    """The checklist behind this todo, if it is a run.
 
     Empty string when it is an ordinary todo, which is also what says whether
     a panel needs to offer the checklist at all.
     """
-    if not todo.protocol_run:
+    if not isinstance(todo, ProtocolRun):
         return ""
-    todo.protocol_run.ensure_snapshot_run_items()
+    todo.ensure_snapshot_run_items()
     # The same partial the run's own actions swap in, so there is one copy of
     # the checklist markup.
     return render(
         "menage2:templates/_protocol_run_partial.pt",
-        {"run": todo.protocol_run},
+        {"run": todo},
         request=request,
     )
 
@@ -529,7 +530,7 @@ def _filter_todos(
 ) -> list[Todo]:
     """Items shown in the main list: status=todo and due today/earlier (or undated)."""
 
-    query = dbsession.query(Todo).options(joinedload(Todo.protocol_run))
+    query = dbsession.query(Todo)
     order = _todo_order(Todo.due_date)
 
     if status == "active":
@@ -900,14 +901,11 @@ def todos_done(request):
             todo.done_at = now
             spawn_after(todo, today, now, request.dbsession)
             spawn_every_on_completion(todo, today, now, request.dbsession)
-            # Protocol-run todos: close the run and trigger the protocol's own
-            # recurrence (spawn the next run if rule is after/every).
-            if todo.protocol_run is not None:
-                run = todo.protocol_run
-                if run.closed_at is None:
-                    run.closed_at = now
-                spawn_protocol_after(run, today, now, request.dbsession)
-                spawn_protocol_every_on_completion(run, today, now, request.dbsession)
+            # Ticking off a run is closing it, so the protocol's own
+            # recurrence fires here too: the next run, if the rule says so.
+            if isinstance(todo, ProtocolRun):
+                spawn_protocol_after(todo, today, now, request.dbsession)
+                spawn_protocol_every_on_completion(todo, today, now, request.dbsession)
     request.dbsession.flush()
     response = request.response
     response.content_type = "text/html"
@@ -1271,13 +1269,10 @@ def todo_batch_action(request):
                 todo.done_at = now
                 spawn_after(todo, today, now, request.dbsession)
                 spawn_every_on_completion(todo, today, now, request.dbsession)
-                if todo.protocol_run is not None:
-                    run = todo.protocol_run
-                    if run.closed_at is None:
-                        run.closed_at = now
-                    spawn_protocol_after(run, today, now, request.dbsession)
+                if isinstance(todo, ProtocolRun):
+                    spawn_protocol_after(todo, today, now, request.dbsession)
                     spawn_protocol_every_on_completion(
-                        run, today, now, request.dbsession
+                        todo, today, now, request.dbsession
                     )
         request.response.hx_trigger.undo(entries, texts, "completed")
     elif action == "hold":
