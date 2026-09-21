@@ -1,81 +1,19 @@
 import datetime
-import enum
 
-from sqlalchemy import (
-    Column,
-    Constraint,
-    Date,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Index,
-    Integer,
-    Text,
-)
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import Column, Constraint, DateTime, ForeignKey, Index, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.types import TypeDecorator
 
+# Re-exported: these used to live here, and migrations, views and tests all
+# import them from this module. See models/item.py for where they went.
+from .item import (  # noqa: F401
+    Item,
+    RecurrenceKind,
+    RecurrenceRule,
+    RecurrenceUnit,
+    TagSet,
+    TodoStatus,
+)
 from .meta import Base
-
-
-class TagSet(TypeDecorator):
-    impl = ARRAY(Text)
-    cache_ok = True
-
-    def process_bind_param(self, value, dialect):
-        return sorted(value) if value else []
-
-    def process_result_value(self, value, dialect):
-        return set(value) if value else set()
-
-
-class TodoStatus(enum.Enum):
-    todo = "todo"
-    done = "done"
-    on_hold = "on_hold"
-
-
-class RecurrenceKind(enum.Enum):
-    after = "after"
-    every = "every"
-
-
-class RecurrenceUnit(enum.Enum):
-    day = "day"
-    week = "week"
-    month = "month"
-    year = "year"
-
-
-class RecurrenceRule(Base):
-    """A repetition rule shared by an item and every instance spawned from it.
-
-    Two ``kind`` semantics:
-
-    * ``after`` — a spawn is created when the previous instance is marked done,
-      anchored ``interval_value × interval_unit`` after the completion date.
-    * ``every`` — instances fire on a fixed cadence regardless of completion.
-      ``weekday`` (0=Mon..6=Sun) anchors weekly rules ("every Wednesday").
-      ``month_day`` anchors monthly rules ("every 15th").
-    """
-
-    __tablename__: str = "recurrence_rules"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    kind = Column(Enum(RecurrenceKind, name="recurrencekind"), nullable=False)
-    interval_value = Column(Integer, nullable=False, default=1)
-    interval_unit = Column(Enum(RecurrenceUnit, name="recurrenceunit"), nullable=False)
-    weekday = Column(Integer, nullable=True)  # 0=Mon..6=Sun for "every <weekday>"
-    month_day = Column(Integer, nullable=True)  # 1..31 for "every Nth"
-
-    @property
-    def label(self) -> str:
-        """Human-readable rule ("every Wednesday") — the `*` marker's payload."""
-        # Deferred: menage2.recurrence imports this module.
-        from menage2.recurrence import rule_to_spec
-
-        return rule_to_spec(self).label()
 
 
 class TodoLink(Base):
@@ -98,31 +36,16 @@ class TodoLink(Base):
     __table_args__ = (Index("ix_todo_links_todo_id", "todo_id"),)
 
 
-class Todo(Base):
+class Todo(Item):
+    """A task: an item with a status, a due date and a place in a chain."""
+
     __tablename__ = "todos"
 
-    id = Column(Integer, primary_key=True)
-    text = Column(Text, nullable=False)
+    id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("items.id", ondelete="CASCADE"), primary_key=True
+    )
     tags: set[str] = Column(TagSet, nullable=False, server_default="{}")
-    status = Column(
-        Enum(TodoStatus, name="todostatus"),
-        nullable=False,
-        server_default="todo",
-    )
-    created_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-    )
-    done_at = Column(DateTime(timezone=True))
-    on_hold_at = Column(DateTime(timezone=True))
-    due_date = Column(Date)
-    note = Column(Text)
-
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     assignees = Column(TagSet, nullable=False, server_default="{}")
-
-    recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
 
     #: The instance this one spawned, if any — the chain is written forwards.
     #:
@@ -146,7 +69,6 @@ class Todo(Base):
         nullable=True,
     )
 
-    owner = relationship("User", foreign_keys=[owner_id])
     attachments: Mapped[list["TodoAttachment"]] = relationship(
         "TodoAttachment",
         back_populates="todo",
@@ -161,7 +83,6 @@ class Todo(Base):
         lazy="select",
         order_by="TodoLink.position",
     )
-    recurrence = relationship("RecurrenceRule", lazy="joined")
     recurred_into = relationship(
         "Todo", remote_side="Todo.id", foreign_keys=[recurred_into_id]
     )
@@ -172,11 +93,7 @@ class Todo(Base):
         lazy="joined",
     )
 
-    __table_args__ = (
-        Index("ix_todos_due_date", "due_date"),
-        Index("ix_todos_recurrence_id", "recurrence_id"),
-        Index("ix_todos_owner_id", "owner_id"),
-    )
+    __mapper_args__ = {"polymorphic_identity": "todo"}
 
     def marker_text(self) -> str:
         """This todo as the marker string its edit affordances show and parse back."""

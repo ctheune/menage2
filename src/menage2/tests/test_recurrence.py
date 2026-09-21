@@ -692,7 +692,12 @@ def _prune_branches(dbsession) -> int:
     spec = importlib.util.spec_from_file_location("_migration_c1f4a7e3b210", path)
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
-    removed = migration.prune_branches(dbsession.connection())
+    # recurrence_id lives on `items` now, and deleting the item is what
+    # removes the todo; the migration names both so its own SQL can still
+    # be what runs here. See _BRANCHES_SQL in that file.
+    removed = migration.prune_branches(
+        dbsession.connection(), rules="items", rows="items"
+    )
     dbsession.expire_all()
     return removed
 
