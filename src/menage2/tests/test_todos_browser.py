@@ -653,13 +653,35 @@ def test_another_items_badge_replaces_the_open_history_panel(page):
 # ---------------------------------------------------------------------------
 
 
+def _open_help(page):
+    """Press `?` and wait until the overlay is properly open.
+
+    Two waits, both real: the key does nothing until hyperscript has wired
+    the handler, and Escape does nothing until Bootstrap has moved the focus
+    onto the modal at the end of its animation.
+    """
+    page.wait_for_function(
+        """() => {
+            const button = document.getElementById('kbd-help-open');
+            return button && button.hasAttribute('data-hyperscript-powered');
+        }""",
+        timeout=10000,
+    )
+    page.keyboard.press("?")
+    page.wait_for_selector("#kbd-help-overlay.show", timeout=5000)
+    page.wait_for_function(
+        "() => document.activeElement"
+        " && document.activeElement.id === 'kbd-help-overlay'",
+        timeout=5000,
+    )
+
+
 @pytest.mark.parametrize(
     "url", [STATUS_ACTIVE, STATUS_HOLD, STATUS_SCHEDULED, STATUS_DONE]
 )
 def test_help_overlay_opens_with_question_mark(page, url):
     page.goto(url)
-    page.keyboard.press("?")
-    page.wait_for_selector("#kbd-help-overlay", state="visible", timeout=5000)
+    _open_help(page)
     page.keyboard.press("Escape")
     page.wait_for_selector("#kbd-help-overlay", state="hidden", timeout=5000)
 
@@ -815,3 +837,56 @@ def test_the_arrow_keys_page_through_too(page, context, live_server, attachments
         " === '1 / 2'",
         timeout=5000,
     )
+
+
+def test_the_help_overlay_opens_and_closes(page):
+    """It is markup in the page now, not a string built in JavaScript."""
+    page.goto(STATUS_ACTIVE)
+    assert not page.locator("#kbd-help-overlay").is_visible()
+
+    _open_help(page)
+
+    assert (
+        "keyboard shortcuts" in page.locator("#kbd-help-overlay").inner_text().lower()
+    )
+
+    # Closing is Bootstrap's business now, not another key handler of ours.
+    page.keyboard.press("Escape")
+    page.wait_for_selector("#kbd-help-overlay.show", state="detached", timeout=5000)
+
+
+def test_typing_a_question_mark_does_not_open_it(page):
+    page.goto(STATUS_ACTIVE)
+    inp = page.locator("#input-add-todo-text")
+    inp.click()
+    inp.type("what? ")
+
+    assert not page.locator("#kbd-help-overlay").is_visible()
+    assert inp.input_value() == "what? "
+
+
+def test_every_shortcut_it_lists_is_one_we_bind(page):
+    """The overlay is the one place these are written down twice."""
+    import pathlib
+    import re
+
+    page.goto(STATUS_ACTIVE)
+    _open_help(page)
+
+    listed = set(
+        page.locator("#kbd-help-overlay kbd").evaluate_all(
+            "keys => keys.map(k => k.textContent.trim())"
+        )
+    )
+    single_letters = {k for k in listed if re.fullmatch(r"[a-z]", k)}
+    assert single_letters, "no single-letter shortcuts found to check"
+
+    templates = pathlib.Path(__file__).parent.parent / "templates"
+    bound = set()
+    for path in templates.rglob("*.pt"):
+        for match in re.finditer(r"key is '([a-z])'", path.read_text()):
+            bound.add(match.group(1))
+
+    # `j`, `k` and `t` belong to the protocol run, which is not a template
+    # binding yet — everything else the overlay claims is one.
+    assert single_letters - bound <= {"j", "k", "t"}, single_letters - bound

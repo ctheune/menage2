@@ -230,5 +230,7 @@
 
   <div metal:use-macro="load: ./_error_toast.pt"></div>
 
+  <div metal:use-macro="load: ./_help_overlay.pt"></div>
+
   </body>
 </html>

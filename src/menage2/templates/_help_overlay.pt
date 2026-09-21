@@ -1,0 +1,117 @@
+<!-- The keyboard shortcuts, as markup rather than as a string assembled in
+     JavaScript. A Bootstrap modal, so closing on Escape or on the backdrop
+     is Bootstrap's business and not another key handler of ours.
+
+     Every key listed here is bound somewhere in these templates; if one
+     moves, this is the other place to change. -->
+<div class="modal fade" id="kbd-help-overlay" tabindex="-1" aria-hidden="true"
+     aria-labelledby="kbd-help-title">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title text-uppercase fw-bold text-secondary small"
+            id="kbd-help-title">Keyboard shortcuts</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-4">
+
+          <div class="col-md">
+            <p class="text-uppercase fw-semibold text-secondary mb-1 small">Everywhere</p>
+            <table class="table table-sm table-borderless mb-0">
+              <tbody>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>?</kbd></td><td class="align-top">Show this help</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>Esc</kbd></td><td class="align-top">Cancel / close</td></tr>
+              </tbody>
+            </table>
+
+            <p class="text-uppercase fw-semibold text-secondary mb-1 mt-3 small">Todo list</p>
+            <table class="table table-sm table-borderless mb-0">
+              <tbody>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>click</kbd></td><td class="align-top">Select item — opens details pane</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>c</kbd></td><td class="align-top">Mark selected done</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>h</kbd></td><td class="align-top">Put selected on hold</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>a</kbd></td><td class="align-top">Activate selected (on-hold / done list)</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>Shift+P</kbd></td><td class="align-top">Postpone selected by 1 day</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>[</kbd></td><td class="align-top">Collapse all groups</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>]</kbd></td><td class="align-top">Expand all groups</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>click group</kbd></td><td class="align-top">Collapse / expand that group</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>u</kbd></td><td class="align-top">Undo last action — or click the toast</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>click ↻</kbd></td><td class="align-top">Show repetition history</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>click picture</kbd></td><td class="align-top">Open it full size — <kbd>←</kbd> <kbd>→</kbd> page through</td></tr>
+              </tbody>
+            </table>
+
+            <p class="text-uppercase fw-semibold text-secondary mb-1 mt-3 small">Details pane</p>
+            <table class="table table-sm table-borderless mb-0">
+              <tbody>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>e</kbd></td><td class="align-top">Edit title</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>d</kbd></td><td class="align-top">Edit due date</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>f</kbd></td><td class="align-top">Edit repetition rule</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>s</kbd></td><td class="align-top">Edit tags</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>~</kbd></td><td class="align-top">Edit note</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>@</kbd></td><td class="align-top">Edit assignees</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>l</kbd></td><td class="align-top">Add / edit link</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>click field</kbd></td><td class="align-top">Edit that field</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>Esc</kbd></td><td class="align-top">Close pane / picker</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="col-md">
+            <p class="text-uppercase fw-semibold text-secondary mb-1 small">Protocol run (in details pane)</p>
+            <table class="table table-sm table-borderless mb-0">
+              <tbody>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>j</kbd> / <kbd>↓</kbd></td><td class="align-top">Next item</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>k</kbd> / <kbd>↑</kbd></td><td class="align-top">Previous item</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>c</kbd></td><td class="align-top">Mark current done</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>t</kbd></td><td class="align-top">Send current to the todo list</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>e</kbd></td><td class="align-top">Edit current item before sending</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>Esc</kbd></td><td class="align-top">Close details pane</td></tr>
+              </tbody>
+            </table>
+
+            <p class="text-uppercase fw-semibold text-secondary mb-1 mt-3 small">Adding a todo (and protocol items)</p>
+            <table class="table table-sm table-borderless mb-0">
+              <tbody>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>#tag</kbd></td><td class="align-top">Attach a tag (single word)</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>@who</kbd></td><td class="align-top">Assign to a person or team</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>^when</kbd></td><td class="align-top">Due date — <kbd>^tomorrow</kbd>, <kbd>^next week</kbd></td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>*rule</kbd></td><td class="align-top">Repetition — <kbd>*every week</kbd></td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>~text</kbd></td><td class="align-top">Note (runs to the next marker)</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>[label](url)</kbd></td><td class="align-top">Link</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>~[…]</kbd></td><td class="align-top">Brackets hold anything — <kbd>~[costs 5 # each]</kbd></td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>\#</kbd></td><td class="align-top">Backslash writes a marker as plain text</td></tr>
+              </tbody>
+            </table>
+
+            <p class="text-uppercase fw-semibold text-secondary mb-1 mt-3 small">Protocol editor</p>
+            <table class="table table-sm table-borderless mb-0">
+              <tbody>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>click line</kbd></td><td class="align-top">Edit that line as text</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>Enter</kbd></td><td class="align-top">Save the line</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>Esc</kbd></td><td class="align-top">Cancel the edit</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- `?` opens it, unless you are typing one. Clicked by hyperscript so
+     Bootstrap still handles the backdrop and the scroll lock. -->
+<button type="button" class="d-none" id="kbd-help-open"
+        data-bs-toggle="modal" data-bs-target="#kbd-help-overlay"
+        _="on keydown[key is '?'] from body
+             if the tagName of target is 'INPUT'
+                or the tagName of target is 'TEXTAREA'
+                or the tagName of target is 'SELECT'
+                or the isContentEditable of target
+               exit
+             end
+             halt the event
+             call me.click()"></button>
