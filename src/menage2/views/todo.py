@@ -12,7 +12,7 @@ from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.renderers import render, render_to_response
 from pyramid.request import Request
 from pyramid.view import view_config
-from sqlalchemy import asc, desc, nulls_last, or_, select, text
+from sqlalchemy import asc, desc, func, nulls_last, or_, select
 from sqlalchemy.orm import aliased, joinedload
 
 from menage2.dateparse import (
@@ -22,8 +22,10 @@ from menage2.dateparse import (
 )
 from menage2.fuzzy import fuzzy_filter, fuzzy_highlight
 from menage2.markers import scan
+from menage2.models.item import Item
 from menage2.models.principal import Principal
 from menage2.models.protocol import ProtocolRun
+from menage2.models.tag import Tag, item_tags
 from menage2.models.team import Team
 from menage2.models.todo import (
     RecurrenceKind,
@@ -1504,45 +1506,22 @@ def todo_tag_picker(request):
         cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
             days=30
         )
-        rows = request.dbsession.execute(
-            text(
-                "SELECT tag, count(*) AS cnt"
-                " FROM todos JOIN items ON items.id = todos.id,"
-                "      unnest(todos.tags) AS tag"
-                " WHERE items.created_at >= :cutoff AND items.owner_id = :uid"
-                " GROUP BY tag ORDER BY cnt DESC, tag LIMIT 5"
-            ),
-            {"cutoff": cutoff, "uid": request.identity.id},
-        ).fetchall()
-        tags = [row[0] for row in rows]
+        tags = list(
+            request.dbsession.execute(
+                select(Tag.name)
+                .join(item_tags, item_tags.c.tag_id == Tag.id)
+                .join(Item, Item.id == item_tags.c.item_id)
+                .where(Item.created_at >= cutoff, Item.owner_id == request.identity.id)
+                .group_by(Tag.name)
+                .order_by(func.count().desc(), Tag.name)
+                .limit(5)
+            ).scalars()
+        )
     else:
-        # filtered by substring
-        from menage2.models.protocol import Protocol, ProtocolItem
-
-        user = request.identity
-        owning = aliased(Protocol, flat=True)
-        all_tags: set[str] = set()
-
-        for row in request.dbsession.execute(
-            select(Todo.tags).where(Todo.owner_id == user.id)
-        ).scalars():
-            all_tags.update(row or set())
-
-        for row in request.dbsession.execute(
-            select(Protocol.tags).where(Protocol.owner_id == user.id)
-        ).scalars():
-            all_tags.update(row or set())
-
-        for row in request.dbsession.execute(
-            # Aliased and spelled out: protocols and their items both live
-            # in `items`, so the join has two possible meanings and the
-            # tables overlap. This is the one that means belonging.
-            select(ProtocolItem.tags)
-            .join(owning, owning.id == ProtocolItem.protocol_id)
-            .where(owning.owner_id == user.id)
-        ).scalars():
-            all_tags.update(row or set())
-
+        # The whole vocabulary is a few dozen rows now that a tag is one,
+        # so there is nothing to be gained by narrowing it to an owner
+        # first -- which used to mean three scans over three array columns.
+        all_tags = set(request.dbsession.execute(select(Tag.name)).scalars())
         tags = fuzzy_filter(all_tags, value)
 
     new = None

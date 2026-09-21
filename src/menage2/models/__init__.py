@@ -5,6 +5,7 @@ from sqlalchemy.orm import configure_mappers, sessionmaker
 # Import or define all models here to ensure they are attached to the
 # ``Base.metadata`` prior to any initialization routines.
 from .config import ConfigItem  # noqa
+from .item import Item  # noqa
 from .planner import (
     Day,
     Month,
@@ -22,6 +23,7 @@ from .protocol import (  # noqa
     ProtocolRunItem,
 )
 from .recipe import Ingredient, IngredientUsage, Recipe  # noqa
+from .tag import Tag  # noqa
 from .team import Team, TeamMember  # noqa
 from .todo import Todo, TodoAttachment, TodoStatus  # noqa
 from .user import Absence, Passkey, User  # noqa

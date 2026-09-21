@@ -17,6 +17,19 @@ from menage2.models import (
     Weekday,
 )
 
+#: The tags the ingredient list offers as toggles. It used to live on the
+#: model as a class constant, which made it look like part of what an
+#: ingredient is rather than what this one page offers. The real picker
+#: replaces it.
+KNOWN_TAGS = {
+    "diet:meat",
+    "diet:animal",
+    "einkaufen:supermarkt",
+    "einkaufen:supermarkt:obst-u-gemuese",
+    "einkaufen:supermarkt:kühlung",
+    "einkaufen:asia-markt",
+}
+
 
 @view_config(
     route_name="list_ingredients",
@@ -28,8 +41,8 @@ def list_ingredients(request):
     )
 
     def tags(ingredient):
-        for tag in sorted(ingredient.KNOWN_TAGS):
-            yield TagToggle(tag, tag in ingredient.tags_set)
+        for tag in sorted(KNOWN_TAGS):
+            yield TagToggle(tag, tag in ingredient.tags)
 
     return {"ingredients": ingredients, "tags": tags}
 
@@ -69,8 +82,8 @@ def toggle_ingredient_tag(request):
         request.dbsession.query(Ingredient).filter(Ingredient.id == ingredient_id).one()
     )
     tag = request.matchdict["tag"]
-    if tag in ingredient.tags_set:
-        ingredient.tags_set = ingredient.tags_set - set([tag])
+    if tag in ingredient.tags:
+        ingredient.tags = ingredient.tags - {tag}
     else:
-        ingredient.tags_set = ingredient.tags_set | set([tag])
+        ingredient.tags = ingredient.tags | {tag}
     return HTTPSeeOther(request.route_url("list_ingredients"))

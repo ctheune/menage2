@@ -1,34 +1,33 @@
 """The tag vocabulary: what is in it, and putting it in order.
 
-Tags are not objects. One exists because something carries it, and typing
-`#something` into the add box is how a new one is made — that is what the
-marker language is for, not an oversight. So the vocabulary is derived here
-rather than stored, and tidying it up means rewriting the things that carry
-a tag rather than editing a row that represents it.
+A tag is a row now, and carrying one is a row in `item_tags`. What used to
+mean reading four array columns and one comma-separated string and merging
+them in Python is one grouped query; what used to mean rewriting every
+record that carried a tag is an update to the one row that is the tag.
 
-Four tables carry tags as an array, and ingredients carry them as one
-comma-separated string. The `einkaufen:` part of the vocabulary is shared
-between ingredients and tasks — a shopping list copies an ingredient's tags
-onto the todos it generates — so a rename that skipped ingredients would be
-undone by the next shopping list.
+The hierarchy is still in the name -- `einkaufen:supermarkt` is one tag --
+so `_matches` and `_renamed` are unchanged, and so is everything that reads
+a tag as a string.
 """
 
 from typing import Iterable, Optional
 
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, func, select, text, update
 
-from menage2.models.protocol import Protocol, ProtocolItem, ProtocolRunItem
-from menage2.models.recipe import Ingredient
-from menage2.models.todo import Todo
+from menage2.models.item import Item
+from menage2.models.tag import Tag, item_tags
 
-#: Tables carrying tags as an array, under the name they are shown by.
-_ARRAY_SOURCES: tuple[tuple[str, type], ...] = (
-    ("Tasks", Todo),
-    ("Checklists", Protocol),
-    ("Checklists", ProtocolItem),
-    ("Checklists", ProtocolRunItem),
-)
+#: Which kind of item a tag is on, under the name it is shown by. A run is
+#: a task on the list, and is counted as one.
+_LABELS: dict[str, str] = {
+    "todo": "Tasks",
+    "protocol_run": "Tasks",
+    "protocol": "Checklists",
+    "protocol_item": "Checklists",
+    "protocol_run_item": "Checklists",
+    "ingredient": "Ingredients",
+}
 
 #: What separates the levels of a tag such as `einkaufen:supermarkt:kühlung`.
 SEPARATOR = ":"
@@ -90,17 +89,35 @@ def _renamed(tag: str, source: str, target: Optional[str]) -> Optional[str]:
     return target + tag[len(source) :]
 
 
-def _rewrite(tags: Iterable[str], source: str, target: Optional[str], children: bool):
-    """The new tag set for something currently carrying `tags`."""
-    result: set[str] = set()
-    for tag in tags:
-        if _matches(tag, source, children):
-            new = _renamed(tag, source, target)
-            if new:
-                result.add(new)
-        else:
-            result.add(tag)
-    return result
+def _matching(dbsession, source: str, with_children: bool) -> list[Tag]:
+    """The tags a rename of `source` would touch."""
+    return [
+        tag
+        for tag in dbsession.execute(select(Tag)).scalars()
+        if _matches(tag.name, source, with_children)
+    ]
+
+
+def _count_by_label(dbsession, tags: Iterable[Tag]) -> dict[str, int]:
+    """How many items of each kind carry any of `tags`.
+
+    Counted per item, not per tag: renaming a parent and its children
+    rewrites a record once however many of them it carries.
+    """
+    ids = [tag.id for tag in tags]
+    if not ids:
+        return {}
+    rows = dbsession.execute(
+        select(Item.kind, func.count(func.distinct(item_tags.c.item_id)))
+        .join(item_tags, item_tags.c.item_id == Item.id)
+        .where(item_tags.c.tag_id.in_(ids))
+        .group_by(Item.kind)
+    ).all()
+    counts: dict[str, int] = {}
+    for kind, count in rows:
+        label = _LABELS.get(kind, kind)
+        counts[label] = counts.get(label, 0) + count
+    return counts
 
 
 def list_tags(dbsession) -> list[TagCount]:
@@ -111,20 +128,18 @@ def list_tags(dbsession) -> list[TagCount]:
     somebody looking for a merge wants to see. The separator sorts the
     hierarchy into place for free.
     """
+    rows = dbsession.execute(
+        select(Tag.name, Item.kind, func.count())
+        .join(item_tags, item_tags.c.tag_id == Tag.id)
+        .join(Item, Item.id == item_tags.c.item_id)
+        .group_by(Tag.name, Item.kind)
+    ).all()
+
     counts: dict[str, dict[str, int]] = {}
-
-    def note(name: str, tag: str) -> None:
-        counts.setdefault(tag, {}).setdefault(name, 0)
-        counts[tag][name] += 1
-
-    for name, model in _ARRAY_SOURCES:
-        for (tags,) in dbsession.execute(select(model.tags)):
-            for tag in tags or ():
-                note(name, tag)
-
-    for ingredient in dbsession.execute(select(Ingredient)).scalars():
-        for tag in ingredient.tags_set:
-            note("Ingredients", tag)
+    for name, kind, count in rows:
+        label = _LABELS.get(kind, kind)
+        found = counts.setdefault(name, {})
+        found[label] = found.get(label, 0) + count
 
     return sorted(
         (TagCount(tag=tag, counts=found) for tag, found in counts.items()),
@@ -141,26 +156,11 @@ def plan_retag(
     merge; there is nothing else to it, so it is not a separate operation.
     """
     plan = RetagPlan(source=source, target=target, with_children=with_children)
-    renames: dict[str, Optional[str]] = {}
-
-    for name, model in _ARRAY_SOURCES:
-        for (tags,) in dbsession.execute(select(model.tags)):
-            touched = [t for t in (tags or ()) if _matches(t, source, with_children)]
-            if not touched:
-                continue
-            plan.rows[name] = plan.rows.get(name, 0) + 1
-            for tag in touched:
-                renames[tag] = _renamed(tag, source, target)
-
-    for ingredient in dbsession.execute(select(Ingredient)).scalars():
-        touched = [t for t in ingredient.tags_set if _matches(t, source, with_children)]
-        if not touched:
-            continue
-        plan.rows["Ingredients"] = plan.rows.get("Ingredients", 0) + 1
-        for tag in touched:
-            renames[tag] = _renamed(tag, source, target)
-
-    plan.renames = sorted(renames.items())
+    touched = _matching(dbsession, source, with_children)
+    plan.rows = _count_by_label(dbsession, touched)
+    plan.renames = sorted(
+        (tag.name, _renamed(tag.name, source, target)) for tag in touched
+    )
     return plan
 
 
@@ -169,27 +169,42 @@ def apply_retag(
 ) -> RetagPlan:
     """Do it, and say what was done.
 
-    Every carrier is loaded and rewritten rather than updated in place. The
-    vocabulary is small and this runs when somebody asks it to, so being
-    plainly correct is worth more here than being clever — and it is the one
-    piece of code that has to handle both the arrays and the ingredients'
-    comma-separated string.
+    A rename is now an update to one row. A merge is the same thing arriving
+    at a name that already exists: the items are repointed at the tag that
+    is already there and the empty one goes. Nothing that carries a tag is
+    touched either way, which is the point of the tag being a row.
     """
     plan = plan_retag(dbsession, source, target, with_children)
-    if plan.empty:
+    if plan.empty and not plan.renames:
         return plan
 
-    for _, model in _ARRAY_SOURCES:
-        for carrier in dbsession.execute(select(model)).scalars():
-            if any(_matches(t, source, with_children) for t in carrier.tags or ()):
-                carrier.tags = _rewrite(carrier.tags, source, target, with_children)
+    by_name = {tag.name: tag for tag in dbsession.execute(select(Tag)).scalars()}
+    for old, new in plan.renames:
+        tag = by_name.get(old)
+        if tag is None:
+            continue
+        if new is None:
+            dbsession.execute(delete(Tag).where(Tag.id == tag.id))
+            continue
+        existing = by_name.get(new)
+        if existing is None or existing.id == tag.id:
+            dbsession.execute(update(Tag).where(Tag.id == tag.id).values(name=new))
+            by_name.pop(old, None)
+            tag.name = new
+            by_name[new] = tag
+            continue
+        # A merge: move what carried it, then drop the name that is spare.
+        dbsession.execute(
+            text(
+                "INSERT INTO item_tags (item_id, tag_id) "
+                "SELECT item_id, :target FROM item_tags WHERE tag_id = :source "
+                "ON CONFLICT DO NOTHING"
+            ),
+            {"target": existing.id, "source": tag.id},
+        )
+        dbsession.execute(delete(Tag).where(Tag.id == tag.id))
+        by_name.pop(old, None)
 
-    for ingredient in dbsession.execute(select(Ingredient)).scalars():
-        current = ingredient.tags_set
-        if any(_matches(t, source, with_children) for t in current):
-            ingredient.tags_set = sorted(
-                _rewrite(current, source, target, with_children)
-            )
-
+    dbsession.expire_all()
     dbsession.flush()
     return plan

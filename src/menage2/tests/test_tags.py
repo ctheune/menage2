@@ -26,7 +26,7 @@ def _todo(dbsession, text, tags):
 
 
 def _ingredient(dbsession, description, tags):
-    ingredient = Ingredient(description=description, tags=",".join(tags))
+    ingredient = Ingredient(description=description, tags=set(tags))
     dbsession.add(ingredient)
     dbsession.flush()
     return ingredient
@@ -166,7 +166,7 @@ def test_an_ingredient_is_renamed_too(dbsession):
         "einkaufen:supermarkt:obst-und-gemüse",
     )
 
-    assert ingredient.tags_set == {
+    assert ingredient.tags == {
         "einkaufen:supermarkt:obst-und-gemüse",
         "diet:vegan",
     }
@@ -223,3 +223,74 @@ def test_without_asking_the_children_stay_put(dbsession):
     child = _todo(dbsession, "Child", {"gone:child"})
     apply_retag(dbsession, "gone", None)
     assert child.tags == {"gone:child"}
+
+
+# ---------------------------------------------------------------------------
+# A tag is a row, and the set of strings is a view of it
+# ---------------------------------------------------------------------------
+
+
+def test_the_same_new_tag_on_two_items_is_one_row(dbsession):
+    """Two rows for one name would collide on the unique index."""
+    from sqlalchemy import select
+
+    from menage2.models.tag import Tag
+
+    _todo(dbsession, "Bread", {"brandnew"})
+    _todo(dbsession, "Milk", {"brandnew"})
+
+    rows = dbsession.execute(select(Tag).where(Tag.name == "brandnew")).scalars().all()
+    assert len(rows) == 1
+
+
+def test_tags_can_be_set_before_the_item_is_in_a_session():
+    """`Todo(text=..., tags={...})` cannot look anything up yet."""
+    from menage2.models.todo import Todo
+
+    todo = Todo(text="Bread", tags={"garden", "privat"})
+    assert todo.tags == {"garden", "privat"}
+
+
+def test_tags_refuses_a_bare_string():
+    """Otherwise it quietly becomes one tag per letter."""
+    import pytest as _pytest
+
+    from menage2.models.todo import Todo
+
+    with _pytest.raises(TypeError):
+        Todo(text="Bread", tags="garden")
+
+
+def test_renaming_leaves_what_carries_the_tag_alone(dbsession):
+    """The point of a tag being a row: only the row changes."""
+    from sqlalchemy import func, select
+
+    from menage2.models.tag import item_tags
+
+    todo = _todo(dbsession, "Bread", {"privat"})
+    before = dbsession.execute(select(func.count()).select_from(item_tags)).scalar()
+
+    apply_retag(dbsession, "privat", "personal")
+
+    assert todo.tags == {"personal"}
+    after = dbsession.execute(select(func.count()).select_from(item_tags)).scalar()
+    assert after == before
+
+
+def test_a_merge_folds_two_rows_into_one(dbsession):
+    """Renaming onto a name already in use is a merge and nothing else."""
+    from sqlalchemy import select
+
+    from menage2.models.tag import Tag
+
+    both = _todo(dbsession, "Bread", {"Packliste", "packliste"})
+
+    apply_retag(dbsession, "Packliste", "packliste")
+
+    assert both.tags == {"packliste"}
+    assert (
+        dbsession.execute(
+            select(Tag).where(Tag.name == "Packliste")
+        ).scalar_one_or_none()
+        is None
+    )

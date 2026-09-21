@@ -26,6 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
 from .meta import Base
+from .tag import get_tags, item_tags, set_tags
 
 
 class TagSet(TypeDecorator):
@@ -111,6 +112,24 @@ class Item(Base):
 
     owner = relationship("User", foreign_keys=[owner_id])
     recurrence = relationship("RecurrenceRule", lazy="joined")
+    #: The rows. `tags` below is the set of strings everything else speaks.
+    #: selectin, because the task list reads the tags of every row it shows.
+    tag_links = relationship(
+        "Tag",
+        secondary=item_tags,
+        back_populates="items",
+        collection_class=set,
+        lazy="selectin",
+    )
+
+    @property
+    def tags(self) -> set[str]:
+        """The names this item carries. See models/tag.py."""
+        return get_tags(self)
+
+    @tags.setter
+    def tags(self, names) -> None:
+        set_tags(self, names)
 
     __table_args__ = (
         Index("ix_items_kind", "kind"),

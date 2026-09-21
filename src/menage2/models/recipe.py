@@ -95,33 +95,11 @@ class Ingredient(Item):
     __tablename__ = "ingredients"
 
     id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), primary_key=True)
-    tags = Column(Text)  # comma separated list of tags to use for RTM
 
     #: An ingredient's text is what it is called.
     description = synonym("text")
 
     __mapper_args__ = {"polymorphic_identity": "ingredient"}
-
-    KNOWN_TAGS = set(
-        [
-            "diet:meat",
-            "diet:animal",
-            "einkaufen:supermarkt",
-            "einkaufen:supermarkt:obst-u-gemuese",
-            "einkaufen:supermarkt:kühlung",
-            "einkaufen:asia-markt",
-        ]
-    )
-
-    @property
-    def tags_set(self):
-        if not self.tags:
-            return set()
-        return set(x.strip() for x in self.tags.split(","))
-
-    @tags_set.setter
-    def tags_set(self, value):
-        self.tags = ",".join(value)
 
     @property
     def recipes(self):

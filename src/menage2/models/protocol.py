@@ -48,7 +48,6 @@ class Protocol(Item):
     id: Mapped[int] = mapped_column(
         ForeignKey("items.id", ondelete="CASCADE"), primary_key=True
     )
-    tags: Mapped[set] = mapped_column(TagSet, server_default="{}")
     assignees: Mapped[set] = mapped_column(TagSet, server_default="{}")
     archived_at: Mapped[Optional[datetime.datetime]] = mapped_column(
         DateTime(timezone=True)
@@ -104,7 +103,6 @@ class ProtocolItem(Item):
     id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), primary_key=True)
     protocol_id = Column(Integer, ForeignKey("protocols.id"), nullable=False)
     position = Column(Integer, nullable=False, default=0)
-    tags = Column(TagSet, nullable=False, server_default="{}")
     assignees = Column(TagSet, nullable=False, server_default="{}")
 
     __mapper_args__ = {
@@ -222,7 +220,6 @@ class ProtocolRunItem(Item):
     id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), primary_key=True)
     run_id = Column(Integer, ForeignKey("protocol_runs.id"), nullable=False)
     position = Column(Integer, nullable=False, default=0)
-    tags = Column(TagSet, nullable=False, server_default="{}")
     assignees = Column(TagSet, nullable=False, server_default="{}")
     sent_todo_id = Column(Integer, ForeignKey("todos.id"), nullable=True)
 

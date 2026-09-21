@@ -34,9 +34,9 @@ def _make_recipe_for_all_days(dbsession):
 
 def _make_week_with_recipe(dbsession):
     ingredient = Ingredient(
-        description="Tomaten", tags="einkaufen:supermarkt:obst-u-gemuese"
+        description="Tomaten", tags={"einkaufen:supermarkt:obst-u-gemuese"}
     )
-    ingredient2 = Ingredient(description="Salz", tags="")
+    ingredient2 = Ingredient(description="Salz", tags=set())
     dbsession.add_all([ingredient, ingredient2])
     dbsession.flush()
 
@@ -89,7 +89,7 @@ def test_send_to_shopping_list_creates_todos(app_request, dbsession):
 
 
 def test_send_to_shopping_list_aggregates_amounts_across_days(app_request, dbsession):
-    ingredient = Ingredient(description="Mehl", tags="")
+    ingredient = Ingredient(description="Mehl", tags=set())
     dbsession.add(ingredient)
 
     recipe1 = Recipe(title="Kuchen")
@@ -129,7 +129,7 @@ def test_send_to_shopping_list_aggregates_amounts_across_days(app_request, dbses
 def test_send_to_shopping_list_untagged_ingredient_gets_sonstiges(
     app_request, dbsession
 ):
-    ingredient = Ingredient(description="Wasser", tags="")
+    ingredient = Ingredient(description="Wasser", tags=set())
     dbsession.add(ingredient)
 
     recipe = Recipe(title="Suppe")

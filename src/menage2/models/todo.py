@@ -44,7 +44,6 @@ class Todo(Item):
     id: Mapped[int] = mapped_column(
         Integer, ForeignKey("items.id", ondelete="CASCADE"), primary_key=True
     )
-    tags: set[str] = Column(TagSet, nullable=False, server_default="{}")
     assignees = Column(TagSet, nullable=False, server_default="{}")
 
     #: The instance this one spawned, if any — the chain is written forwards.
