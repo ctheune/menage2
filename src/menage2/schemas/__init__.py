@@ -55,6 +55,14 @@ TagString = Annotated[
     str, StringConstraints(strip_whitespace=True, pattern=r"^[\p{Letter}0-9:\-]+$")
 ]
 
+#: One principal's name. No whitespace and no `@`: production carried 211
+#: assignees spelled "eltern @matti" -- two names posted as one pill by the
+#: field's Enter fallback -- and a name that is really two names addresses
+#: nobody.
+AssigneeString = Annotated[
+    str, StringConstraints(strip_whitespace=True, pattern=r"^[\p{Letter}0-9_\-]+$")
+]
+
 
 class TodoUpdate(BaseModel):
     """Schema for updating a todo - all fields optional for partial updates.
@@ -67,7 +75,7 @@ class TodoUpdate(BaseModel):
 
     text: Optional[str] = None
     tags: Optional[Set[TagString]] = None
-    assignees: Optional[Set[str]] = None
+    assignees: Optional[Set[AssigneeString]] = None
     due_date: Optional[date] = None
     recurrence: Optional[RecurrenceSpec] = None
     note: Optional[str] = None
@@ -86,7 +94,18 @@ class TodoUpdate(BaseModel):
         teaches.
         """
         if isinstance(v, str):
-            return {word.lstrip("#@") for word in v.split() if word.strip("#@")}
+            v = [v]
+        if isinstance(v, (list, set, tuple)):
+            # Each entry is split too, not just a bare string: the desktop
+            # field's Enter fallback has posted whole typed lines as single
+            # pills, which is where "eltern @matti" came from.
+            return {
+                word.lstrip("#@")
+                for entry in v
+                if isinstance(entry, str)
+                for word in entry.split()
+                if word.strip("#@")
+            }
         return v
 
     @field_validator("due_date", mode="before")

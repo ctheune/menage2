@@ -37,3 +37,33 @@ def test_due_date_accepts_none():
 def test_due_date_rejects_unparseable_string():
     with pytest.raises(ValidationError):
         TodoUpdate(due_date="not a date at all !@#")
+
+
+def test_an_assignee_pill_holding_two_names_becomes_two():
+    """Production carried 211 of these, posted as one pill by the field.
+
+    The Enter fallback in the assignee field appends whatever was typed
+    rather than what was picked, so a whole line arrived as a single
+    assignee. It named nobody; split, it names the two it meant.
+    """
+    from menage2.schemas import TodoUpdate
+
+    assert TodoUpdate(assignees=["eltern @matti"]).assignees == {"eltern", "matti"}
+    assert TodoUpdate(assignees=["matti @eltern"]).assignees == {"eltern", "matti"}
+
+
+def test_an_assignee_that_cannot_be_a_name_is_refused():
+    import pydantic
+    import pytest as _pytest
+
+    from menage2.schemas import TodoUpdate
+
+    with _pytest.raises(pydantic.ValidationError):
+        TodoUpdate(assignees=["bad/name"])
+
+
+def test_a_plain_assignee_still_goes_through_untouched():
+    from menage2.schemas import TodoUpdate
+
+    assert TodoUpdate(assignees=["matti", "@eltern"]).assignees == {"matti", "eltern"}
+    assert TodoUpdate(assignees="matti eltern").assignees == {"matti", "eltern"}
