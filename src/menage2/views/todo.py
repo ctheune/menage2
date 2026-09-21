@@ -1645,6 +1645,9 @@ def todo_details_panel(request: Request):
                             "todo_attachment_thumbnail", todo_id=todo.id, uuid=att.uuid
                         ),
                         "filename": att.original_filename,
+                        "delete_url": request.route_url(
+                            "todo_attachment_delete", todo_id=todo.id, uuid=att.uuid
+                        ),
                     }
                     for att in todo.attachments
                 ]

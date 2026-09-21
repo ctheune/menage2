@@ -900,3 +900,27 @@ def test_every_shortcut_it_lists_is_one_we_bind(page):
     # `j`, `k` and `t` belong to the protocol run, which is not a template
     # binding yet — everything else the overlay claims is one.
     assert single_letters - bound <= {"j", "k", "t"}, single_letters - bound
+
+
+def test_removing_a_picture_takes_it_off_the_todo(
+    page, context, live_server, attachments_dir
+):
+    """The upload endpoint had a delete counterpart nothing ever called."""
+    _with_pictures(page, context, live_server, "Two of these", "one.jpg", "two.jpg")
+
+    select_row(page, _item("Two of these"), "#details-panel #todo-edit-form")
+    grid = page.locator("#field-attachments")
+    grid.wait_for(state="visible", timeout=10000)
+    assert grid.locator("img").count() == 2
+
+    grid.locator("[aria-label='Remove file']").first.click()
+
+    # The picture leaves the panel at once; the row catches up on reload,
+    # which is also what proves the server agreed rather than just the page.
+    page.wait_for_function(
+        "() => document.querySelectorAll('#field-attachments img').length === 1",
+        timeout=5000,
+    )
+    page.reload()
+    page.wait_for_selector(f"{_item('Two of these')} .todo-attachment-thumb")
+    assert page.locator(f"{_item('Two of these')} .todo-attachment-thumb").count() == 1

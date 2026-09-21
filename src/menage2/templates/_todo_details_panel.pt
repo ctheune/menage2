@@ -292,8 +292,19 @@
             <script type="text/hyperscript-template" live>
               <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; column-gap: 1em;
   row-gap: 1em;">
-              #for attachment in $attachments
-                <img src="$${attachment.url}" alt="$${attachment.filename}" style="width: 100%; height: auto; aspect-ratio: 1 / 1; height: auto; min-width: 0; min-height: 0; object-fit: cover; display: block;" />
+              #for attachment in $attachments indexed by i
+                <div class="position-relative">
+                  <img src="$${attachment.url}" alt="$${attachment.filename}" style="width: 100%; height: auto; aspect-ratio: 1 / 1; height: auto; min-width: 0; min-height: 0; object-fit: cover; display: block;" />
+                  <!-- Gone on the server straight away, the way the upload
+                       arrives straight away: neither is part of the form
+                       below, so waiting for Save would be a lie. -->
+                  <i class="bi bi-x-circle-fill position-absolute top-0 end-0 m-1 text-danger"
+                     role="button" aria-label="Remove file"
+                     _="on click
+                          set gone to $attachments[$${i}]
+                          fetch gone.delete_url with method:'POST'
+                          remove gone from $attachments"></i>
+                </div>
               #end
               <div class="bg-secondary-subtle d-flex align-items-center justify-content-center"  style="width: 100%; height: auto; aspect-ratio: 1 / 1; height: auto; min-width: 0; min-height: 0; object-fit: cover;"
                 _="on drop(dataTransfer)
