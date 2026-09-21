@@ -9,8 +9,10 @@ parameter on ``/todos``, and the details pane is the server-rendered
 """
 
 import datetime
+import io
 
 import pytest
+from PIL import Image
 
 from ._browser_helpers import select_row
 
@@ -708,3 +710,108 @@ def test_a_newer_complaint_replaces_the_older_one(page):
     # Three seconds after the second one the first's timer has long fired.
     page.wait_for_timeout(3000)
     assert page.locator("#error-toast").is_visible()
+
+
+# ---------------------------------------------------------------------------
+# Looking at the pictures
+# ---------------------------------------------------------------------------
+
+
+def _attach(context, live_server, todo_id: int, *names: str) -> None:
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), color=(30, 90, 200)).save(buf, format="JPEG")
+    jpeg = buf.getvalue()
+    for name in names:
+        resp = context.request.post(
+            f"{live_server}/todos/{todo_id}/attachments",
+            multipart={
+                "files[]": {"name": name, "mimeType": "image/jpeg", "buffer": jpeg}
+            },
+        )
+        assert resp.ok, f"Uploading {name} failed: {resp.status}"
+
+
+def _with_pictures(page, context, live_server, text, *names):
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, text)
+    # The desktop row carries the id in its element id, not a data attribute.
+    row_id = page.locator(_item(text)).first.get_attribute("id")
+    todo_id = int(row_id.removeprefix("todo-"))
+    _attach(context, live_server, todo_id, *names)
+    page.reload()
+    page.wait_for_selector(f"{_item(text)} .todo-attachment-thumb", timeout=10000)
+
+
+def test_clicking_a_picture_opens_it_instead_of_the_row(
+    page, context, live_server, attachments_dir
+):
+    """The row opens the details pane; a picture must not do both."""
+    _with_pictures(page, context, live_server, "Look at this", "holiday.jpg")
+
+    page.locator(f"{_item('Look at this')} .todo-attachment-thumb").first.click()
+
+    page.wait_for_selector("#attachmentModal.show", timeout=5000)
+    assert page.locator("#attachmentModalImage").get_attribute("src").endswith("/full")
+    assert page.locator("#details-pane.d-none").count() == 1
+
+
+def test_one_picture_offers_nothing_to_page_through(
+    page, context, live_server, attachments_dir
+):
+    _with_pictures(page, context, live_server, "Just one", "only.jpg")
+
+    page.locator(f"{_item('Just one')} .todo-attachment-thumb").first.click()
+    page.wait_for_selector("#attachmentModal.show", timeout=5000)
+
+    assert not page.locator("#attachmentModalNext").is_visible()
+    assert page.locator("#attachmentModalCounter").inner_text() == ""
+
+
+def test_paging_through_a_row_of_pictures(page, context, live_server, attachments_dir):
+    _with_pictures(
+        page,
+        context,
+        live_server,
+        "Three of them",
+        "first.jpg",
+        "second.jpg",
+        "third.jpg",
+    )
+
+    page.locator(f"{_item('Three of them')} .todo-attachment-thumb").nth(1).click()
+    page.wait_for_selector("#attachmentModal.show", timeout=5000)
+    assert page.locator("#attachmentModalCounter").inner_text() == "2 / 3"
+
+    page.locator("#attachmentModalNext").click()
+    page.wait_for_function(
+        "() => document.getElementById('attachmentModalCounter').textContent"
+        " === '3 / 3'",
+        timeout=5000,
+    )
+    # Past the last it comes back round rather than dead-ending.
+    page.locator("#attachmentModalNext").click()
+    page.wait_for_function(
+        "() => document.getElementById('attachmentModalCounter').textContent"
+        " === '1 / 3'",
+        timeout=5000,
+    )
+
+
+def test_the_arrow_keys_page_through_too(page, context, live_server, attachments_dir):
+    _with_pictures(page, context, live_server, "Two of them", "first.jpg", "second.jpg")
+
+    page.locator(f"{_item('Two of them')} .todo-attachment-thumb").first.click()
+    page.wait_for_selector("#attachmentModal.show", timeout=5000)
+
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function(
+        "() => document.getElementById('attachmentModalCounter').textContent"
+        " === '2 / 2'",
+        timeout=5000,
+    )
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_function(
+        "() => document.getElementById('attachmentModalCounter').textContent"
+        " === '1 / 2'",
+        timeout=5000,
+    )

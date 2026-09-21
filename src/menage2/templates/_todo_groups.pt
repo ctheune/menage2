@@ -104,6 +104,14 @@
           <span
             tal:condition="todo.attachments"
             class="todo-attachment-thumbs flex-shrink-0"
+            _="on click
+                 -- A picture opens the viewer and nothing else: the tap would
+                 -- otherwise reach the row and open it for editing too.
+                 if target matches 'img'
+                   halt the event
+                   send showPicture(pic: target) to #attachmentModal
+                   call #attachment-modal-open.click()
+                 end"
           >
             <tal:block tal:repeat="att todo.attachments">
               <img
