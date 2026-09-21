@@ -151,4 +151,20 @@
         hx-include="#todo-list"
         hx-swap="outerHTML" />
   <span _="on 'todo-closed' from body add .d-none to #details-pane" />
+  <!-- Escape puts the pane away, unless a checklist is open in it — that one
+       answers Escape itself. -->
+  <span _="on keydown[key is 'Escape'] from body
+             if the tagName of target is 'INPUT'
+                or the tagName of target is 'TEXTAREA'
+                or the isContentEditable of target
+               exit
+             end
+             if #details-pane matches '.d-none' exit end
+             if #protocol-run exit end
+             halt the event
+             repeat for box in <input.todo-checkbox:checked/>
+               set box's checked to false
+             end
+             add .d-none to #details-pane
+             set #details-panel's innerHTML to ''" />
 </div>

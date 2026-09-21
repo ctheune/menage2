@@ -3,14 +3,82 @@
 <div class="details-run-section">
   <div
     id="protocol-run"
-    tal:define="items run.sorted_items()"
+    tal:define="items run.sorted_items();
+                cursor python:next((i.id for i in items if i.is_pending), None)"
+    _="on keydown[key is 'j' or key is 'ArrowDown'] from body
+         send moveRunCursor(to: 'next') to me
+
+       on keydown[key is 'k' or key is 'ArrowUp'] from body
+         send moveRunCursor(to: 'previous') to me
+
+       on moveRunCursor(to)
+         if the tagName of target is 'INPUT'
+            or the tagName of target is 'TEXTAREA'
+            or the isContentEditable of target
+           exit
+         end
+         set here to the first <.protocol-run-item.is-current/> in me
+         if no here
+           set here to the first <.protocol-run-item/> in me
+           if here add .is-current to here end
+           exit
+         end
+         if to is 'next'
+           set other to the next <.protocol-run-item/> from here within me
+         else
+           set other to the previous <.protocol-run-item/> from here within me
+         end
+         if no other exit end
+         remove .is-current from here
+         add .is-current to other
+         call other.scrollIntoView({block: 'nearest', behavior: 'smooth'})
+
+       on keydown[key is 'c'] from body
+         send fireRunAction(action: 'done') to me
+       on keydown[key is 't'] from body
+         send fireRunAction(action: 'send') to me
+       on keydown[key is 'e'] from body
+         send fireRunAction(action: 'edit') to me
+
+       on keydown[key is 'Escape'] from body
+         if the tagName of target is 'INPUT'
+            or the tagName of target is 'TEXTAREA'
+            or the isContentEditable of target
+           exit
+         end
+         halt the event
+         if #details-pane and not (#details-pane matches '.d-none')
+           repeat for box in <input.todo-checkbox:checked/>
+             set box's checked to false
+           end
+           add .d-none to #details-pane
+           set #details-panel's innerHTML to ''
+         else
+           set route to my @data-todo-route
+           go to url route
+         end
+
+       on fireRunAction(action)
+         if the tagName of target is 'INPUT'
+            or the tagName of target is 'TEXTAREA'
+            or the isContentEditable of target
+           exit
+         end
+         set here to the first <.protocol-run-item.is-current/> in me
+         if no here exit end
+         repeat for button in <.protocol-run-action/> in here
+           if button@data-action is action
+             call button.click()
+             exit
+           end
+         end"
     data-run-id="${run.id}"
     data-todo-route="${request.route_url('list_todos')}"
   >
     <ul class="todo-group-list mb-0 list-unstyled">
       <li
         tal:repeat="item items"
-        class="${'protocol-run-item todo-item status-' + item.status.value}"
+        class="${'protocol-run-item todo-item status-' + item.status.value + (' is-current' if item.id == cursor else '')}"
         id="run-item-${item.id}"
         data-item-id="${item.id}"
       >

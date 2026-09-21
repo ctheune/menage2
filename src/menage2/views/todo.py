@@ -86,7 +86,7 @@ def _validation_error(request, message: str, status: int = 422):
 
     ``HX-Reswap: none`` stops htmx from swapping the empty error body into the
     request's target; the message is raised by the ``showValidationError``
-    listener in menage.js.
+    listener on the error toast in ``_error_toast.pt``.
     """
     request.response.status_int = status
     request.response.headers["HX-Reswap"] = "none"

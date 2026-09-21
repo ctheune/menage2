@@ -762,6 +762,16 @@ def _with_pictures(page, context, live_server, text, *names):
     _attach(context, live_server, todo_id, *names)
     page.reload()
     page.wait_for_selector(f"{_item(text)} .todo-attachment-thumb", timeout=10000)
+    # The container carries the click handler; a click before hyperscript has
+    # wired it goes nowhere.
+    page.wait_for_function(
+        """(selector) => {
+            const box = document.querySelector(selector);
+            return box && box.hasAttribute('data-hyperscript-powered');
+        }""",
+        arg=f"{_item(text)} .todo-attachment-thumbs",
+        timeout=10000,
+    )
 
 
 def test_clicking_a_picture_opens_it_instead_of_the_row(

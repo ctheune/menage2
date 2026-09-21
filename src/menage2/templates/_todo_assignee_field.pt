@@ -55,7 +55,9 @@
          halt
 
        on keydown[key is 'Backspace']
-         if isCaretAtStart(me) and $assignees then
+         -- Backspace at the very start takes the one before the cursor.
+         set caret to window.getSelection()
+         if $assignees and caret.isCollapsed and caret.anchorOffset is 0 then
             remove $assignees[-1]
          end
        end

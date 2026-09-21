@@ -236,7 +236,9 @@
                    halt
 
                  on keydown[key is 'Backspace']
-                   if isCaretAtStart(me) and $links then
+                   -- Backspace at the very start takes the one before the cursor.
+                   set caret to window.getSelection()
+                   if $links and caret.isCollapsed and caret.anchorOffset is 0 then
                       remove $links[-1]
                    end
                  end
