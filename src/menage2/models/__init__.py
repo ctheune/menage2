@@ -20,7 +20,6 @@ from .protocol import (  # noqa
     ProtocolItem,
     ProtocolRun,
     ProtocolRunItem,
-    ProtocolRunItemStatus,
 )
 from .recipe import Ingredient, IngredientUsage, Recipe  # noqa
 from .team import Team, TeamMember  # noqa

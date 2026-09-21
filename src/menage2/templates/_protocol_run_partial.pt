@@ -78,15 +78,15 @@
     <ul class="todo-group-list mb-0 list-unstyled">
       <li
         tal:repeat="item items"
-        class="${'protocol-run-item todo-item status-' + item.status.value + (' is-current' if item.id == cursor else '')}"
+        class="${'protocol-run-item todo-item status-' + item.state + (' is-current' if item.id == cursor else '')}"
         id="run-item-${item.id}"
         data-item-id="${item.id}"
       >
         <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2">
           <span class="protocol-run-item-marker flex-shrink-0">
             <tal:block tal:condition="item.is_pending">○</tal:block>
-            <tal:block tal:condition="item.status.value == 'done'">✓</tal:block>
-            <tal:block tal:condition="item.status.value == 'sent_to_todo'">→</tal:block>
+            <tal:block tal:condition="item.state == 'done'">✓</tal:block>
+            <tal:block tal:condition="item.state == 'sent_to_todo'">→</tal:block>
           </span>
           <div class="flex-grow-1 small" style="min-width: 0">
             <span class="run-item-view">

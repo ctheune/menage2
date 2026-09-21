@@ -18,7 +18,6 @@ from menage2.models.protocol import (
     ProtocolItem,
     ProtocolRun,
     ProtocolRunItem,
-    ProtocolRunItemStatus,
 )
 from menage2.models.todo import Todo, TodoStatus
 from menage2.principals import (
@@ -379,7 +378,7 @@ def _run_partial_response(request, run):
 @view_config(route_name="run_item_done", request_method="POST")
 def run_item_done(request):
     item = _get_or_404(request, ProtocolRunItem, "item_id")
-    item.status = ProtocolRunItemStatus.done
+    item.status = TodoStatus.done
     item.run.maybe_close_run()
     # XXX redirect to refresh the details panel fully
     return _run_partial_response(request, item.run)
@@ -400,7 +399,7 @@ def run_item_send(request):
     )
     request.dbsession.add(new_todo)
     request.dbsession.flush()
-    item.status = ProtocolRunItemStatus.sent_to_todo
+    item.status = TodoStatus.done
     item.sent_todo_id = new_todo.id
     item.run.maybe_close_run()
     return _run_partial_response(request, item.run)

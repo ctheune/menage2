@@ -39,12 +39,6 @@ from .item import Item, TagSet, TodoStatus
 from .meta import Base
 
 
-class ProtocolRunItemStatus(enum.Enum):
-    pending = "pending"
-    done = "done"
-    sent_to_todo = "sent_to_todo"
-
-
 class Protocol(Item):
     """A checklist template: a title, an ordered set of items, a cadence."""
 
@@ -161,7 +155,7 @@ class ProtocolRun(Base):
     def sorted_items(self) -> list["ProtocolRunItem"]:
         return sorted(
             self.items,
-            key=lambda i: (i.status != ProtocolRunItemStatus.pending, i.position),
+            key=lambda i: (not i.is_pending, i.position),
         )
 
     def ensure_snapshot_run_items(self):
@@ -187,7 +181,7 @@ class ProtocolRun(Base):
                     tags=set(src.tags),
                     assignees=item_assignees,
                     note=src.note,
-                    status=ProtocolRunItemStatus.pending,
+                    status=TodoStatus.todo,
                 )
             )
         self.opened_at = datetime.datetime.now(datetime.timezone.utc)
@@ -196,7 +190,7 @@ class ProtocolRun(Base):
         """Close the run + auto-complete its todo when every item is resolved."""
         now = datetime.datetime.now(datetime.timezone.utc)
         today = now.date()
-        if any(i.status == ProtocolRunItemStatus.pending for i in self.items):
+        if any(i.is_pending for i in self.items):
             return
         if self.closed_at is None:
             self.closed_at = now
@@ -209,28 +203,40 @@ class ProtocolRun(Base):
             spawn_protocol_every_on_completion(self, today, now, dbsession)
 
 
-class ProtocolRunItem(Base):
+class ProtocolRunItem(Item):
+    """One line of a run: the same three states any item has, plus where it went."""
+
     __tablename__ = "protocol_run_items"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), primary_key=True)
     run_id = Column(Integer, ForeignKey("protocol_runs.id"), nullable=False)
     position = Column(Integer, nullable=False, default=0)
-    text = Column(Text, nullable=False)
     tags = Column(TagSet, nullable=False, server_default="{}")
     assignees = Column(TagSet, nullable=False, server_default="{}")
-    note = Column(Text)
-    status = Column(
-        Enum(ProtocolRunItemStatus, name="protocolrunitemstatus"),
-        nullable=False,
-        server_default="pending",
-    )
     sent_todo_id = Column(Integer, ForeignKey("todos.id"), nullable=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "protocol_run_item",
+        "inherit_condition": id == Item.id,
+    }
 
     run = relationship("ProtocolRun", back_populates="items")
 
     @property
     def is_pending(self) -> bool:
-        return self.status == ProtocolRunItemStatus.pending
+        return self.status == TodoStatus.todo
+
+    @property
+    def state(self) -> str:
+        """`pending`, `done` or `sent_to_todo`.
+
+        A line that was sent off is done here and waiting elsewhere, so it
+        is a done item that knows where it went rather than a fourth state
+        of its own. The markup and its styling still want one word for it.
+        """
+        if self.is_pending:
+            return "pending"
+        return "sent_to_todo" if self.sent_todo_id is not None else "done"
 
     def marker_text(self) -> str:
         """This run item as the marker string its inline editor shows and parses back."""

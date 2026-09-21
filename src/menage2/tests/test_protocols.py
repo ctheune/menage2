@@ -6,7 +6,6 @@ from menage2.models.protocol import (
     Protocol,
     ProtocolItem,
     ProtocolRun,
-    ProtocolRunItemStatus,
 )
 from menage2.models.todo import (
     RecurrenceKind,
@@ -45,10 +44,10 @@ def test_sorted_run_items_pending_first():
 
     from menage2.models.protocol import ProtocolRun
 
-    done = SimpleNamespace(status=ProtocolRunItemStatus.done, position=0)
-    sent = SimpleNamespace(status=ProtocolRunItemStatus.sent_to_todo, position=1)
-    pending_a = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=2)
-    pending_b = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=3)
+    done = SimpleNamespace(is_pending=False, position=0)
+    sent = SimpleNamespace(is_pending=False, position=1)
+    pending_a = SimpleNamespace(is_pending=True, position=2)
+    pending_b = SimpleNamespace(is_pending=True, position=3)
 
     run = SimpleNamespace(items=[done, sent, pending_a, pending_b])
     result = ProtocolRun.sorted_items(run)
@@ -64,10 +63,10 @@ def test_sorted_run_items_preserves_position_within_group():
 
     from menage2.models.protocol import ProtocolRun
 
-    pending_2 = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=2)
-    pending_0 = SimpleNamespace(status=ProtocolRunItemStatus.pending, position=0)
-    done_1 = SimpleNamespace(status=ProtocolRunItemStatus.done, position=1)
-    done_3 = SimpleNamespace(status=ProtocolRunItemStatus.done, position=3)
+    pending_2 = SimpleNamespace(is_pending=True, position=2)
+    pending_0 = SimpleNamespace(is_pending=True, position=0)
+    done_1 = SimpleNamespace(is_pending=False, position=1)
+    done_3 = SimpleNamespace(is_pending=False, position=3)
 
     run = SimpleNamespace(items=[pending_2, done_3, pending_0, done_1])
     result = ProtocolRun.sorted_items(run)
@@ -347,7 +346,7 @@ def test_show_run_snapshots_items_on_first_open(
     dbsession.refresh(run)
     assert run.opened_at is not None
     assert len(run.items) == 3
-    assert all(i.status == ProtocolRunItemStatus.pending for i in run.items)
+    assert all(i.is_pending for i in run.items)
 
 
 def test_show_run_reuses_snapshot_after_template_edit(
@@ -397,7 +396,7 @@ def test_run_item_done_marks_status(authenticated_testapp, dbsession, admin_user
     )
     dbsession.flush()
     dbsession.refresh(item)
-    assert item.status == ProtocolRunItemStatus.done
+    assert item.state == "done"
 
 
 def test_run_item_send_creates_todo_and_links_back(
@@ -412,7 +411,7 @@ def test_run_item_send_creates_todo_and_links_back(
     )
     dbsession.flush()
     dbsession.refresh(item)
-    assert item.status == ProtocolRunItemStatus.sent_to_todo
+    assert item.state == "sent_to_todo"
     assert item.sent_todo_id is not None
     todo = dbsession.get(Todo, item.sent_todo_id)
     assert todo.text == "buy bread"
