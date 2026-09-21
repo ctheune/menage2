@@ -17,7 +17,13 @@ import enum
 from typing import Optional
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Text
-from sqlalchemy.orm import Mapped, mapped_column, object_session, relationship
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    object_session,
+    relationship,
+    synonym,
+)
 
 from menage2.models.user import User
 from menage2.recurrence import (
@@ -29,8 +35,8 @@ from menage2.recurrence import (
     spawn_protocol_run,
 )
 
+from .item import Item, TagSet, TodoStatus
 from .meta import Base
-from .todo import TagSet, TodoStatus
 
 
 class ProtocolRunItemStatus(enum.Enum):
@@ -39,32 +45,34 @@ class ProtocolRunItemStatus(enum.Enum):
     sent_to_todo = "sent_to_todo"
 
 
-class Protocol(Base):
+class Protocol(Item):
+    """A checklist template: a title, an ordered set of items, a cadence."""
+
     __tablename__ = "protocols"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    title: Mapped[str] = mapped_column()
-    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    id: Mapped[int] = mapped_column(
+        ForeignKey("items.id", ondelete="CASCADE"), primary_key=True
+    )
     tags: Mapped[set] = mapped_column(TagSet, server_default="{}")
-    note: Mapped[Optional[str]] = mapped_column()
     assignees: Mapped[set] = mapped_column(TagSet, server_default="{}")
-    recurrence_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("recurrence_rules.id")
-    )
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-    )
     archived_at: Mapped[Optional[datetime.datetime]] = mapped_column(
         DateTime(timezone=True)
     )
 
-    owner: Mapped["User"] = relationship("User", foreign_keys=[owner_id])
+    #: A protocol's text *is* its title. Both names read naturally in the
+    #: places that use them, so both stay.
+    title = synonym("text")
+
+    __mapper_args__ = {"polymorphic_identity": "protocol"}
+
     items: Mapped[list["ProtocolItem"]] = relationship(
         "ProtocolItem",
         back_populates="protocol",
         order_by="ProtocolItem.position",
         cascade="all, delete-orphan",
+        # Two paths link these tables now: an item belongs to a protocol,
+        # and both are items. This is the one that means belonging.
+        foreign_keys="ProtocolItem.protocol_id",
     )
     runs: Mapped[list["ProtocolRun"]] = relationship(
         "ProtocolRun",
@@ -91,18 +99,25 @@ class Protocol(Base):
         )
 
 
-class ProtocolItem(Base):
+class ProtocolItem(Item):
+    """One line of a checklist template."""
+
     __tablename__ = "protocol_items"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), primary_key=True)
     protocol_id = Column(Integer, ForeignKey("protocols.id"), nullable=False)
     position = Column(Integer, nullable=False, default=0)
-    text = Column(Text, nullable=False)
     tags = Column(TagSet, nullable=False, server_default="{}")
     assignees = Column(TagSet, nullable=False, server_default="{}")
-    note = Column(Text)
 
-    protocol = relationship("Protocol", back_populates="items")
+    __mapper_args__ = {
+        "polymorphic_identity": "protocol_item",
+        "inherit_condition": id == Item.id,
+    }
+
+    protocol = relationship(
+        "Protocol", back_populates="items", foreign_keys=[protocol_id]
+    )
 
     def marker_text(self) -> str:
         """This item as the marker string its edit line shows and parses back."""

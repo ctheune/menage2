@@ -13,7 +13,7 @@ from pyramid.renderers import render, render_to_response
 from pyramid.request import Request
 from pyramid.view import view_config
 from sqlalchemy import asc, desc, nulls_last, or_, select, text
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import aliased, joinedload
 
 from menage2.dateparse import (
     RecurrenceSpec,
@@ -1512,8 +1512,9 @@ def todo_tag_picker(request):
         rows = request.dbsession.execute(
             text(
                 "SELECT tag, count(*) AS cnt"
-                " FROM todos, unnest(tags) AS tag"
-                " WHERE created_at >= :cutoff AND owner_id = :uid"
+                " FROM todos JOIN items ON items.id = todos.id,"
+                "      unnest(todos.tags) AS tag"
+                " WHERE items.created_at >= :cutoff AND items.owner_id = :uid"
                 " GROUP BY tag ORDER BY cnt DESC, tag LIMIT 5"
             ),
             {"cutoff": cutoff, "uid": request.identity.id},
@@ -1524,6 +1525,7 @@ def todo_tag_picker(request):
         from menage2.models.protocol import Protocol, ProtocolItem
 
         user = request.identity
+        owning = aliased(Protocol, flat=True)
         all_tags: set[str] = set()
 
         for row in request.dbsession.execute(
@@ -1537,7 +1539,12 @@ def todo_tag_picker(request):
             all_tags.update(row or set())
 
         for row in request.dbsession.execute(
-            select(ProtocolItem.tags).join(Protocol).where(Protocol.owner_id == user.id)
+            # Aliased and spelled out: protocols and their items both live
+            # in `items`, so the join has two possible meanings and the
+            # tables overlap. This is the one that means belonging.
+            select(ProtocolItem.tags)
+            .join(owning, owning.id == ProtocolItem.protocol_id)
+            .where(owning.owner_id == user.id)
         ).scalars():
             all_tags.update(row or set())
 
