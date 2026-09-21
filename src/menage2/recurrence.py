@@ -24,12 +24,12 @@ from sqlalchemy import update as sqla_update
 import menage2.models.protocol
 from menage2.dateparse import RecurrenceSpec, next_occurrence
 from menage2.models.todo import (
+    ItemAttachment,
+    ItemLink,
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
     Todo,
-    TodoAttachment,
-    TodoLink,
     TodoStatus,
 )
 
@@ -79,12 +79,12 @@ def _clone_for_recurrence(
         due_date=due_date,
         recurrence_id=parent.recurrence_id,
         owner_id=parent.owner_id,
-        links_rel=[
-            TodoLink(label=lnk.label, url=lnk.url, position=lnk.position)
-            for lnk in parent.links_rel
+        links=[
+            ItemLink(label=lnk.label, url=lnk.url, position=lnk.position)
+            for lnk in parent.links
         ],
         attachments=[
-            TodoAttachment(
+            ItemAttachment(
                 uuid=att.uuid,
                 original_filename=att.original_filename,
                 mimetype=att.mimetype,

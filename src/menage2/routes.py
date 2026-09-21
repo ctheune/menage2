@@ -108,19 +108,19 @@ def includeme(config):
     config.add_route("recurrence_history", "/todos/{id}/history")
     config.add_route("todo_stop_repeating", "/todos/{id:\\d+}/stop-repeating")
     config.add_route(
-        "todo_attachment_thumbnail",
-        "/todos/{todo_id}/attachment/{uuid}/thumb",
+        "item_attachment_thumbnail",
+        "/items/{item_id}/attachment/{uuid}/thumb",
     )
-    config.add_route("todo_attachment_full", "/todos/{todo_id}/attachment/{uuid}/full")
+    config.add_route("item_attachment_full", "/items/{item_id}/attachment/{uuid}/full")
 
     config.add_route("add_todo", "/todos/add")
     config.add_route("todo_add_fields", "/todos/add/fields")
 
     config.add_route("todo_update", "/todos/{id:\\d+}")
     config.add_route("todo_batch_action", "/todos/batch-action")
-    config.add_route("todo_attachment_upload", "/todos/{id}/attachments")
+    config.add_route("item_attachment_upload", "/items/{id}/attachments")
     config.add_route(
-        "todo_attachment_delete", "/todos/{todo_id}/attachment/{uuid}/delete"
+        "item_attachment_delete", "/items/{item_id}/attachment/{uuid}/delete"
     )
 
     config.add_route("todos_done", "/todos/done-items")

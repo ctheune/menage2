@@ -10,13 +10,13 @@ import datetime
 import pytest
 
 from menage2.markers import format_markers
+from menage2.models.item import ItemAttachment, ItemLink  # noqa: F401
 from menage2.models.protocol import Protocol, ProtocolItem, ProtocolRunItem
 from menage2.models.todo import (
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
     Todo,
-    TodoLink,
 )
 from menage2.views.todo import parse_todo_input
 
@@ -59,18 +59,18 @@ def test_format_note_comes_last():
 
 def test_format_links_come_before_markers():
     """`^`, `*` and `~` swallow text up to the next marker, so links precede them."""
-    link = TodoLink(label="Docs", url="https://example.com")
+    link = ItemLink(label="Docs", url="https://example.com")
     got = format_markers("x", links=[link], due_date=datetime.date(2026, 5, 1))
     assert got == "x [Docs](https://example.com) ^2026-05-01"
 
 
 def test_format_link_without_label():
-    link = TodoLink(label=None, url="https://example.com")
+    link = ItemLink(label=None, url="https://example.com")
     assert format_markers("x", links=[link]) == "x [](https://example.com)"
 
 
 def test_format_everything_at_once():
-    link = TodoLink(label="Docs", url="https://example.com")
+    link = ItemLink(label="Docs", url="https://example.com")
     got = format_markers(
         "buy milk",
         tags={"shop"},
@@ -129,7 +129,7 @@ def test_round_trip_fields_survive_format_then_parse(fields):
 
 
 def test_round_trip_links_survive():
-    link = TodoLink(label="Docs", url="https://example.com")
+    link = ItemLink(label="Docs", url="https://example.com")
     parsed = parse_todo_input(format_markers("read up", links=[link]), TODAY)
     assert parsed.text == "read up"
     assert [(link.label, link.url) for link in parsed.links] == [
@@ -139,7 +139,7 @@ def test_round_trip_links_survive():
 
 def test_round_trip_link_and_due_date_together():
     """The link has to sit before `^`, or the date marker eats it."""
-    link = TodoLink(label="Docs", url="https://example.com")
+    link = ItemLink(label="Docs", url="https://example.com")
     raw = format_markers("read up", links=[link], due_date=datetime.date(2026, 5, 1))
     parsed = parse_todo_input(raw, TODAY)
     assert parsed.text == "read up"
@@ -224,7 +224,7 @@ def test_todo_marker_text():
         due_date=datetime.date(2026, 5, 1),
         note="the oat one",
     )
-    todo.links_rel = [TodoLink(label="Docs", url="https://example.com", position=0)]
+    todo.links = [ItemLink(label="Docs", url="https://example.com", position=0)]
     todo.recurrence = _rule()
     assert todo.marker_text() == (
         "buy milk [Docs](https://example.com) #shop @alice "
@@ -421,7 +421,7 @@ def test_round_trip_marker_heavy_todo_via_model():
         assignees={"team lead"},
         note="see the ^old doc [here]",
     )
-    todo.links_rel = []
+    todo.links = []
     parsed = parse_todo_input(todo.marker_text(), TODAY)
     assert parsed.text == todo.text
     assert parsed.tags == todo.tags

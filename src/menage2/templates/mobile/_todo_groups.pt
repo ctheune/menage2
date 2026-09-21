@@ -96,10 +96,10 @@
               _="on htmx:afterOnLoad call #mobile-edit-open.click()">
           <span class="text-truncate" style="min-width: 0">
             <span class="todo-title">${todo.text}</span>
-            <span class="d-block" tal:condition="todo.note or todo.links_rel">
+            <span class="d-block" tal:condition="todo.note or todo.links">
               <span tal:condition="todo.note" class="todo-note-display text-muted"
                     tal:content="structure render_note_html(todo.note)"></span>
-              <tal:block tal:condition="todo.links_rel" tal:repeat="link todo.links_rel">
+              <tal:block tal:condition="todo.links" tal:repeat="link todo.links">
                 <a tal:attributes="href link.url" target="_blank" rel="noopener noreferrer"
                    class="todo-link-badge d-inline-block text-decoration-none me-1">
                   <i class="bi bi-link-45deg"></i>
@@ -119,8 +119,8 @@
                        call #mobile-photo-open.click()
                      end">
             <tal:block tal:repeat="att todo.attachments">
-              <img class="todo-attachment-thumb" loading="lazy" tal:attributes="src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
-                                   data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);
+              <img class="todo-attachment-thumb" loading="lazy" tal:attributes="src python:request.route_url('item_attachment_thumbnail', item_id=todo.id, uuid=att.uuid);
+                                   data-full-url python:request.route_url('item_attachment_full', item_id=todo.id, uuid=att.uuid);
                                    alt att.original_filename" />
             </tal:block>
           </span>

@@ -90,11 +90,11 @@
                 rows="3">${todo.note or '' if has else ''}</textarea>
     </div>
 
-    <div class="mb-3" tal:condition="python:has and todo.links_rel" id="${p}-links">
+    <div class="mb-3" tal:condition="python:has and todo.links" id="${p}-links">
       <label class="form-label">Links</label>
       <div class="form-control d-flex flex-wrap gap-1">
         <span class="badge rounded-pill text-bg-secondary text-nowrap"
-              tal:repeat="link python:sorted(todo.links_rel, key=lambda t: t.position)">
+              tal:repeat="link python:sorted(todo.links, key=lambda t: t.position)">
           <a target="_blank" rel="noopener noreferrer" class="link-light"
              href="${link.url}">${link.label}</a>
         </span>
@@ -114,8 +114,8 @@
         <img class="todo-attachment-thumb-edit"
              tal:repeat="attachment todo.attachments"
              alt="${attachment.original_filename}"
-             src="${request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=attachment.uuid)}"
-             data-full-url="${request.route_url('todo_attachment_full', todo_id=todo.id, uuid=attachment.uuid)}" />
+             src="${request.route_url('item_attachment_thumbnail', item_id=todo.id, uuid=attachment.uuid)}"
+             data-full-url="${request.route_url('item_attachment_full', item_id=todo.id, uuid=attachment.uuid)}" />
       </div>
     </div>
 

@@ -4,13 +4,12 @@ import json
 import pytest
 
 from menage2.dateparse import RecurrenceSpec
+from menage2.models.item import ItemAttachment, ItemLink  # noqa: F401
 from menage2.models.todo import (
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
     Todo,
-    TodoAttachment,
-    TodoLink,
     TodoStatus,
 )
 from menage2.recurrence import spawn_after
@@ -165,7 +164,7 @@ def test_parse_todo_input_no_note():
 
 
 def _link_pairs(parsed):
-    """parse_todo_input returns TodoLink rows; compare them as (label, url) pairs."""
+    """parse_todo_input returns ItemLink rows; compare them as (label, url) pairs."""
     return [(link.label, link.url) for link in parsed.links]
 
 
@@ -1026,7 +1025,7 @@ def test_recurrence_clone_preserves_assignees(app_request, dbsession, admin_user
 
 
 def test_recurrence_clone_preserves_links(app_request, dbsession, admin_user):
-    """Spawning a recurrence preserves TodoLink rows."""
+    """Spawning a recurrence preserves ItemLink rows."""
     rule = RecurrenceRule(
         kind=RecurrenceKind.after,
         interval_value=1,
@@ -1039,8 +1038,8 @@ def test_recurrence_clone_preserves_links(app_request, dbsession, admin_user):
     dbsession.flush()
 
     # Add a link to the parent
-    link = TodoLink(
-        todo_id=parent.id,
+    link = ItemLink(
+        item_id=parent.id,
         label="Docs",
         url="https://example.com/docs",
         position=0,
@@ -1052,9 +1051,9 @@ def test_recurrence_clone_preserves_links(app_request, dbsession, admin_user):
     dbsession.flush()
 
     assert child is not None
-    assert len(child.links_rel) == 1
-    assert child.links_rel[0].label == "Docs"
-    assert child.links_rel[0].url == "https://example.com/docs"
+    assert len(child.links) == 1
+    assert child.links[0].label == "Docs"
+    assert child.links[0].url == "https://example.com/docs"
 
 
 def test_parse_recurrence_preview_endpoint(authenticated_testapp):
@@ -1279,7 +1278,7 @@ def test_todo_update_clears_assignees(app_request, dbsession, admin_user, cast):
 
 
 def test_todo_update_sets_links(app_request, dbsession, admin_user):
-    from menage2.models.todo import TodoLink
+    from menage2.models.todo import ItemLink
 
     todo = _todo("Read docs")
     dbsession.add(todo)
@@ -1293,7 +1292,7 @@ def test_todo_update_sets_links(app_request, dbsession, admin_user):
     dbsession.flush()
     links = (
         dbsession.execute(
-            __import__("sqlalchemy").select(TodoLink).where(TodoLink.todo_id == todo.id)
+            __import__("sqlalchemy").select(ItemLink).where(ItemLink.item_id == todo.id)
         )
         .scalars()
         .all()
@@ -1304,14 +1303,14 @@ def test_todo_update_sets_links(app_request, dbsession, admin_user):
 
 
 def test_todo_update_replaces_links(app_request, dbsession, admin_user):
-    from menage2.models.todo import TodoLink
+    from menage2.models.todo import ItemLink
 
     todo = _todo("Check ticket")
     dbsession.add(todo)
     dbsession.flush()
     dbsession.add(
-        TodoLink(
-            todo_id=todo.id, url="https://old.example.com", label="Old", position=0
+        ItemLink(
+            item_id=todo.id, url="https://old.example.com", label="Old", position=0
         )
     )
     dbsession.flush()
@@ -1327,7 +1326,7 @@ def test_todo_update_replaces_links(app_request, dbsession, admin_user):
     from sqlalchemy import select as sa_select
 
     links = (
-        dbsession.execute(sa_select(TodoLink).where(TodoLink.todo_id == todo.id))
+        dbsession.execute(sa_select(ItemLink).where(ItemLink.item_id == todo.id))
         .scalars()
         .all()
     )
@@ -1344,7 +1343,7 @@ def test_todo_update_keeps_the_label_it_was_given(app_request, dbsession, admin_
     by hand through the link's own editor has to survive too — including
     setting it back to the URL.
     """
-    from menage2.models.todo import TodoLink
+    from menage2.models.todo import ItemLink
 
     todo = _todo("Read up")
     dbsession.add(todo)
@@ -1358,7 +1357,7 @@ def test_todo_update_keeps_the_label_it_was_given(app_request, dbsession, admin_
     from sqlalchemy import select as sa_select
 
     links = (
-        dbsession.execute(sa_select(TodoLink).where(TodoLink.todo_id == todo.id))
+        dbsession.execute(sa_select(ItemLink).where(ItemLink.item_id == todo.id))
         .scalars()
         .all()
     )
@@ -1383,13 +1382,13 @@ def test_link_label_endpoint_copes_with_nothing_to_name(app_request):
 
 
 def test_todo_update_clears_links(app_request, dbsession, admin_user):
-    from menage2.models.todo import TodoLink
+    from menage2.models.todo import ItemLink
 
     todo = _todo("Review PR")
     dbsession.add(todo)
     dbsession.flush()
     dbsession.add(
-        TodoLink(todo_id=todo.id, url="https://github.com/pr/1", label="PR", position=0)
+        ItemLink(item_id=todo.id, url="https://github.com/pr/1", label="PR", position=0)
     )
     dbsession.flush()
 
@@ -1400,7 +1399,7 @@ def test_todo_update_clears_links(app_request, dbsession, admin_user):
     from sqlalchemy import select as sa_select
 
     links = (
-        dbsession.execute(sa_select(TodoLink).where(TodoLink.todo_id == todo.id))
+        dbsession.execute(sa_select(ItemLink).where(ItemLink.item_id == todo.id))
         .scalars()
         .all()
     )

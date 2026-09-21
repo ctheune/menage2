@@ -28,12 +28,12 @@ from menage2.models.protocol import ProtocolRun
 from menage2.models.tag import Tag, item_tags
 from menage2.models.team import Team
 from menage2.models.todo import (
+    ItemAttachment,
+    ItemLink,
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
     Todo,
-    TodoAttachment,
-    TodoLink,
     TodoStatus,
 )
 from menage2.models.user import User
@@ -176,7 +176,7 @@ class ParsedTodoInput:
     due_date: datetime.date | None = None
     recurrence: RecurrenceSpec | None = None
     note: str = ""
-    links: list[TodoLink] = field(default_factory=list)
+    links: list[ItemLink] = field(default_factory=list)
 
 
 def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodoInput:
@@ -200,7 +200,7 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
     note = ""
     tags: set[str] = set()
     assignees: set[str] = set()
-    links: list[TodoLink] = []
+    links: list[ItemLink] = []
     text_parts: list[str] = []
 
     for token in scan(raw):
@@ -211,7 +211,7 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
         if token.kind == "link":
             url = _normalize_url(token.url)
             links.append(
-                TodoLink(
+                ItemLink(
                     label=_link_label(token.value, url),
                     url=url,
                     position=len(links),
@@ -882,7 +882,7 @@ def add_todo(request):
         assignees=parsed.assignees,
         note=parsed.note,
         due_date=parsed.due_date,
-        links_rel=parsed.links,
+        links=parsed.links,
         owner_id=owner_id,
         status=TodoStatus.todo,
         created_at=_now_utc(),
@@ -1136,7 +1136,7 @@ def todo_undo(request):
 @view_config(route_name="todo_update", request_method="PUT")
 def todo_update(request):
     """Update a todo using JSON/Pydantic validation. All fields are optional for partial updates."""
-    from menage2.models.todo import TodoLink
+    from menage2.models.todo import ItemLink
 
     todo_id = int(request.matchdict["id"])
     todo = request.dbsession.get(Todo, todo_id)
@@ -1187,16 +1187,16 @@ def todo_update(request):
         _apply_recurrence_spec(todo, spec, request.dbsession)
     if "links" in clear_fields:
         request.dbsession.execute(
-            sqla_delete(TodoLink).where(TodoLink.todo_id == todo.id)
+            sqla_delete(ItemLink).where(ItemLink.item_id == todo.id)
         )
     elif validated.links is not None:
         request.dbsession.execute(
-            sqla_delete(TodoLink).where(TodoLink.todo_id == todo.id)
+            sqla_delete(ItemLink).where(ItemLink.item_id == todo.id)
         )
 
         for position, link_data in enumerate(validated.links):
-            link = TodoLink(
-                todo_id=todo.id,
+            link = ItemLink(
+                item_id=todo.id,
                 label=link_data.label,
                 url=link_data.url,
                 position=position,
@@ -1206,7 +1206,7 @@ def todo_update(request):
     if validated.attachments is not None:
         from pathlib import Path
 
-        from menage2.models.todo import TodoAttachment
+        from menage2.models.todo import ItemAttachment
         from menage2.views.attachment import _ext_for, _get_attachments_dir
 
         attachments_dir = _get_attachments_dir(request)
@@ -1216,9 +1216,9 @@ def todo_update(request):
 
         for uuid_str in to_remove:
             att = request.dbsession.execute(
-                select(TodoAttachment).where(
-                    TodoAttachment.todo_id == todo.id,
-                    TodoAttachment.uuid == uuid_str,
+                select(ItemAttachment).where(
+                    ItemAttachment.item_id == todo.id,
+                    ItemAttachment.uuid == uuid_str,
                 )
             ).scalar_one_or_none()
             if att:
@@ -1685,11 +1685,11 @@ def todo_details_panel(request: Request):
                 [
                     {
                         "url": request.route_url(
-                            "todo_attachment_thumbnail", todo_id=todo.id, uuid=att.uuid
+                            "item_attachment_thumbnail", item_id=todo.id, uuid=att.uuid
                         ),
                         "filename": att.original_filename,
                         "delete_url": request.route_url(
-                            "todo_attachment_delete", todo_id=todo.id, uuid=att.uuid
+                            "item_attachment_delete", item_id=todo.id, uuid=att.uuid
                         ),
                     }
                     for att in todo.attachments
@@ -1700,7 +1700,7 @@ def todo_details_panel(request: Request):
             "links_json": json.dumps(
                 [
                     {"label": t.label, "url": t.url}
-                    for t in sorted(todo.links_rel, key=lambda t: t.position)
+                    for t in sorted(todo.links, key=lambda t: t.position)
                 ]
             ),
             "render_note_html": render_note_html,

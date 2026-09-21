@@ -197,6 +197,37 @@ def todo_matches_filter(
     )
 
 
+def item_visible_to_user(item, user, memberships: dict[str, str]) -> bool:
+    """Whether `user` may see `item`, whatever kind it is.
+
+    Files and links hang off any item now, so the gate that used to ask
+    "can you see this todo" has to answer for five kinds. Each is referred
+    to whoever already decides it: a task and a run answer to the task
+    filters, a checklist and its lines to the checklist they belong to, and
+    an ingredient to nothing -- the recipe book has no owner and everybody
+    logged in cooks from it.
+    """
+    from .models.protocol import ProtocolItem, ProtocolRun, ProtocolRunItem
+
+    if user is None:
+        return False
+    if item.kind in ("todo", "protocol_run"):
+        return todo_matches_filter(item, user, memberships, "all")
+    if item.kind == "protocol":
+        return protocol_visible_to_user(item, user, memberships)
+    if isinstance(item, ProtocolItem):
+        return protocol_visible_to_user(item.protocol, user, memberships)
+    if isinstance(item, ProtocolRunItem):
+        run = item.run
+        return run is not None and protocol_visible_to_user(
+            run.protocol, user, memberships
+        )
+    if item.kind == "ingredient":
+        return True
+    # An unrecognised kind is not something to guess about.
+    return False
+
+
 def protocol_visible_to_user(protocol, user, memberships: dict[str, str]) -> bool:
     """Return True if *user* may see *protocol*."""
     if protocol.owner == user:

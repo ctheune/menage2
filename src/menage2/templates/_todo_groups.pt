@@ -54,8 +54,8 @@
            set mine.checked to (othersSelected or (wasSelected is false))
            trigger 'open-details'"
       tal:attributes="data-recurrence python:_recurrence_label(todo);
-                        data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=a.uuid)} for a in todo.attachments]);
-                        data-todo-links python:__import__('json').dumps(['[' + (l.label or '') + '](' + l.url + ')' for l in todo.links_rel]);
+                        data-attachments python:__import__('json').dumps([{'uuid': a.uuid, 'filename': a.original_filename, 'thumb_url': request.route_url('item_attachment_thumbnail', item_id=todo.id, uuid=a.uuid)} for a in todo.attachments]);
+                        data-todo-links python:__import__('json').dumps(['[' + (l.label or '') + '](' + l.url + ')' for l in todo.links]);
                         data-run-started python:'true' if getattr(todo, 'opened_at', None) else 'false'"
     >
       <div class="todo-content d-flex py-1 px-3 align-items-baseline gap-2"
@@ -79,15 +79,15 @@
         >
           <span class="text-truncate" style="min-width: 0">
             <span class="todo-title">${todo.text}</span>
-            <span class="d-block" tal:condition="todo.note or todo.links_rel">
+            <span class="d-block" tal:condition="todo.note or todo.links">
               <span
                 tal:condition="todo.note"
                 class="todo-note-display text-muted"
                 tal:content="structure render_note_html(todo.note)"
               ></span>
               <tal:block
-                tal:condition="todo.links_rel"
-                tal:repeat="link todo.links_rel"
+                tal:condition="todo.links"
+                tal:repeat="link todo.links"
               >
                 <a
                   tal:attributes="href link.url"
@@ -120,8 +120,8 @@
                 class="todo-attachment-thumb ${'d-none' if repeat['att'].index > 2 else ''}"
                 loading="lazy"
                 tal:attributes="
-                  src python:request.route_url('todo_attachment_thumbnail', todo_id=todo.id, uuid=att.uuid);
-                  data-full-url python:request.route_url('todo_attachment_full', todo_id=todo.id, uuid=att.uuid);
+                  src python:request.route_url('item_attachment_thumbnail', item_id=todo.id, uuid=att.uuid);
+                  data-full-url python:request.route_url('item_attachment_full', item_id=todo.id, uuid=att.uuid);
                   alt att.original_filename;
                   "
 

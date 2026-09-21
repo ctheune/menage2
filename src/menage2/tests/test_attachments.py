@@ -6,7 +6,8 @@ import pytest
 from PIL import Image
 from sqlalchemy import select
 
-from menage2.models.todo import Todo, TodoAttachment, TodoStatus
+from menage2.models.item import ItemAttachment
+from menage2.models.todo import Todo, TodoStatus
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -51,13 +52,13 @@ def test_upload_jpeg_creates_db_row_and_two_disk_files(
     jpeg = _make_jpeg_bytes()
 
     res = authenticated_testapp.post(
-        f"/todos/{todo.id}/attachments",
+        f"/items/{todo.id}/attachments",
         upload_files=[("files[]", "photo.jpg", jpeg)],
         status=200,
     )
 
     att = dbsession.execute(
-        select(TodoAttachment).where(TodoAttachment.todo_id == todo.id)
+        select(ItemAttachment).where(ItemAttachment.item_id == todo.id)
     ).scalar_one()
     assert att.original_filename == "photo.jpg"
     assert att.mimetype == "image/jpeg"
@@ -76,7 +77,7 @@ def test_upload_multiple_files_creates_multiple_rows(
     jpeg = _make_jpeg_bytes()
 
     authenticated_testapp.post(
-        f"/todos/{todo.id}/attachments",
+        f"/items/{todo.id}/attachments",
         upload_files=[
             ("files[]", "a.jpg", jpeg),
             ("files[]", "b.jpg", jpeg),
@@ -86,7 +87,7 @@ def test_upload_multiple_files_creates_multiple_rows(
 
     atts = (
         dbsession.execute(
-            select(TodoAttachment).where(TodoAttachment.todo_id == todo.id)
+            select(ItemAttachment).where(ItemAttachment.item_id == todo.id)
         )
         .scalars()
         .all()
@@ -101,13 +102,13 @@ def test_upload_invalid_file_rejected(
     todo = _make_todo(dbsession, admin_user)
 
     authenticated_testapp.post(
-        f"/todos/{todo.id}/attachments",
+        f"/items/{todo.id}/attachments",
         upload_files=[("files[]", "document.txt", b"this is not an image")],
         status=400,
     )
 
     count = dbsession.execute(
-        select(TodoAttachment).where(TodoAttachment.todo_id == todo.id)
+        select(ItemAttachment).where(ItemAttachment.item_id == todo.id)
     ).all()
     assert len(count) == 0
     assert list(attachments_dir.iterdir()) == []
@@ -121,13 +122,13 @@ def test_upload_validates_with_pillow_ignores_content_type(
     jpeg = _make_jpeg_bytes()
 
     authenticated_testapp.post(
-        f"/todos/{todo.id}/attachments",
+        f"/items/{todo.id}/attachments",
         upload_files=[("files[]", "sneaky.jpg", jpeg)],
         status=200,
     )
 
     att = dbsession.execute(
-        select(TodoAttachment).where(TodoAttachment.todo_id == todo.id)
+        select(ItemAttachment).where(ItemAttachment.item_id == todo.id)
     ).scalar_one()
     assert att.mimetype == "image/jpeg"
 
@@ -141,8 +142,8 @@ def test_thumbnail_endpoint_requires_auth(
     testapp, dbsession, admin_user, attachments_dir
 ):
     todo = _make_todo(dbsession, admin_user)
-    att = TodoAttachment(
-        todo_id=todo.id,
+    att = ItemAttachment(
+        item_id=todo.id,
         uuid="test-uuid-thumbnail",
         original_filename="photo.jpg",
         mimetype="image/jpeg",
@@ -152,7 +153,7 @@ def test_thumbnail_endpoint_requires_auth(
     dbsession.flush()
 
     res = testapp.get(
-        f"/todos/{todo.id}/attachment/test-uuid-thumbnail/thumb",
+        f"/items/{todo.id}/attachment/test-uuid-thumbnail/thumb",
         expect_errors=True,
     )
     assert res.status_int in (302, 303, 404)
@@ -166,8 +167,8 @@ def test_thumbnail_returns_image_bytes(
     uuid_str = "test-uuid-serve-thumb"
     (attachments_dir / (uuid_str + "_thumb.jpg")).write_bytes(jpeg)
 
-    att = TodoAttachment(
-        todo_id=todo.id,
+    att = ItemAttachment(
+        item_id=todo.id,
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
@@ -177,7 +178,7 @@ def test_thumbnail_returns_image_bytes(
     dbsession.flush()
 
     res = authenticated_testapp.get(
-        f"/todos/{todo.id}/attachment/{uuid_str}/thumb",
+        f"/items/{todo.id}/attachment/{uuid_str}/thumb",
         status=200,
     )
     assert "image/jpeg" in res.headers.get("Content-Type", "")
@@ -192,8 +193,8 @@ def test_full_image_endpoint_returns_bytes_and_disposition(
     uuid_str = "test-uuid-serve-full"
     (attachments_dir / (uuid_str + ".jpg")).write_bytes(jpeg)
 
-    att = TodoAttachment(
-        todo_id=todo.id,
+    att = ItemAttachment(
+        item_id=todo.id,
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
@@ -203,7 +204,7 @@ def test_full_image_endpoint_returns_bytes_and_disposition(
     dbsession.flush()
 
     res = authenticated_testapp.get(
-        f"/todos/{todo.id}/attachment/{uuid_str}/full",
+        f"/items/{todo.id}/attachment/{uuid_str}/full",
         status=200,
     )
     assert "image/jpeg" in res.headers.get("Content-Type", "")
@@ -221,8 +222,8 @@ def test_thumbnail_wrong_todo_id_returns_404(
     uuid_str = "test-uuid-wrong-todo"
     (attachments_dir / (uuid_str + "_thumb.jpg")).write_bytes(jpeg)
 
-    att = TodoAttachment(
-        todo_id=todo_a.id,
+    att = ItemAttachment(
+        item_id=todo_a.id,
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
@@ -232,7 +233,7 @@ def test_thumbnail_wrong_todo_id_returns_404(
     dbsession.flush()
 
     authenticated_testapp.get(
-        f"/todos/{todo_b.id}/attachment/{uuid_str}/thumb",
+        f"/items/{todo_b.id}/attachment/{uuid_str}/thumb",
         status=404,
     )
 
@@ -246,8 +247,8 @@ def test_other_user_cannot_access_attachment(
     uuid_str = "test-uuid-cross-user"
     (attachments_dir / (uuid_str + "_thumb.jpg")).write_bytes(jpeg)
 
-    att = TodoAttachment(
-        todo_id=todo.id,
+    att = ItemAttachment(
+        item_id=todo.id,
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
@@ -261,7 +262,7 @@ def test_other_user_cannot_access_attachment(
     )
 
     res = testapp.get(
-        f"/todos/{todo.id}/attachment/{uuid_str}/thumb",
+        f"/items/{todo.id}/attachment/{uuid_str}/thumb",
         expect_errors=True,
     )
     assert res.status_int == 404
@@ -283,8 +284,8 @@ def test_delete_removes_disk_files_and_db_row(
     full_path.write_bytes(jpeg)
     thumb_path.write_bytes(jpeg)
 
-    att = TodoAttachment(
-        todo_id=todo.id,
+    att = ItemAttachment(
+        item_id=todo.id,
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
@@ -294,12 +295,12 @@ def test_delete_removes_disk_files_and_db_row(
     dbsession.flush()
 
     authenticated_testapp.post(
-        f"/todos/{todo.id}/attachment/{uuid_str}/delete",
+        f"/items/{todo.id}/attachment/{uuid_str}/delete",
         status=200,
     )
 
     result = dbsession.execute(
-        select(TodoAttachment).where(TodoAttachment.uuid == uuid_str)
+        select(ItemAttachment).where(ItemAttachment.uuid == uuid_str)
     ).scalar_one_or_none()
     assert result is None
     assert not full_path.exists()
@@ -322,8 +323,8 @@ def test_edit_todo_removes_attachment_via_remove_attachments_param(
     full_path.write_bytes(jpeg)
     thumb_path.write_bytes(jpeg)
 
-    att = TodoAttachment(
-        todo_id=todo.id,
+    att = ItemAttachment(
+        item_id=todo.id,
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
@@ -339,8 +340,129 @@ def test_edit_todo_removes_attachment_via_remove_attachments_param(
     )
 
     result = dbsession.execute(
-        select(TodoAttachment).where(TodoAttachment.uuid == uuid_str)
+        select(ItemAttachment).where(ItemAttachment.uuid == uuid_str)
     ).scalar_one_or_none()
     assert result is None
     assert not full_path.exists()
     assert not thumb_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# A file can hang off any item, so the gate has to answer for every kind
+# ---------------------------------------------------------------------------
+
+
+def _attach_to(dbsession, attachments_dir, item, uuid_str):
+    (attachments_dir / (uuid_str + "_thumb.jpg")).write_bytes(_make_jpeg_bytes())
+    dbsession.add(
+        ItemAttachment(
+            item_id=item.id,
+            uuid=uuid_str,
+            original_filename="photo.jpg",
+            mimetype="image/jpeg",
+            created_at=datetime.datetime.now(datetime.timezone.utc),
+        )
+    )
+    dbsession.flush()
+    return f"/items/{item.id}/attachment/{uuid_str}/thumb"
+
+
+def _as_regular(testapp):
+    testapp.post(
+        "/login", {"username": "user", "password": "user-password"}, status=303
+    )
+
+
+def test_an_ingredients_picture_is_for_everybody(
+    testapp, regular_user, dbsession, admin_user, attachments_dir
+):
+    """The recipe book has no owner; everybody logged in cooks from it."""
+    from menage2.models.recipe import Ingredient
+
+    ingredient = Ingredient(description="Butter")
+    dbsession.add(ingredient)
+    dbsession.flush()
+    url = _attach_to(dbsession, attachments_dir, ingredient, "uuid-ingredient")
+
+    _as_regular(testapp)
+    assert testapp.get(url).status_int == 200
+
+
+def test_a_checklists_file_follows_the_checklist(
+    testapp, regular_user, dbsession, admin_user, attachments_dir
+):
+    from menage2.models.protocol import Protocol
+
+    protocol = Protocol(title="Admin's list", owner_id=admin_user.id)
+    dbsession.add(protocol)
+    dbsession.flush()
+    url = _attach_to(dbsession, attachments_dir, protocol, "uuid-protocol")
+
+    _as_regular(testapp)
+    assert testapp.get(url, expect_errors=True).status_int == 404
+
+
+def test_a_checklist_line_follows_its_checklist(
+    testapp, regular_user, dbsession, admin_user, attachments_dir
+):
+    """A line has no owner of its own, so it has to ask the list it is on."""
+    from menage2.models.protocol import Protocol, ProtocolItem
+
+    protocol = Protocol(title="Admin's list", owner_id=admin_user.id)
+    dbsession.add(protocol)
+    dbsession.flush()
+    line = ProtocolItem(protocol_id=protocol.id, text="Wipe the shelf", position=0)
+    dbsession.add(line)
+    dbsession.flush()
+    url = _attach_to(dbsession, attachments_dir, line, "uuid-protocol-item")
+
+    _as_regular(testapp)
+    assert testapp.get(url, expect_errors=True).status_int == 404
+
+
+def test_a_run_line_follows_the_checklist_it_came_from(
+    testapp, regular_user, dbsession, admin_user, attachments_dir
+):
+    from menage2.models.item import TodoStatus
+    from menage2.models.protocol import Protocol, ProtocolRun, ProtocolRunItem
+
+    protocol = Protocol(title="Admin's list", owner_id=admin_user.id)
+    dbsession.add(protocol)
+    dbsession.flush()
+    run = ProtocolRun(
+        protocol_id=protocol.id,
+        text="Admin's list",
+        status=TodoStatus.todo,
+        owner_id=admin_user.id,
+        created_at=datetime.datetime.now(datetime.timezone.utc),
+    )
+    dbsession.add(run)
+    dbsession.flush()
+    line = ProtocolRunItem(
+        run_id=run.id,
+        text="Wipe the shelf",
+        position=0,
+        status=TodoStatus.todo,
+    )
+    dbsession.add(line)
+    dbsession.flush()
+    url = _attach_to(dbsession, attachments_dir, line, "uuid-run-item")
+
+    _as_regular(testapp)
+    assert testapp.get(url, expect_errors=True).status_int == 404
+
+
+def test_a_checklist_you_are_assigned_lets_you_see_its_files(
+    testapp, regular_user, dbsession, admin_user, attachments_dir
+):
+    """The negatives above must not be passing because nothing is visible."""
+    from menage2.models.protocol import Protocol
+
+    protocol = Protocol(title="Shared list", owner_id=admin_user.id)
+    protocol.assignees = {"user"}
+    dbsession.add(protocol)
+    dbsession.flush()
+    url = _attach_to(dbsession, attachments_dir, protocol, "uuid-shared")
+
+    _as_regular(testapp)
+    assert testapp.get(url).status_int == 200

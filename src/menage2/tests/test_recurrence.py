@@ -6,6 +6,7 @@ import pytest
 import sqlalchemy
 
 from menage2.dateparse import RecurrenceSpec
+from menage2.models.item import ItemAttachment, ItemLink  # noqa: F401
 from menage2.models.protocol import Protocol, ProtocolRun
 from menage2.models.todo import (
     RecurrenceKind,

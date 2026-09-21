@@ -851,7 +851,7 @@ def _attach(context, live_server, todo_id: int, *names: str) -> None:
     # carry the same field name more than once.
     for name in names:
         resp = context.request.post(
-            f"{live_server}/todos/{todo_id}/attachments",
+            f"{live_server}/items/{todo_id}/attachments",
             multipart={
                 "files[]": {"name": name, "mimeType": "image/jpeg", "buffer": jpeg}
             },

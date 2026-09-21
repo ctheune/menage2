@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 # import them from this module. See models/item.py for where they went.
 from .item import (  # noqa: F401
     Item,
+    ItemAttachment,
+    ItemLink,
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
@@ -14,26 +16,6 @@ from .item import (  # noqa: F401
     TodoStatus,
 )
 from .meta import Base
-
-
-class TodoLink(Base):
-    """Structured storage for todo links, replacing the old '[label](url)' string format."""
-
-    __tablename__ = "todo_links"
-
-    id = Column(Integer, primary_key=True)
-    todo_id = Column(
-        Integer,
-        ForeignKey("todos.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    label = Column(Text, nullable=True)
-    url = Column(Text, nullable=False)
-    position = Column(Integer, nullable=False, default=0)
-
-    todo = relationship("Todo", back_populates="links_rel")
-
-    __table_args__ = (Index("ix_todo_links_todo_id", "todo_id"),)
 
 
 class Todo(Item):
@@ -57,20 +39,6 @@ class Todo(Item):
         Integer, ForeignKey("todos.id"), nullable=True, unique=True
     )
 
-    attachments: Mapped[list["TodoAttachment"]] = relationship(
-        "TodoAttachment",
-        back_populates="todo",
-        cascade="all, delete-orphan",
-        lazy="select",
-        order_by="TodoAttachment.created_at",
-    )
-    links_rel = relationship(
-        "TodoLink",
-        back_populates="todo",
-        cascade="all, delete-orphan",
-        lazy="select",
-        order_by="TodoLink.position",
-    )
     recurred_into = relationship(
         "Todo", remote_side="Todo.id", foreign_keys=[recurred_into_id]
     )
@@ -85,33 +53,8 @@ class Todo(Item):
             self.text,
             tags=self.tags,
             assignees=self.assignees,
-            links=self.links_rel,
+            links=self.links,
             due_date=self.due_date,
             recurrence=self.recurrence.label if self.recurrence else None,
             note=self.note,
         )
-
-
-class TodoAttachment(Base):
-    __tablename__: str = "todo_attachments"
-    __table_args__: tuple[Index | Constraint, ...] = (
-        Index("ix_todo_attachments_todo_id", "todo_id"),
-        Index("ix_todo_attachments_uuid", "uuid"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    todo_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("todos.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    uuid: Mapped[str] = mapped_column(Text, nullable=False)
-    original_filename: Mapped[str] = mapped_column(Text, nullable=False)
-    mimetype: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-    )
-
-    todo: Mapped[list[Todo]] = relationship("Todo", back_populates="attachments")

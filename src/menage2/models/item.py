@@ -131,6 +131,21 @@ class Item(Base):
         lazy="selectin",
     )
 
+    links = relationship(
+        "ItemLink",
+        back_populates="item",
+        cascade="all, delete-orphan",
+        lazy="select",
+        order_by="ItemLink.position",
+    )
+    attachments = relationship(
+        "ItemAttachment",
+        back_populates="item",
+        cascade="all, delete-orphan",
+        lazy="select",
+        order_by="ItemAttachment.created_at",
+    )
+
     #: Both are sets of strings in both directions; the rows are underneath.
     #: A tag is made the first time it is used. A principal has to exist,
     #: so an item cannot be assigned to somebody who is not there.
@@ -153,3 +168,47 @@ class Item(Base):
         "polymorphic_on": kind,
         "polymorphic_identity": "item",
     }
+
+
+class ItemLink(Base):
+    """A link on an item. Ordered, because the order was chosen."""
+
+    __tablename__ = "item_links"
+
+    id = Column(Integer, primary_key=True)
+    item_id = Column(
+        Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False
+    )
+    label = Column(Text, nullable=True)
+    url = Column(Text, nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+
+    item = relationship("Item", back_populates="links")
+
+    __table_args__ = (Index("ix_item_links_item_id", "item_id"),)
+
+
+class ItemAttachment(Base):
+    """A file on an item -- a photo of the packaging, a scan, a receipt."""
+
+    __tablename__ = "item_attachments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    item_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False
+    )
+    uuid: Mapped[str] = mapped_column(Text, nullable=False)
+    original_filename: Mapped[str] = mapped_column(Text, nullable=False)
+    mimetype: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+    )
+
+    item = relationship("Item", back_populates="attachments")
+
+    __table_args__ = (
+        Index("ix_item_attachments_item_id", "item_id"),
+        Index("ix_item_attachments_uuid", "uuid"),
+    )

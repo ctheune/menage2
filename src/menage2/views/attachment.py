@@ -10,8 +10,8 @@ from pyramid.renderers import render
 from pyramid.view import view_config
 from sqlalchemy import func, select
 
-from menage2.models.todo import Todo, TodoAttachment
-from menage2.principals import get_user_team_memberships, todo_matches_filter
+from menage2.models.item import Item, ItemAttachment
+from menage2.principals import get_user_team_memberships, item_visible_to_user
 
 log = logging.getLogger(__name__)
 
@@ -35,17 +35,23 @@ def _get_attachments_dir(request):
     return path
 
 
-def _get_authorized_todo(request, todo_id):
+def _get_authorized_item(request, item_id):
+    """The item, if this user may see it. 404 rather than 403, as before.
+
+    This is the security boundary for every file in the store, and it now
+    answers for five kinds of item rather than one; see
+    `principals.item_visible_to_user`.
+    """
     user = request.identity
     if user is None:
         raise HTTPNotFound()
-    todo = request.dbsession.get(Todo, todo_id)
-    if todo is None:
+    item = request.dbsession.get(Item, item_id)
+    if item is None:
         raise HTTPNotFound()
     memberships = get_user_team_memberships(request.dbsession, user)
-    if not todo_matches_filter(todo, user, memberships, "all"):
+    if not item_visible_to_user(item, user, memberships):
         raise HTTPNotFound()
-    return todo
+    return item
 
 
 def _ext_for(att):
@@ -55,10 +61,10 @@ def _ext_for(att):
     return ".bin"
 
 
-@view_config(route_name="todo_attachment_upload", request_method="POST")
+@view_config(route_name="item_attachment_upload", request_method="POST")
 def upload_attachment(request):
-    todo_id = int(request.matchdict["id"])
-    todo = _get_authorized_todo(request, todo_id)
+    item_id = int(request.matchdict["id"])
+    item = _get_authorized_item(request, item_id)
     attachments_dir = _get_attachments_dir(request)
 
     good_count = 0
@@ -109,8 +115,8 @@ def upload_attachment(request):
         thumb.thumbnail((200, 200))
         thumb.save(thumb_path)
 
-        att = TodoAttachment(
-            todo_id=todo.id,
+        att = ItemAttachment(
+            item_id=item.id,
             uuid=uuid_str,
             original_filename=original_filename,
             mimetype=mimetype,
@@ -124,7 +130,7 @@ def upload_attachment(request):
         return request.response
 
     request.dbsession.flush()
-    request.dbsession.expire(todo)
+    request.dbsession.expire(item)
 
     request.response.content_type = "text/html"
     request.response.text = ""
@@ -133,16 +139,16 @@ def upload_attachment(request):
     return request.response
 
 
-@view_config(route_name="todo_attachment_thumbnail", request_method="GET")
+@view_config(route_name="item_attachment_thumbnail", request_method="GET")
 def serve_thumbnail(request):
-    todo_id = int(request.matchdict["todo_id"])
+    item_id = int(request.matchdict["item_id"])
     uuid_str = request.matchdict["uuid"]
-    todo = _get_authorized_todo(request, todo_id)
+    item = _get_authorized_item(request, item_id)
 
     att = request.dbsession.execute(
-        select(TodoAttachment).where(
-            TodoAttachment.todo_id == todo.id,
-            TodoAttachment.uuid == uuid_str,
+        select(ItemAttachment).where(
+            ItemAttachment.item_id == item.id,
+            ItemAttachment.uuid == uuid_str,
         )
     ).scalar_one_or_none()
     if att is None:
@@ -160,16 +166,16 @@ def serve_thumbnail(request):
     return request.response
 
 
-@view_config(route_name="todo_attachment_full", request_method="GET")
+@view_config(route_name="item_attachment_full", request_method="GET")
 def serve_full(request):
-    todo_id = int(request.matchdict["todo_id"])
+    item_id = int(request.matchdict["item_id"])
     uuid_str = request.matchdict["uuid"]
-    todo = _get_authorized_todo(request, todo_id)
+    item = _get_authorized_item(request, item_id)
 
     att = request.dbsession.execute(
-        select(TodoAttachment).where(
-            TodoAttachment.todo_id == todo.id,
-            TodoAttachment.uuid == uuid_str,
+        select(ItemAttachment).where(
+            ItemAttachment.item_id == item.id,
+            ItemAttachment.uuid == uuid_str,
         )
     ).scalar_one_or_none()
     if att is None:
@@ -190,16 +196,16 @@ def serve_full(request):
     return request.response
 
 
-@view_config(route_name="todo_attachment_delete", request_method="POST")
+@view_config(route_name="item_attachment_delete", request_method="POST")
 def delete_attachment(request):
-    todo_id = int(request.matchdict["todo_id"])
+    item_id = int(request.matchdict["item_id"])
     uuid_str = request.matchdict["uuid"]
-    todo = _get_authorized_todo(request, todo_id)
+    item = _get_authorized_item(request, item_id)
 
     att = request.dbsession.execute(
-        select(TodoAttachment).where(
-            TodoAttachment.todo_id == todo.id,
-            TodoAttachment.uuid == uuid_str,
+        select(ItemAttachment).where(
+            ItemAttachment.item_id == item.id,
+            ItemAttachment.uuid == uuid_str,
         )
     ).scalar_one_or_none()
     if att is None:
@@ -209,14 +215,14 @@ def delete_attachment(request):
     request.dbsession.flush()
 
     still_referenced = request.dbsession.execute(
-        select(func.count()).where(TodoAttachment.uuid == uuid_str)
+        select(func.count()).where(ItemAttachment.uuid == uuid_str)
     ).scalar()
     if not still_referenced:
         attachments_dir = _get_attachments_dir(request)
         ext = _ext_for(att)
         for suffix in ("", "_thumb"):
             (attachments_dir / (uuid_str + suffix + ext)).unlink(missing_ok=True)
-    request.dbsession.expire(todo)
+    request.dbsession.expire(item)
 
     request.response.content_type = "text/html"
     request.response.text = ""

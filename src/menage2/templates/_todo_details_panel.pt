@@ -316,7 +316,7 @@
                      repeat for file in dataTransfer.files indexed by i
                        call fd.append('file' + i, file)
                      end
-                     fetch ${request.route_url('todo_attachment_upload', id=todo.id)} with method:'POST', body: fd
+                     fetch ${request.route_url('item_attachment_upload', id=todo.id)} with method:'POST', body: fd
                      remove .bg-info-subtle
                      add .bg-secondary-subtle
                    end
