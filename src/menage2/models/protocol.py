@@ -108,7 +108,7 @@ class ProtocolRun(Todo):
     protocol_id = Column(Integer, ForeignKey("protocols.id"), nullable=False)
     #: When the items were snapshotted -- the one date that is the run's own.
     #: Spawning is `created_at` and closing is `done_at`, on the item.
-    opened_at = Column(DateTime(timezone=True))
+    opened_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
 
     __mapper_args__: ClassVar = {
         "polymorphic_identity": "protocol_run",

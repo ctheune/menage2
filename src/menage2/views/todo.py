@@ -23,8 +23,6 @@ from menage2.markers import scan
 from menage2.models.item import (
     Item,
     ItemLink,
-    RecurrenceKind,
-    RecurrenceUnit,
     TodoStatus,
 )
 from menage2.models.principal import Principal
@@ -41,11 +39,11 @@ from menage2.principals import (
 from menage2.recurrence import (
     chain_history,
     rule_to_spec,
+    set_recurrence,
     spawn_after,
     spawn_every_on_completion,
     spawn_protocol_after,
     spawn_protocol_every_on_completion,
-    spec_to_rule,
 )
 from menage2.schemas import validate_request, validation_error
 from menage2.urls import shorten_url
@@ -213,29 +211,6 @@ def parse_todo_input(raw: str, today: datetime.date | None = None) -> ParsedTodo
         note=note,
         links=links,
     )
-
-
-def _apply_recurrence_spec(todo: Todo, spec: RecurrenceSpec | None, dbsession) -> None:
-    """Attach a rule to a todo, updating in place when one already exists.
-
-    A ``None`` spec clears the link (the rule itself is left in place because
-    sibling todos in the spawn chain may still reference it).
-    """
-    if spec is None:
-        todo.recurrence = None
-        return
-    if todo.recurrence is not None:
-        r = todo.recurrence
-        r.kind = RecurrenceKind(spec.kind)
-        r.interval_value = spec.interval_value
-        r.interval_unit = RecurrenceUnit(spec.interval_unit)
-        r.weekday = spec.weekday
-        r.month_day = spec.month_day
-    else:
-        rule = spec_to_rule(spec)
-        dbsession.add(rule)
-        dbsession.flush()
-        todo.recurrence = rule
 
 
 def _insert(node: dict, segments: list, full_tag: str, todo: Todo) -> None:
@@ -889,7 +864,7 @@ def add_todo(request):
     request.dbsession.add(todo)
     if parsed.recurrence is not None:
         request.dbsession.flush()
-        _apply_recurrence_spec(todo, parsed.recurrence, request.dbsession)
+        set_recurrence(todo, parsed.recurrence, request.dbsession)
     return HTTPSeeOther(next_url)
 
 
@@ -1145,16 +1120,7 @@ def todo_update(request):
     if "recurrence" in clear_fields:
         todo.recurrence_id = None
     elif validated.recurrence is not None:
-        from menage2.dateparse import RecurrenceSpec as DateparseRecurrenceSpec
-
-        spec = DateparseRecurrenceSpec(
-            kind=validated.recurrence.kind,
-            interval_value=validated.recurrence.interval_value,
-            interval_unit=validated.recurrence.interval_unit,
-            weekday=validated.recurrence.weekday,
-            month_day=validated.recurrence.month_day,
-        )
-        _apply_recurrence_spec(todo, spec, request.dbsession)
+        set_recurrence(todo, validated.recurrence, request.dbsession)
 
     if "links" in clear_fields:
         request.dbsession.execute(

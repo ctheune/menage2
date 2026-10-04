@@ -127,7 +127,7 @@ def test_edit_protocol_sets_recurrence(authenticated_testapp, dbsession, admin_u
     dbsession.flush()
     dbsession.refresh(p)
     assert p.recurrence is not None
-    assert p.recurrence.weekday == 2
+    assert p.recurrence.weekdays == [2]
     # A repeating checklist always has a run waiting.
     assert (
         dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).count()
@@ -645,3 +645,96 @@ def test_completing_protocol_todo_with_after_rule_spawns_next(
         .one()
     )
     assert new_todo.due_date == _today() + datetime.timedelta(days=7)
+
+
+def test_a_checklist_repeats_on_several_weekdays(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user)
+    authenticated_testapp.post_json(
+        f"/items/{p.id}", {"recurrence": "every tue and sat"}, status=200
+    )
+    dbsession.flush()
+    dbsession.refresh(p)
+    assert p.recurrence is not None
+    assert p.recurrence.weekdays == [1, 5]
+    # The panel shows the rule the way it reads it back.
+    body = authenticated_testapp.get(f"/items/{p.id}/panel").text
+    assert 'value="every Tuesday, Saturday"' in body
+
+
+_WEEKDAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def _set_rule(testapp, protocol, rule):
+    testapp.post_json(f"/items/{protocol.id}", {"recurrence": rule}, status=200)
+
+
+def _waiting_runs(dbsession, protocol):
+    dbsession.expire_all()
+    return (
+        dbsession.query(ProtocolRun)
+        .filter(
+            ProtocolRun.protocol_id == protocol.id,
+            ProtocolRun.status == TodoStatus.todo,
+        )
+        .all()
+    )
+
+
+def test_a_changed_rule_moves_the_waiting_run(
+    authenticated_testapp, dbsession, admin_user
+):
+    """From "every <in three days>" to every day: the run is due today, not
+    in three days, and it is still the only one."""
+    p = _make_protocol(dbsession, admin_user)
+    in_three_days = _today() + datetime.timedelta(days=3)
+    _set_rule(
+        authenticated_testapp, p, f"every {_WEEKDAY_NAMES[in_three_days.weekday()]}"
+    )
+    (run,) = _waiting_runs(dbsession, p)
+    assert run.due_date == in_three_days
+
+    _set_rule(authenticated_testapp, p, "every " + ", ".join(_WEEKDAY_NAMES))
+
+    (run,) = _waiting_runs(dbsession, p)
+    assert run.due_date == _today()
+
+
+def test_an_opened_run_stays_where_it_is(authenticated_testapp, dbsession, admin_user):
+    p = _make_protocol(dbsession, admin_user, items=["x"])
+    in_three_days = _today() + datetime.timedelta(days=3)
+    _set_rule(
+        authenticated_testapp, p, f"every {_WEEKDAY_NAMES[in_three_days.weekday()]}"
+    )
+    (run,) = _waiting_runs(dbsession, p)
+    run.opened_at = _now()
+    dbsession.flush()
+
+    _set_rule(authenticated_testapp, p, "every " + ", ".join(_WEEKDAY_NAMES))
+
+    (run,) = _waiting_runs(dbsession, p)
+    assert run.due_date == in_three_days
+
+
+def test_saving_the_same_rule_keeps_a_postponed_run(
+    authenticated_testapp, dbsession, admin_user
+):
+    """The panel posts the rule on every save; that is no reason to undo a
+    run somebody moved by hand."""
+    p = _make_protocol(dbsession, admin_user)
+    _set_rule(authenticated_testapp, p, "every " + ", ".join(_WEEKDAY_NAMES))
+    (run,) = _waiting_runs(dbsession, p)
+    postponed = _today() + datetime.timedelta(days=10)
+    run.due_date = postponed
+    dbsession.flush()
+    assert p.recurrence is not None
+
+    authenticated_testapp.post_json(
+        f"/items/{p.id}",
+        {"note": "bring gloves", "recurrence": p.recurrence.label},
+        status=200,
+    )
+
+    (run,) = _waiting_runs(dbsession, p)
+    assert run.due_date == postponed

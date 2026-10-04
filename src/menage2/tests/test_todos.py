@@ -938,7 +938,7 @@ def test_parse_todo_input_extracts_weekday_recurrence():
     parsed = parse_todo_input("Yoga *every wednesday #fitness")
     assert parsed.text == "Yoga"
     assert parsed.recurrence == RecurrenceSpec(
-        kind="every", interval_value=1, interval_unit="week", weekday=2
+        kind="every", interval_value=1, interval_unit="week", weekdays=[2]
     )
 
 
@@ -959,6 +959,27 @@ def test_add_todo_creates_recurrence_rule(app_request, dbsession, admin_user):
     assert rule.kind == RecurrenceKind.every
     assert rule.interval_unit == RecurrenceUnit.week
     assert rule.interval_value == 1
+
+
+def test_add_todo_repeats_on_several_weekdays(app_request, dbsession, admin_user):
+    app_request.method = "POST"
+    app_request.POST["text"] = "Gym *every mon, wed, fri"
+    add_todo(app_request)
+    todo = dbsession.query(Todo).one()
+    assert todo.text == "Gym"
+    assert todo.recurrence.weekdays == [0, 2, 4]
+    assert todo.recurrence.label == "every Monday, Wednesday, Friday"
+
+
+def test_add_todo_repeats_on_a_day_of_the_year(app_request, dbsession, admin_user):
+    app_request.method = "POST"
+    app_request.POST["text"] = "Carve pumpkin *every october 31st"
+    add_todo(app_request)
+    todo = dbsession.query(Todo).one()
+    assert todo.text == "Carve pumpkin"
+    assert (todo.recurrence.month, todo.recurrence.month_day) == (10, 31)
+    assert todo.recurrence.interval_unit == RecurrenceUnit.year
+    assert todo.recurrence.label == "every October 31st"
 
 
 def test_todos_done_spawns_after_instance(app_request, dbsession, admin_user):
@@ -990,7 +1011,7 @@ def test_todos_done_spawns_every_instance(app_request, dbsession, admin_user):
         kind=RecurrenceKind.every,
         interval_value=1,
         interval_unit=RecurrenceUnit.week,
-        weekday=_today().weekday(),
+        weekdays=[_today().weekday()],
     )
     dbsession.add(rule)
     dbsession.flush()

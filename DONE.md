@@ -2,6 +2,9 @@
 
 # DONE
 
+
+* [x] notes must keep newlines
+
 * [x] make weekly meal plan list more informative: show the actual recipes in a compact manner on the list
 
 

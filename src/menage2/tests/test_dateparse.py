@@ -317,7 +317,7 @@ def test_parse_recurrence_interval(raw, kind, n, unit):
 def test_parse_recurrence_weekday(raw, wd):
     spec = parse_recurrence(raw)
     assert spec == RecurrenceSpec(
-        kind="every", interval_value=1, interval_unit="week", weekday=wd
+        kind="every", interval_value=1, interval_unit="week", weekdays=[wd]
     )
 
 
@@ -335,6 +335,72 @@ def test_parse_recurrence_month_day(raw, day):
     assert spec == RecurrenceSpec(
         kind="every", interval_value=1, interval_unit="month", month_day=day
     )
+
+
+@pytest.mark.parametrize(
+    "raw,wds,n",
+    [
+        ("every monday, friday, sunday", [0, 4, 6], 1),
+        ("every mon,fri", [0, 4], 1),
+        ("every mon and thu", [0, 3], 1),
+        ("every sun & sat", [5, 6], 1),
+        ("every friday, monday, friday", [0, 4], 1),
+        ("every other tue, thu", [1, 3], 2),
+        ("every 3rd mon, wed", [0, 2], 3),
+    ],
+)
+def test_parse_recurrence_several_weekdays(raw, wds, n):
+    spec = parse_recurrence(raw)
+    assert spec == RecurrenceSpec(
+        kind="every", interval_value=n, interval_unit="week", weekdays=wds
+    )
+
+
+@pytest.mark.parametrize(
+    "raw,month,day",
+    [
+        ("every october 31st", 10, 31),
+        ("every oct 31", 10, 31),
+        ("every 31st of october", 10, 31),
+        ("every 31 oct", 10, 31),
+        ("every february 29th", 2, 29),
+        ("every 1st january", 1, 1),
+    ],
+)
+def test_parse_recurrence_day_of_the_year(raw, month, day):
+    spec = parse_recurrence(raw)
+    assert spec == RecurrenceSpec(
+        kind="every", interval_value=1, interval_unit="year", month=month, month_day=day
+    )
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "every monday, someday",
+        "every february 30th",
+        "every april 31st",
+        "every ma 3rd",  # March or May
+    ],
+)
+def test_parse_recurrence_refuses_what_is_not_a_date(raw):
+    assert parse_recurrence(raw) is None
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "every monday, friday, sunday",
+        "every other tue, thu",
+        "every october 31st",
+        "every feb 29",
+    ],
+)
+def test_a_label_reads_back_as_the_same_rule(raw):
+    """The repeat field shows the label and posts it back."""
+    spec = parse_recurrence(raw)
+    assert spec is not None
+    assert parse_recurrence(spec.label()) == spec
 
 
 # ---------------------------------------------------------------------------
@@ -355,7 +421,7 @@ def test_parse_recurrence_month_day(raw, day):
 def test_parse_recurrence_ordinal_weekday(raw, wd, n):
     spec = parse_recurrence(raw)
     assert spec == RecurrenceSpec(
-        kind="every", interval_value=n, interval_unit="week", weekday=wd
+        kind="every", interval_value=n, interval_unit="week", weekdays=[wd]
     )
 
 
@@ -367,15 +433,27 @@ def test_parse_recurrence_ordinal_weekday(raw, wd, n):
         (RecurrenceSpec("every", 2, "week"), "every 2 weeks"),
         (RecurrenceSpec("after", 1, "month"), "after a month"),
         (RecurrenceSpec("after", 3, "day"), "after 3 days"),
-        (RecurrenceSpec("every", 1, "week", weekday=2), "every Wednesday"),
-        (RecurrenceSpec("every", 2, "week", weekday=4), "every other Friday"),
-        (RecurrenceSpec("every", 3, "week", weekday=4), "every 3rd Friday"),
+        (RecurrenceSpec("every", 1, "week", weekdays=[2]), "every Wednesday"),
+        (RecurrenceSpec("every", 2, "week", weekdays=[4]), "every other Friday"),
+        (RecurrenceSpec("every", 3, "week", weekdays=[4]), "every 3rd Friday"),
         (RecurrenceSpec("every", 1, "month", month_day=1), "every 1st"),
         (RecurrenceSpec("every", 1, "month", month_day=2), "every 2nd"),
         (RecurrenceSpec("every", 1, "month", month_day=3), "every 3rd"),
         (RecurrenceSpec("every", 1, "month", month_day=4), "every 4th"),
         (RecurrenceSpec("every", 1, "month", month_day=11), "every 11th"),
         (RecurrenceSpec("every", 1, "month", month_day=21), "every 21st"),
+        (
+            RecurrenceSpec("every", 1, "week", weekdays=[0, 4, 6]),
+            "every Monday, Friday, Sunday",
+        ),
+        (
+            RecurrenceSpec("every", 2, "week", weekdays=[1, 3]),
+            "every other Tuesday, Thursday",
+        ),
+        (
+            RecurrenceSpec("every", 1, "year", month=10, month_day=31),
+            "every October 31st",
+        ),
     ],
 )
 def test_recurrence_label(spec, expected):
@@ -385,6 +463,11 @@ def test_recurrence_label(spec, expected):
 # ---------------------------------------------------------------------------
 # next_occurrence
 # ---------------------------------------------------------------------------
+
+
+_SEVERAL = RecurrenceSpec("every", 1, "week", weekdays=[0, 4, 6])
+_OTHER_TUE_THU = RecurrenceSpec("every", 2, "week", weekdays=[1, 3])
+_HALLOWEEN = RecurrenceSpec("every", 1, "year", month=10, month_day=31)
 
 
 @pytest.mark.parametrize(
@@ -397,19 +480,35 @@ def test_recurrence_label(spec, expected):
         (RecurrenceSpec("after", 1, "month"), "2026-01-31", "2026-02-28"),
         (RecurrenceSpec("after", 1, "year"), "2026-04-29", "2027-04-29"),
         # Weekday — anchor=Wednesday → next Mon = +5
-        (RecurrenceSpec("every", 1, "week", weekday=0), "2026-04-29", "2026-05-04"),
+        (RecurrenceSpec("every", 1, "week", weekdays=[0]), "2026-04-29", "2026-05-04"),
         # Anchor=Wednesday, weekday=Wed → next Wed = +7
-        (RecurrenceSpec("every", 1, "week", weekday=2), "2026-04-29", "2026-05-06"),
+        (RecurrenceSpec("every", 1, "week", weekdays=[2]), "2026-04-29", "2026-05-06"),
         # "every other Friday": anchor=Friday → skip 1 extra week → +14 days
-        (RecurrenceSpec("every", 2, "week", weekday=4), "2026-05-01", "2026-05-15"),
+        (RecurrenceSpec("every", 2, "week", weekdays=[4]), "2026-05-01", "2026-05-15"),
         # "every 3rd Friday": anchor=Friday → +21 days
-        (RecurrenceSpec("every", 3, "week", weekday=4), "2026-05-01", "2026-05-22"),
+        (RecurrenceSpec("every", 3, "week", weekdays=[4]), "2026-05-01", "2026-05-22"),
         # Month day — anchor=Apr 29, day=15 → May 15
         (RecurrenceSpec("every", 1, "month", month_day=15), "2026-04-29", "2026-05-15"),
         # Month day — anchor=Apr 14, day=15 → Apr 15 (same month, future)
         (RecurrenceSpec("every", 1, "month", month_day=15), "2026-04-14", "2026-04-15"),
         # Month day=31 — Apr 30 → May 31 (Apr 31 invalid skipped)
         (RecurrenceSpec("every", 1, "month", month_day=31), "2026-04-30", "2026-05-31"),
+        # Several days: the next listed one. Anchor=Wed → Fri, Fri → Sun, Sun → Mon
+        (_SEVERAL, "2026-04-29", "2026-05-01"),
+        (_SEVERAL, "2026-05-01", "2026-05-03"),
+        (_SEVERAL, "2026-05-03", "2026-05-04"),
+        # Every other week, Tue+Thu: Tue → Thu, then Thu → Tue two weeks on
+        (_OTHER_TUE_THU, "2026-04-28", "2026-04-30"),
+        (_OTHER_TUE_THU, "2026-04-30", "2026-05-12"),
+        # A day of the year: later this year, else next year
+        (_HALLOWEEN, "2026-04-29", "2026-10-31"),
+        (_HALLOWEEN, "2026-10-31", "2027-10-31"),
+        # February 29th waits for a leap year
+        (
+            RecurrenceSpec("every", 1, "year", month=2, month_day=29),
+            "2026-03-01",
+            "2028-02-29",
+        ),
     ],
 )
 def test_next_occurrence(spec, anchor, expected):

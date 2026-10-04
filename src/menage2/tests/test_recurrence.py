@@ -34,12 +34,12 @@ def _now():
     return datetime.datetime.now(datetime.UTC)
 
 
-def _make_rule(dbsession, kind, unit, n=1, weekday=None, month_day=None):
+def _make_rule(dbsession, kind, unit, n=1, weekdays=None, month_day=None):
     rule = RecurrenceRule(
         kind=RecurrenceKind(kind),
         interval_value=n,
         interval_unit=RecurrenceUnit(unit),
-        weekday=weekday,
+        weekdays=weekdays,
         month_day=month_day,
     )
     dbsession.add(rule)
@@ -67,7 +67,7 @@ def _make_todo(dbsession, **kwargs):
 
 
 def test_spec_rule_roundtrip(dbsession):
-    spec = RecurrenceSpec("every", 2, "week", weekday=2)
+    spec = RecurrenceSpec("every", 2, "week", weekdays=[2])
     rule = spec_to_rule(spec)
     dbsession.add(rule)
     dbsession.flush()
@@ -189,7 +189,7 @@ def test_spawn_after_returns_none_for_no_rule(dbsession, admin_user):
 
 def test_spawn_every_on_completion_creates_next_instance(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)  # Wed
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     todo = _make_todo(
         dbsession,
         text="Yoga",
@@ -218,7 +218,7 @@ def test_spawn_every_on_completion_skips_if_future_already_active(
     dbsession, admin_user
 ):
     today = datetime.date(2026, 4, 29)
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     # Sweep already created next-Wed before this completion
     _make_todo(
         dbsession,
@@ -269,7 +269,7 @@ def test_sweeping_twice_creates_nothing_the_second_time(dbsession, admin_user):
     stops it running twice in a row, so running twice has to be harmless.
     """
     today = datetime.date(2026, 4, 29)
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     _make_todo(
         dbsession,
         text="Yoga",
@@ -286,7 +286,7 @@ def test_sweeping_twice_creates_nothing_the_second_time(dbsession, admin_user):
 def test_sweep_skips_when_today_active_anchor(dbsession, admin_user):
     """An active anchor due today already satisfies 'has today-or-future'."""
     today = datetime.date(2026, 4, 29)  # Wed
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     _make_todo(
         dbsession,
         text="Weekly",
@@ -301,7 +301,7 @@ def test_sweep_skips_when_today_active_anchor(dbsession, admin_user):
 def test_sweep_creates_next_when_today_anchor_already_done(dbsession, admin_user):
     """Today's instance done → spawn the next so the chain stays alive."""
     today = datetime.date(2026, 4, 29)  # Wed
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     _make_todo(
         dbsession,
         text="Yoga",
@@ -327,7 +327,7 @@ def test_sweep_creates_next_when_today_anchor_already_done(dbsession, admin_user
 
 def test_sweep_catches_up_missed_occurrences(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)  # Wed
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     _make_todo(
         dbsession,
         text="catchup",
@@ -348,7 +348,7 @@ def test_sweep_creates_until_today_or_future_when_only_past_active(
 ):
     """Past-active instance counts as 'no today-or-future' → catch up."""
     today = datetime.date(2026, 4, 29)  # Wed
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     _make_todo(
         dbsession,
         text="overdue",
@@ -396,7 +396,7 @@ def test_sweep_skips_when_future_active_exists(dbsession, admin_user):
 
 def test_sweep_catches_up_a_rule_nobody_has_touched(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     _make_todo(
         dbsession,
         text="forced",
@@ -558,7 +558,7 @@ def test_spawn_protocol_after_creates_next_run(dbsession, admin_user):
 
 
 def test_spawn_protocol_after_no_op_for_every(dbsession, admin_user):
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     p = _make_protocol(dbsession, admin_user, recurrence=rule)
     run = spawn_protocol_run(p, datetime.date(2026, 4, 29), _now(), dbsession)
     assert (
@@ -568,7 +568,7 @@ def test_spawn_protocol_after_no_op_for_every(dbsession, admin_user):
 
 def test_spawn_protocol_every_on_completion_creates_next(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)  # Wed
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     p = _make_protocol(dbsession, admin_user, recurrence=rule)
     run = spawn_protocol_run(p, today, _now(), dbsession)
     # Simulate completion, so the future-active check no longer counts it.
@@ -593,7 +593,7 @@ def test_spawn_protocol_every_skips_when_future_active_run_exists(
     dbsession, admin_user
 ):
     today = datetime.date(2026, 4, 29)
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     p = _make_protocol(dbsession, admin_user, recurrence=rule)
     spawn_protocol_run(p, today, _now(), dbsession)  # already today-active
     run = spawn_protocol_run(p, today - datetime.timedelta(days=7), _now(), dbsession)
@@ -603,7 +603,7 @@ def test_spawn_protocol_every_skips_when_future_active_run_exists(
 
 def test_daily_sweep_includes_protocols(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     p = _make_protocol(dbsession, admin_user, recurrence=rule)
     # Past run only — chain has no today-or-future active.
     spawn_protocol_run(p, today - datetime.timedelta(days=14), _now(), dbsession)
@@ -619,7 +619,7 @@ def test_daily_sweep_includes_protocols(dbsession, admin_user):
 
 def test_daily_sweep_skips_archived_protocols(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     p = _make_protocol(dbsession, admin_user, recurrence=rule)
     p.archived_at = _now()
     spawn_protocol_run(p, today - datetime.timedelta(days=14), _now(), dbsession)
@@ -633,7 +633,7 @@ def test_daily_sweep_skips_archived_protocols(dbsession, admin_user):
 
 def test_ensure_protocol_has_run_creates_first_run(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)  # Wed
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     p = _make_protocol(dbsession, admin_user, recurrence=rule)
     ensure_protocol_has_run(p, today, _now(), dbsession)
     runs = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).all()
@@ -643,7 +643,7 @@ def test_ensure_protocol_has_run_creates_first_run(dbsession, admin_user):
 
 def test_ensure_protocol_has_run_no_op_when_active_exists(dbsession, admin_user):
     today = datetime.date(2026, 4, 29)
-    rule = _make_rule(dbsession, "every", "week", weekday=2)
+    rule = _make_rule(dbsession, "every", "week", weekdays=[2])
     p = _make_protocol(dbsession, admin_user, recurrence=rule)
     spawn_protocol_run(p, today, _now(), dbsession)
     before = (

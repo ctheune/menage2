@@ -45,19 +45,43 @@ def rule_to_spec(rule: RecurrenceRule) -> RecurrenceSpec:
         kind=rule.kind.value,
         interval_value=rule.interval_value,
         interval_unit=rule.interval_unit.value,
-        weekday=rule.weekday,
+        weekdays=list(rule.weekdays) if rule.weekdays else None,
         month_day=rule.month_day,
+        month=rule.month,
     )
+
+
+def apply_spec(rule: RecurrenceRule, spec: RecurrenceSpec) -> RecurrenceRule:
+    """Make `rule` say what `spec` says, every field of it."""
+    rule.kind = RecurrenceKind(spec.kind)
+    rule.interval_value = spec.interval_value
+    rule.interval_unit = RecurrenceUnit(spec.interval_unit)
+    rule.weekdays = spec.weekdays
+    rule.month_day = spec.month_day
+    rule.month = spec.month
+    return rule
 
 
 def spec_to_rule(spec: RecurrenceSpec) -> RecurrenceRule:
-    return RecurrenceRule(
-        kind=RecurrenceKind(spec.kind),
-        interval_value=spec.interval_value,
-        interval_unit=RecurrenceUnit(spec.interval_unit),
-        weekday=spec.weekday,
-        month_day=spec.month_day,
-    )
+    return apply_spec(RecurrenceRule(), spec)
+
+
+def set_recurrence(item, spec: RecurrenceSpec | None, dbsession) -> None:
+    """Repeat `item` by `spec`, changing its rule in place when it has one.
+
+    A ``None`` spec unlinks the rule but leaves it there: the instances
+    already spawned from it may still refer to it.
+    """
+    if spec is None:
+        item.recurrence = None
+        return
+    if item.recurrence is not None:
+        apply_spec(item.recurrence, spec)
+        return
+    rule = spec_to_rule(spec)
+    dbsession.add(rule)
+    dbsession.flush()
+    item.recurrence = rule
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +394,45 @@ def ensure_protocol_has_run(
         anchor = nxt
         nxt = next_occurrence(spec, anchor)
     spawn_protocol_run(protocol, nxt, now_utc, dbsession)
+
+
+def redate_waiting_run(
+    protocol: Protocol, today: datetime.date, dbsession
+) -> ProtocolRun | None:
+    """Move the run still waiting for this checklist to its rule's next date.
+
+    For when the rule has just changed: the waiting run was dated by the old
+    one, and from "every Monday" to "every Monday, Wednesday, Friday" this
+    week's Wednesday would otherwise be skipped. Only a run nobody has opened
+    is moved -- an opened one has its items copied and maybe ticked, and
+    shifting it under somebody would be a surprise. Today counts, as it does
+    for a checklist's first run.
+    """
+    rule = protocol.recurrence
+    if rule is None:
+        return None
+    ProtocolRun = menage2.models.protocol.ProtocolRun
+    waiting = (
+        dbsession.execute(
+            select(ProtocolRun)
+            .where(
+                ProtocolRun.protocol_id == protocol.id,
+                ProtocolRun.status == TodoStatus.todo,
+                ProtocolRun.opened_at.is_(None),
+                ProtocolRun.due_date >= today,
+            )
+            .order_by(ProtocolRun.due_date)
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    if waiting is None:
+        return None
+    waiting.due_date = next_occurrence(
+        rule_to_spec(rule), today - datetime.timedelta(days=1)
+    )
+    return waiting
 
 
 def _sweep_every_protocols(

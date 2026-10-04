@@ -206,7 +206,7 @@ def _rule(**kwargs):
         "kind": RecurrenceKind.every,
         "interval_value": 1,
         "interval_unit": RecurrenceUnit.week,
-        "weekday": None,
+        "weekdays": None,
         "month_day": None,
     }
     defaults.update(kwargs)

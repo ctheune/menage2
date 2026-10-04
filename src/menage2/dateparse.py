@@ -25,14 +25,27 @@ from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel
 
 
+def _ordinal(n: int) -> str:
+    """1st, 2nd, 3rd, 4th, 11th, 21st, ..."""
+    suffix = "th"
+    if n % 100 not in (11, 12, 13):
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 class RecurrenceSpec(BaseModel):
-    """Schema for recurrence specification."""
+    """Schema for recurrence specification.
+
+    The label is what the repeat field shows and posts back, so every label
+    parses back into the spec it came from.
+    """
 
     kind: str  # 'after' | 'every'
     interval_value: int
     interval_unit: str  # 'day' | 'week' | 'month' | 'year'
-    weekday: int | None = None  # 0=Mon..6=Sun
-    month_day: int | None = None  # 1..31
+    weekdays: list[int] | None = None  # 0=Mon..6=Sun, sorted: "every Mon, Fri"
+    month_day: int | None = None  # 1..31: "every 15th"
+    month: int | None = None  # 1..12, with month_day: "every October 31st"
 
     def __init__(self, kind, interval_value, interval_unit, **kw):
         super().__init__(
@@ -41,31 +54,18 @@ class RecurrenceSpec(BaseModel):
 
     def label(self) -> str:
         """Render a short, human-friendly label like 'every Wednesday'."""
-        if self.weekday is not None:
-            names = [
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday",
-                "Sunday",
-            ]
-            day = names[self.weekday]
+        if self.weekdays:
+            days = ", ".join(_WEEKDAY_LABELS[d] for d in self.weekdays)
             n = self.interval_value
             if n == 1:
-                return f"every {day}"
+                return f"every {days}"
             if n == 2:
-                return f"every other {day}"
-            suffix = "th"
-            if n % 100 not in (11, 12, 13):
-                suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-            return f"every {n}{suffix} {day}"
+                return f"every other {days}"
+            return f"every {_ordinal(n)} {days}"
+        if self.month is not None and self.month_day is not None:
+            return f"every {_MONTH_LABELS[self.month - 1]} {_ordinal(self.month_day)}"
         if self.month_day is not None:
-            suffix = "th"
-            if self.month_day % 100 not in (11, 12, 13):
-                suffix = {1: "st", 2: "nd", 3: "rd"}.get(self.month_day % 10, "th")
-            return f"every {self.month_day}{suffix}"
+            return f"every {_ordinal(self.month_day)}"
         n, unit = self.interval_value, self.interval_unit
         if n == 1:
             # "every day" reads naturally; "after a day" needs the article.
@@ -342,8 +342,11 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
     * ``every day`` / ``every week`` / ``every month`` / ``every year``
     * ``every N days`` / ``every 2 weeks``
     * ``every monday`` / ``every wed``
-    * ``every second friday`` / ``every 2nd friday`` / ``every other monday``
+    * ``every monday, friday, sunday`` / ``every mon and thu``
+    * ``every second friday`` / ``every 2nd friday`` / ``every other monday``,
+      and the same with several days: ``every other tue, thu``
     * ``every 15th`` / ``every 1st``
+    * ``every october 31st`` / ``every 31st of october`` / ``every 31 oct``
     * ``after a day`` / ``after 1 week`` / ``after N months``
 
     Returns None for empty or unparseable input.
@@ -352,28 +355,38 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
         return None
     s = _normalize(text)
 
-    # "every second friday" / "every 2nd friday" / "every other monday"
-    m = re.fullmatch(r"every\s+(\w+)\s+(\w+)", s)
-    if m and (key := prefix(_WEEKDAYS, m.group(2))) is not None:
-        ord_str = m.group(1)
-        n = _ORDINAL_WORDS.get(ord_str) or _ordinal_to_int(ord_str)
-        if n is not None and n >= 1:
+    # "every [other|2nd|second] monday[, friday and sunday]"
+    m = re.fullmatch(r"every\s+(?:(\w+)\s+)??(\w+(?:\s*(?:,|\band\b|&)\s*\w+)*)", s)
+    if m:
+        days = _weekday_list(m.group(2))
+        n = 1
+        if m.group(1) is not None:
+            n = _ORDINAL_WORDS.get(m.group(1)) or _ordinal_to_int(m.group(1)) or 0
+        if days and n >= 1:
             return RecurrenceSpec(
                 kind="every",
                 interval_value=n,
                 interval_unit="week",
-                weekday=_WEEKDAYS[key],
+                weekdays=days,
             )
 
-    # "every <weekday>"
-    m = re.fullmatch(r"every\s+(\w+)", s)
-    if m and (key := prefix(_WEEKDAYS, m.group(1))) is not None:
-        return RecurrenceSpec(
-            kind="every",
-            interval_value=1,
-            interval_unit="week",
-            weekday=_WEEKDAYS[key],
-        )
+    # "every october 31st" / "every 31st of october" / "every 31 oct"
+    m = re.fullmatch(
+        r"every\s+(?P<month>[a-z]+)\s+(?P<day>\d+(?:st|nd|rd|th)?)", s
+    ) or re.fullmatch(
+        r"every\s+(?P<day>\d+(?:st|nd|rd|th)?)\s+(?:of\s+)?(?P<month>[a-z]+)", s
+    )
+    if m:
+        key = prefix(_MONTHS, m.group("month"))
+        day = _ordinal_to_int(m.group("day"))
+        if key is not None and day is not None and _is_day_of(_MONTHS[key], day):
+            return RecurrenceSpec(
+                kind="every",
+                interval_value=1,
+                interval_unit="year",
+                month=_MONTHS[key],
+                month_day=day,
+            )
 
     # "every <ordinal>"
     m = re.fullmatch(r"every\s+(\d+(?:st|nd|rd|th)?)", s)
@@ -412,6 +425,55 @@ def parse_recurrence(text: str) -> RecurrenceSpec | None:
     return None
 
 
+def _weekday_list(text: str) -> list[int] | None:
+    """``"mon, fri and sun"`` -> ``[0, 4, 6]``; None unless every word is a day."""
+    words = [w for w in re.split(r"\s*(?:,|\band\b|&)\s*", text) if w]
+    days = set()
+    for word in words:
+        key = prefix(_WEEKDAYS, word)
+        if key is None:
+            return None
+        days.add(_WEEKDAYS[key])
+    return sorted(days) or None
+
+
+def _is_day_of(month: int, day: int) -> bool:
+    """Whether `day` exists in `month` in some year -- February 29th does."""
+    try:
+        datetime.date(2024, month, day)  # a leap year
+    except ValueError:
+        return False
+    return True
+
+
+def _next_on_weekdays(
+    anchor: datetime.date, weekdays: list[int], every_n_weeks: int
+) -> datetime.date:
+    """The next listed weekday after `anchor`, in every `every_n_weeks`-th week.
+
+    A later day in the anchor's own week comes first; past the last one, the
+    rule skips ahead to the first listed day `every_n_weeks` weeks on. With
+    one day this is plainly "every other Friday".
+    """
+    later = [d for d in weekdays if d > anchor.weekday()]
+    if later:
+        return anchor + datetime.timedelta(days=later[0] - anchor.weekday())
+    monday = anchor - datetime.timedelta(days=anchor.weekday())
+    return monday + datetime.timedelta(weeks=every_n_weeks, days=weekdays[0])
+
+
+def _next_day_of_year(anchor: datetime.date, month: int, day: int) -> datetime.date:
+    """The next `month`/`day` after `anchor`; a February 29th waits for a leap year."""
+    for year in range(anchor.year, anchor.year + 9):
+        try:
+            candidate = datetime.date(year, month, day)
+        except ValueError:
+            continue
+        if candidate > anchor:
+            return candidate
+    raise ValueError(f"No {month}/{day} after {anchor}")  # pragma: no cover
+
+
 def next_occurrence(spec: RecurrenceSpec, anchor_date: datetime.date) -> datetime.date:
     """Return the next date the rule fires *strictly after* ``anchor_date``.
 
@@ -419,10 +481,11 @@ def next_occurrence(spec: RecurrenceSpec, anchor_date: datetime.date) -> datetim
     For ``every`` rules, ``anchor_date`` is the previous occurrence (or today
     when there is no previous one yet).
     """
-    if spec.weekday is not None:
-        return _soonest_weekday(
-            anchor_date, spec.weekday, extra_weeks=spec.interval_value - 1
-        )
+    if spec.weekdays:
+        return _next_on_weekdays(anchor_date, spec.weekdays, spec.interval_value)
+
+    if spec.month is not None and spec.month_day is not None:
+        return _next_day_of_year(anchor_date, spec.month, spec.month_day)
 
     if spec.month_day is not None:
         # Next calendar occurrence of the requested day-of-month.

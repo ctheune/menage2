@@ -21,7 +21,17 @@ import datetime
 import enum
 from typing import ClassVar
 
-from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Index, Integer, Text
+from sqlalchemy import (
+    ARRAY,
+    Column,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .assignee import item_assignees, principal_named
@@ -56,18 +66,25 @@ class RecurrenceRule(Base):
     * ``after`` — a spawn is created when the previous instance is marked done,
       anchored ``interval_value × interval_unit`` after the completion date.
     * ``every`` — instances fire on a fixed cadence regardless of completion.
-      ``weekday`` (0=Mon..6=Sun) anchors weekly rules ("every Wednesday").
-      ``month_day`` anchors monthly rules ("every 15th").
+      ``weekdays`` (0=Mon..6=Sun) anchors weekly rules ("every Wednesday",
+      "every Monday, Friday"). ``month_day`` anchors monthly rules ("every
+      15th"), and with ``month`` yearly ones ("every October 31st").
     """
 
     __tablename__: str = "recurrence_rules"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    kind = Column(Enum(RecurrenceKind, name="recurrencekind"), nullable=False)
-    interval_value = Column(Integer, nullable=False, default=1)
-    interval_unit = Column(Enum(RecurrenceUnit, name="recurrenceunit"), nullable=False)
-    weekday = Column(Integer, nullable=True)  # 0=Mon..6=Sun for "every <weekday>"
-    month_day = Column(Integer, nullable=True)  # 1..31 for "every Nth"
+    kind: Mapped[RecurrenceKind] = mapped_column(
+        Enum(RecurrenceKind, name="recurrencekind"), nullable=False
+    )
+    interval_value: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    interval_unit: Mapped[RecurrenceUnit] = mapped_column(
+        Enum(RecurrenceUnit, name="recurrenceunit"), nullable=False
+    )
+    #: 0=Mon..6=Sun, sorted, for "every <weekday>[, <weekday>...]"
+    weekdays: Mapped[list[int] | None] = mapped_column(ARRAY(Integer))
+    month_day: Mapped[int | None] = mapped_column(Integer)  # 1..31: "every Nth"
+    month: Mapped[int | None] = mapped_column(Integer)  # 1..12: "every <month> <Nth>"
 
     @property
     def label(self) -> str:

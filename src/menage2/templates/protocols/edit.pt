@@ -54,7 +54,6 @@
 
     <!-- Items -->
     <h5 class="mt-4 mb-2">Items</h5>
-    <tal:block tal:replace="structure items_html" />
 
     <!-- Add item — plain text, parsed the same way as a new todo -->
     <form tal:condition="is_editor"
@@ -73,6 +72,8 @@
              autocomplete="off"
              placeholder="New item — text #tag @who ~note" />
     </form>
+
+    <tal:block tal:replace="structure items_html" />
 
       </div>
 

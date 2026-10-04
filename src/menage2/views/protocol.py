@@ -28,7 +28,9 @@ from menage2.principals import (
 )
 from menage2.recurrence import (
     ensure_protocol_has_run,
+    redate_waiting_run,
     rule_to_spec,
+    set_recurrence,
     spawn_protocol_run,
 )
 from menage2.views.todo import parse_todo_input, validation_error
@@ -227,35 +229,18 @@ def set_protocol_recurrence(protocol, spec, dbsession):
     """Repeat the checklist by `spec`, or stop repeating it if that is None.
 
     A checklist that repeats has a run waiting at all times, so setting one
-    makes sure there is one.
+    makes sure there is one. A changed rule also moves that run to the new
+    rule's next date; the panel posts the rule on every save, so an
+    unchanged one leaves the run where it is -- it may have been postponed.
     """
-    _apply_protocol_recurrence(protocol, spec, dbsession)
-    if spec is not None:
-        dbsession.flush()
-        ensure_protocol_has_run(protocol, _today(), _now_utc(), dbsession)
-
-
-def _apply_protocol_recurrence(protocol, spec, dbsession):
-    """Mirror of _apply_recurrence_spec for protocols."""
+    before = rule_to_spec(protocol.recurrence) if protocol.recurrence else None
+    set_recurrence(protocol, spec, dbsession)
     if spec is None:
-        protocol.recurrence = None
         return
-    if protocol.recurrence is not None:
-        from menage2.models.item import RecurrenceKind, RecurrenceUnit
-
-        r = protocol.recurrence
-        r.kind = RecurrenceKind(spec.kind)
-        r.interval_value = spec.interval_value
-        r.interval_unit = RecurrenceUnit(spec.interval_unit)
-        r.weekday = spec.weekday
-        r.month_day = spec.month_day
-    else:
-        from menage2.recurrence import spec_to_rule
-
-        rule = spec_to_rule(spec)
-        dbsession.add(rule)
-        dbsession.flush()
-        protocol.recurrence = rule
+    dbsession.flush()
+    if before is not None and before != spec:
+        redate_waiting_run(protocol, _today(), dbsession)
+    ensure_protocol_has_run(protocol, _today(), _now_utc(), dbsession)
 
 
 @view_config(route_name="add_protocol_item", request_method="POST")
