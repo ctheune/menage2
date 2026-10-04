@@ -2,6 +2,44 @@
 
 # DONE
 
+* [x] make weekly meal plan list more informative: show the actual recipes in a compact manner on the list
+
+
+* [x] unifi non-numeric items
+
+* [x] don't allow assigning to unknown principals
+
+* [x] bilder auf protocol items ziehen
+
+* [x] swipe left should not directly trigger on hold, but should provide a dropdown choice for "hold" or "postpone"
+
+
+- [x] debug why some repetitions seem to have forked
+
+- [x] allow stopping repetitions
+
+- [x] action undo box is broken
+
+* [x] postpone in batch menu is broken
+
+* [x] shopping list -> automatically delegate to a specific team (where to configure this?)
+
+* [x] switch protocol adding/editing to new pickers
+
+* [x] simplify key bindings to bring in unused or used widgets (show + focus)
+
+- [x] expire unused attachments
+
+- [x] replace "done" with complete "c"
+
+
+* [x] swiping left should open a dialog to choose an option: "on hold", "postpone by ..." where "postpone ..." then shows the due date picker
+
+* [x] require a bit more force before starting the swiping indicator on mobile to
+      reduce accidents
+
+* [x] ensure adding and editing works on mobile
+
 
 * [x] styling der item panels (ingredients, protocols, protocol items ist falsch (padding und background))
 

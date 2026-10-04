@@ -25,10 +25,24 @@
           hx-put="${request.route_url('add_week')}"
           class="btn btn-sm btn-outline-secondary ms-2" />
     </p>
-    <ul class="list-group">
-      <li tal:repeat="week weeks" class="list-group-item">
-        <a href="${request.route_url('edit_week', id=week.id)}">Woche vom ${format.date(week.first.day, "long")} – ${format.date(week.last.day, "long")}</a>
-      </li>
-    </ul>
+    <!-- Each week with what is cooked on which day, so a week can be found
+         by its dinners rather than only by its dates. -->
+    <div class="list-group">
+      <a tal:repeat="week weeks"
+         href="${request.route_url('edit_week', id=week.id)}"
+         class="list-group-item list-group-item-action">
+        <div class="fw-semibold">Woche vom ${format.date(week.first.day, "long")} – ${format.date(week.last.day, "long")}</div>
+        <ul class="list-inline small mb-0">
+          <li tal:repeat="day week.days" class="list-inline-item">
+            <span class="text-body-secondary">${format.date(day.day, "EEE")}</span>
+            <span tal:condition="day.dinner">${day.dinner.title}</span>
+            <span tal:condition="not day.dinner and day.dinner_freestyle"
+                  class="fst-italic">${day.dinner_freestyle}</span>
+            <span tal:condition="not day.dinner and not day.dinner_freestyle"
+                  class="text-body-secondary">–</span>
+          </li>
+        </ul>
+      </a>
+    </div>
   </div>
 </div>

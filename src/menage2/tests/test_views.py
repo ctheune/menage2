@@ -26,6 +26,32 @@ def test_list_weeks_empty_shows_add_button(authenticated_testapp):
     assert b"Neue Woche" in res.body or b"Erste Woche" in res.body
 
 
+def test_list_weeks_shows_what_is_cooked(authenticated_testapp, dbsession):
+    """A week is found by its dinners, not only by its dates."""
+    import datetime
+
+    week = models.Week()
+    gulasch = models.Recipe(title="Gulasch")
+    dbsession.add_all([week, gulasch])
+    dbsession.flush()
+    dbsession.add_all(
+        [
+            models.Day(day=datetime.date(2026, 4, 20), week=week, dinner=gulasch),
+            models.Day(
+                day=datetime.date(2026, 4, 21), week=week, dinner_freestyle="Reste"
+            ),
+            models.Day(day=datetime.date(2026, 4, 22), week=week),
+        ]
+    )
+    dbsession.flush()
+
+    body = authenticated_testapp.get("/weeks", status=200).text
+
+    assert "Gulasch" in body
+    assert "Reste" in body
+    assert f"/week/{week.id}/edit" in body
+
+
 def test_notfound_view(app_request):
     info = notfound_view(app_request)
     assert app_request.response.status_int == 404
