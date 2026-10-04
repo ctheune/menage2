@@ -233,6 +233,16 @@ def test_render_note_html_plain_text():
     assert result == "hello world"
 
 
+def test_render_note_html_keeps_line_breaks():
+    result = render_note_html("eggs\nmilk\r\n[shop](https://example.com)")
+    assert result.split("<br>")[:2] == ["eggs", "milk"]
+    assert result.split("<br>")[2].startswith('<a href="https://example.com"')
+
+
+def test_render_note_html_single_line_for_a_preview():
+    assert render_note_html("eggs\nmilk", single_line=True) == "eggs milk"
+
+
 def test_render_note_html_escapes_html():
     result = render_note_html("<script>alert(1)</script>")
     assert "<script>" not in result

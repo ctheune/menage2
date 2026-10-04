@@ -46,7 +46,8 @@
           <span tal:repeat="a python:sorted(protocol.assignees)"
                 class="badge rounded-pill todo-assignee-pill-sm">@${a}</span>
           <span tal:condition="rule_label" class="text-warning-emphasis small">↻ ${rule_label}</span>
-          <span tal:condition="protocol.note" class="text-muted small w-100">~${protocol.note}</span>
+          <span tal:condition="protocol.note" class="text-muted small w-100"
+                tal:content="structure render_note_html(protocol.note)"></span>
         </div>
       </div>
     </div>

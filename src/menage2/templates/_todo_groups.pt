@@ -79,11 +79,11 @@
         >
           <span class="text-truncate" style="min-width: 0">
             <span class="todo-title">${todo.text}</span>
-            <span class="d-block" tal:condition="todo.note or todo.links">
+            <span class="d-block text-truncate" tal:condition="todo.note or todo.links">
               <span
                 tal:condition="todo.note"
                 class="todo-note-display text-muted"
-                tal:content="structure render_note_html(todo.note)"
+                tal:content="structure render_note_html(todo.note, single_line=True)"
               ></span>
               <tal:block
                 tal:condition="todo.links"

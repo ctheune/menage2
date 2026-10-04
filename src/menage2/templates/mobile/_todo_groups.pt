@@ -96,9 +96,9 @@
               _="on htmx:afterOnLoad call #mobile-edit-open.click()">
           <span class="text-truncate" style="min-width: 0">
             <span class="todo-title">${todo.text}</span>
-            <span class="d-block" tal:condition="todo.note or todo.links">
+            <span class="d-block text-truncate" tal:condition="todo.note or todo.links">
               <span tal:condition="todo.note" class="todo-note-display text-muted"
-                    tal:content="structure render_note_html(todo.note)"></span>
+                    tal:content="structure render_note_html(todo.note, single_line=True)"></span>
               <tal:block tal:condition="todo.links" tal:repeat="link todo.links">
                 <a tal:attributes="href link.url" target="_blank" rel="noopener noreferrer"
                    class="todo-link-badge d-inline-block text-decoration-none me-1">

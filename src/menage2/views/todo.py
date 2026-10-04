@@ -94,8 +94,13 @@ def reject_unknown_assignees(request, names):
     return validation_error(request, f"No user or team called @{unknown[0]}.")
 
 
-def render_note_html(note: str) -> str:
-    """Return HTML-safe note text with [label](url) rendered as clickable <a> tags."""
+def render_note_html(note: str, single_line: bool = False) -> str:
+    """Return HTML-safe note text with [label](url) rendered as clickable <a> tags.
+
+    Line breaks are kept: a note is often a list, and run together on one
+    line it stops being one. A preview that only has room for one line --
+    the task list's -- asks for `single_line` and gets them as spaces.
+    """
     import html as _html
 
     escaped = _html.escape(note)
@@ -111,7 +116,9 @@ def render_note_html(note: str) -> str:
         safe_label = _html.escape(label)
         return f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer">{safe_label}</a>'
 
-    return _INLINE_LINK_RE.sub(_replace, escaped)
+    linked = _INLINE_LINK_RE.sub(_replace, escaped)
+    lines = linked.replace("\r\n", "\n").split("\n")
+    return " ".join(lines) if single_line else "<br>".join(lines)
 
 
 def parse_link(link_str: str) -> tuple[str, str]:
@@ -732,7 +739,6 @@ def _list_todo_groups(request):
     return {
         "status": status,
         "groups": groups,
-        "render_note_html": render_note_html,
         "today": today,
         "parse_link": parse_link,
         "assignees_shown": _assignee_display(todos, covering),
@@ -1632,7 +1638,6 @@ def todo_details_panel(request: Request):
                     for t in sorted(todo.links, key=lambda t: t.position)
                 ]
             ),
-            "render_note_html": render_note_html,
         },
         request=request,
         response=request.response,

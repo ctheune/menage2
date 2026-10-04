@@ -144,21 +144,8 @@
           </button>
         </div>
 
-        <div class="mb-3">
-          <input type="hidden" name="note" id="input-todo-note" value="${todo.note}" />
-
-          <label for="note">Note</label>
-
-          <div contenteditable="true" class="form-control" style="font-size: 80%;"
-            _="bind me to #input-todo-note
-               on keydown[key is '~' and target.matches('body')] from body
-                 focus me
-                 halt
-               on keydown[key is 'Escape']
-                 blur
-                 halt">
-          </div>
-        </div>
+        <div metal:use-macro="load: ./item/fields/note.pt"
+             tal:define="item todo"></div>
 
         <div metal:use-macro="load: ./item/fields/assignees.pt"></div>
 

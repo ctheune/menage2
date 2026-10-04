@@ -13,7 +13,8 @@
           class="badge rounded-pill bg-secondary">#${t}</span>
     <span tal:repeat="a python:sorted(item.assignees)"
           class="badge rounded-pill todo-assignee-pill-sm">@${a}</span>
-    <span tal:condition="item.note" class="text-muted small">~${item.note}</span>
+    <span tal:condition="item.note" class="text-muted small"
+          tal:content="structure render_note_html(item.note)"></span>
     <!-- Its click stops here, or the line would open the editor as well. -->
     <button tal:condition="is_editor"
             type="button"

@@ -744,11 +744,8 @@ body:has(.navbar.fixed-bottom) .undo-toast {
     opacity: 1;
 }
 
-/* Note text in todo row — override parent text-truncate to allow wrapping */
+/* Note preview in a todo row: one line, cut off by the line's text-truncate */
 .todo-note-display {
-    white-space: normal;
-    overflow: visible;
-    word-break: break-word;
     font-size: 0.7rem;
 }
 

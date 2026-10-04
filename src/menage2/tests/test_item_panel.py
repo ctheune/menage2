@@ -150,3 +150,18 @@ def test_a_stranger_gets_nothing(testapp, dbsession, admin_user, regular_user):
     _as_regular(testapp)
 
     assert _panel(testapp, protocol.id, expect_errors=True).status_int == 404
+
+
+def test_a_note_keeps_its_line_breaks(authenticated_testapp, dbsession, admin_user):
+    protocol = Protocol(title="Spring clean", owner_id=admin_user.id)
+    dbsession.add(protocol)
+    dbsession.flush()
+
+    authenticated_testapp.post_json(
+        f"/items/{protocol.id}", {"note": "windows\ncurtains"}, status=200
+    )
+    dbsession.expire_all()
+    assert protocol.note == "windows\ncurtains"
+
+    body = authenticated_testapp.get(f"/protocols/{protocol.id}/edit").text
+    assert "windows<br>curtains" in body

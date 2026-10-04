@@ -1,0 +1,17 @@
+<!-- The note: free text over as many lines as it needs. A textarea, because
+     a note's line breaks are part of what it says and a textarea keeps
+     them as typed. `~` from anywhere on the page goes here, the marker the
+     add box uses for a note.
+
+     Needs `item` in scope.
+-->
+<div class="mb-3" id="field-note">
+  <label for="item-note" class="form-label">Note</label>
+  <textarea class="form-control form-control-sm" id="item-note" name="note" rows="3"
+    _="on keydown[key is '~' and target.matches('body')] from body
+         focus me
+         halt
+       on keydown[key is 'Escape']
+         blur
+         halt">${python:item.note or ''}</textarea>
+</div>

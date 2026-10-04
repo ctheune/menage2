@@ -30,11 +30,7 @@
     <div metal:use-macro="load: ./fields/recurrence.pt"
          tal:condition="wants_recurrence"></div>
 
-    <div class="mb-3">
-      <label for="item-note">Note</label>
-      <textarea class="form-control" id="item-note" name="note"
-                rows="2">${python:item.note or ''}</textarea>
-    </div>
+    <div metal:use-macro="load: ./fields/note.pt"></div>
 
     <div metal:use-macro="load: ./fields/assignees.pt"
          tal:condition="wants_assignees"></div>

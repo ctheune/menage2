@@ -105,3 +105,9 @@ def globals_factory(event):
     event["humanize_ago"] = humanize_ago
     event["absolute_with_weekday"] = humanize_ago_with_weekday
     event["_recurrence_label"] = _recurrence_label
+
+    # Every list and panel shows notes the same way, links and line breaks
+    # included. Deferred: the views import half the application.
+    from menage2.views.todo import render_note_html
+
+    event["render_note_html"] = render_note_html

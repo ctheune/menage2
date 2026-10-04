@@ -103,8 +103,8 @@
                 tal:condition="item.note"
                 class="d-block text-muted"
                 style="font-size: 0.75rem"
-                >${item.note}</span
-              >
+                tal:content="structure render_note_html(item.note)"
+              ></span>
             </span>
 
             <!-- Tweak the wording before sending or ticking it off. The

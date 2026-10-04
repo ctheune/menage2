@@ -924,3 +924,19 @@ def test_removing_a_picture_takes_it_off_the_todo(
     page.reload()
     page.wait_for_selector(f"{_item('Two of these')} .todo-attachment-thumb")
     assert page.locator(f"{_item('Two of these')} .todo-attachment-thumb").count() == 1
+
+
+def test_a_note_keeps_its_line_breaks(page):
+    """Typed over two lines in the pane, kept as two lines; the list's
+    preview has room for one, so it shows them run together."""
+    page.goto(STATUS_ACTIVE)
+    _add_todo(page, "Shopping run")
+    _select(page, "Shopping run")
+    page.locator("#item-note").fill("eggs\nmilk")
+    page.locator("#todo-edit-form input[type='submit']").click()
+    note = page.locator(f"{_item('Shopping run')} .todo-note-display")
+    note.wait_for(timeout=10000)
+    assert note.inner_text() == "eggs milk"
+
+    _select(page, "Shopping run")
+    assert page.locator("#item-note").input_value() == "eggs\nmilk"
