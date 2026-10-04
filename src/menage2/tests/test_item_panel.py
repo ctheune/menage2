@@ -2,13 +2,14 @@
 
 import datetime
 
+from menage2.models.item import TodoStatus
 from menage2.models.protocol import Protocol, ProtocolItem
 from menage2.models.recipe import Ingredient
-from menage2.models.todo import Todo, TodoStatus
+from menage2.models.todo import Todo
 
 
 def _now():
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 def _panel(testapp, item_id, **kwargs):

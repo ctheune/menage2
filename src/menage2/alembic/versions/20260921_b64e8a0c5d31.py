@@ -81,7 +81,7 @@ def upgrade():
     columns = ", ".join(_MOVED)
     op.execute(
         f"INSERT INTO items (id, kind, {columns}) SELECT id, 'todo', {columns} FROM todos"
-    )  # noqa: S608
+    )
     op.execute(
         "SELECT setval('items_id_seq', coalesce((SELECT max(id) FROM items), 0) + 1, false)"
     )
@@ -119,7 +119,7 @@ def downgrade():
     op.add_column("todos", sa.Column("recurrence_id", sa.Integer(), nullable=True))
 
     assignments = ", ".join(f"{c} = i.{c}" for c in _MOVED)
-    op.execute(f"UPDATE todos SET {assignments} FROM items i WHERE i.id = todos.id")  # noqa: S608
+    op.execute(f"UPDATE todos SET {assignments} FROM items i WHERE i.id = todos.id")
 
     op.alter_column("todos", "text", nullable=False)
     op.alter_column("todos", "created_at", nullable=False)

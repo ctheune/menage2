@@ -4,20 +4,19 @@ import datetime as _dt
 import json
 from datetime import date, datetime
 from enum import Enum
-from typing import Annotated, List, Literal, Optional, Set
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     StringConstraints,
-    constr,
+    ValidationError,
     field_validator,
 )
 
-from menage2.dateparse import RecurrenceSpec
+from menage2.dateparse import RecurrenceSpec, parse_recurrence
 from menage2.dateparse import parse_date as _parse_date
-from menage2.dateparse import parse_recurrence
 
 
 class TodoStatus(str, Enum):
@@ -29,22 +28,22 @@ class TodoStatus(str, Enum):
 class TodoLinkCreate(BaseModel):
     """Schema for creating a todo link."""
 
-    label: Optional[str] = None
+    label: str | None = None
     url: str
 
 
 class TodoLinkUpdate(BaseModel):
     """Schema for updating a todo link."""
 
-    label: Optional[str] = None
-    url: Optional[str] = None
+    label: str | None = None
+    url: str | None = None
 
 
 class TodoLink(BaseModel):
     """Schema for a todo link."""
 
     id: int
-    label: Optional[str]
+    label: str | None
     url: str
     position: int
 
@@ -64,7 +63,7 @@ AssigneeString = Annotated[
 ]
 
 
-class TodoUpdate(BaseModel):
+class ItemUpdate(BaseModel):
     """Schema for updating a todo - all fields optional for partial updates.
 
     `clear_fields` names fields the client wants explicitly cleared, since
@@ -73,15 +72,13 @@ class TodoUpdate(BaseModel):
     indexed inputs (`clear_fields.0`, `clear_fields.1`, …).
     """
 
-    text: Optional[str] = None
-    tags: Optional[Set[TagString]] = None
-    assignees: Optional[Set[AssigneeString]] = None
-    due_date: Optional[date] = None
-    recurrence: Optional[RecurrenceSpec] = None
-    note: Optional[str] = None
-    links: Optional[List[TodoLinkCreate]] = None
-    attachments: Optional[Set[str]] = None
-    clear_fields: Set[str] = Field(default_factory=set)
+    text: str | None = None
+    tags: set[TagString] | None = None
+    assignees: set[AssigneeString] | None = None
+    note: str | None = None
+    links: list[TodoLinkCreate] | None = None
+    attachments: set[str] | None = None
+    clear_fields: set[str] = Field(default_factory=set)
 
     @field_validator("tags", "assignees", mode="before")
     @classmethod
@@ -107,6 +104,11 @@ class TodoUpdate(BaseModel):
                 if word.strip("#@")
             }
         return v
+
+
+class TodoUpdate(ItemUpdate):
+    due_date: date | None = None
+    recurrence: RecurrenceSpec | None = None
 
     @field_validator("due_date", mode="before")
     @classmethod
@@ -139,12 +141,12 @@ class TodoCreate(BaseModel):
     """Schema for creating a new todo."""
 
     text: str
-    tags: Set[str] = Field(default_factory=set)
-    assignees: Set[str] = Field(default_factory=set)
-    due_date: Optional[date] = None
-    recurrence: Optional[RecurrenceSpec] = None
-    note: Optional[str] = None
-    links: List[TodoLinkCreate] = Field(default_factory=list)
+    tags: set[str] = Field(default_factory=set)
+    assignees: set[str] = Field(default_factory=set)
+    due_date: date | None = None
+    recurrence: RecurrenceSpec | None = None
+    note: str | None = None
+    links: list[TodoLinkCreate] = Field(default_factory=list)
 
 
 class TodoResponse(BaseModel):
@@ -152,16 +154,16 @@ class TodoResponse(BaseModel):
 
     id: int
     text: str
-    tags: Set[str]
-    assignees: Set[str]
+    tags: set[str]
+    assignees: set[str]
     status: TodoStatus
-    due_date: Optional[date]
-    note: Optional[str]
-    recurrence: Optional[RecurrenceSpec]
-    links: List[TodoLink]
+    due_date: date | None
+    note: str | None
+    recurrence: RecurrenceSpec | None
+    links: list[TodoLink]
     created_at: datetime
-    done_at: Optional[datetime]
-    on_hold_at: Optional[datetime]
+    done_at: datetime | None
+    on_hold_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -175,9 +177,9 @@ class BatchAction(BaseModel):
     """
 
     action: Literal["done", "hold", "postpone", "activate", "edit"]
-    todo_ids: List[int]
-    interval: Optional[str] = None  # "1d", "1w", "1mo", etc. — used by postpone
-    todo: Optional[TodoUpdate] = None  # used by edit
+    todo_ids: list[int]
+    interval: str | None = None  # "1d", "1w", "1mo", etc. — used by postpone
+    todo: TodoUpdate | None = None  # used by edit
 
 
 class UndoEntry(BaseModel):
@@ -185,7 +187,7 @@ class UndoEntry(BaseModel):
 
     id: int
     status: TodoStatus = TodoStatus.todo
-    due_date: Optional[date] = None
+    due_date: date | None = None
 
     @field_validator("status", mode="before")
     @classmethod
@@ -206,7 +208,7 @@ class UndoAction(BaseModel):
     as a JSON string inside the form-json body.
     """
 
-    entries: List[UndoEntry] = Field(default_factory=list)
+    entries: list[UndoEntry] = Field(default_factory=list)
 
     @field_validator("entries", mode="before")
     @classmethod
@@ -214,3 +216,43 @@ class UndoAction(BaseModel):
         if isinstance(v, str):
             return json.loads(v) if v.strip() else []
         return v
+
+
+def validate_request(request, schema):
+    """Parse the JSON body against `schema`.
+
+    Returns ``None`` when the payload is unusable, having already set up the
+    error response — the caller then returns ``request.response`` unchanged.
+    """
+    try:
+        body = request.json_body
+    except (ValueError, AttributeError):
+        validation_error(request, "Could not read the request.", status=400)
+        return None
+    if not isinstance(body, dict):
+        validation_error(request, "Expected a JSON object.", status=400)
+        return None
+    try:
+        return schema(**body)
+    except ValidationError as e:
+        # A toast has room for one problem, not pydantic's full report.
+        first = e.errors()[0]
+        where = ".".join(str(part) for part in first["loc"]) or "request"
+        validation_error(request, f"{where}: {first['msg']}")
+        return None
+    except (TypeError, ValueError) as e:
+        validation_error(request, str(e))
+        return None
+
+
+def validation_error(request, message: str, status: int = 422):
+    """Answer with an error toast rather than a bare status code.
+
+    ``HX-Reswap: none`` stops htmx from swapping the empty error body into the
+    request's target; the message is raised by the ``showValidationError``
+    listener on the error toast in ``_error_toast.pt``.
+    """
+    request.response.status_int = status
+    request.response.headers["HX-Reswap"] = "none"
+    request.response.hx_trigger("showValidationError", {"message": message})
+    return request.response

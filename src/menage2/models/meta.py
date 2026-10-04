@@ -1,4 +1,3 @@
-from sqlalchemy import Constraint, Index
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.schema import MetaData
 

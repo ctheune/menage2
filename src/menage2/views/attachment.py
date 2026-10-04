@@ -6,7 +6,6 @@ from pathlib import Path
 
 from PIL import Image
 from pyramid.httpexceptions import HTTPNotFound
-from pyramid.renderers import render
 from pyramid.view import view_config
 from sqlalchemy import func, select
 
@@ -70,7 +69,7 @@ def upload_attachment(request):
     good_count = 0
     bad_reasons: list[str] = []
 
-    for _key, value in request.POST.items():
+    for value in request.POST.values():
         if not hasattr(value, "file"):
             continue
         value.file.seek(0)
@@ -120,7 +119,7 @@ def upload_attachment(request):
             uuid=uuid_str,
             original_filename=original_filename,
             mimetype=mimetype,
-            created_at=datetime.datetime.now(datetime.timezone.utc),
+            created_at=datetime.datetime.now(datetime.UTC),
         )
         request.dbsession.add(att)
 

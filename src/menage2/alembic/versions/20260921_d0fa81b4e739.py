@@ -32,7 +32,7 @@ def upgrade():
     for table in _ARRAYS:
         for name, count in connection.execute(
             sa.text(
-                f"SELECT a, count(*) FROM {table}, unnest(assignees) a "  # noqa: S608
+                f"SELECT a, count(*) FROM {table}, unnest(assignees) a "
                 " WHERE NOT EXISTS (SELECT 1 FROM principals p WHERE p.name = a) "
                 " GROUP BY a"
             )
@@ -70,7 +70,7 @@ def upgrade():
 
     for table in _ARRAYS:
         op.execute(
-            "INSERT INTO item_assignees (item_id, principal_id) "  # noqa: S608
+            "INSERT INTO item_assignees (item_id, principal_id) "
             f"SELECT c.id, p.id FROM {table} c, unnest(c.assignees) a "
             "JOIN principals p ON p.name = a "
             "ON CONFLICT DO NOTHING"
@@ -95,7 +95,7 @@ def downgrade():
             ),
         )
         op.execute(
-            f"UPDATE {table} SET assignees = coalesce(named.names, '{{}}') FROM ("  # noqa: S608
+            f"UPDATE {table} SET assignees = coalesce(named.names, '{{}}') FROM ("
             "  SELECT ia.item_id, array_agg(p.name ORDER BY p.name) AS names"
             "    FROM item_assignees ia JOIN principals p ON p.id = ia.principal_id"
             "   GROUP BY ia.item_id"

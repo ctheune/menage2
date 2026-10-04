@@ -429,7 +429,7 @@ def next_occurrence(spec: RecurrenceSpec, anchor_date: datetime.date) -> datetim
         year, month = anchor_date.year, anchor_date.month
         # Try this month first only if the day is strictly after anchor.
         candidates = []
-        for advance in range(0, 14):  # at most a year forward
+        for advance in range(14):  # at most a year forward
             try_year = year + (month + advance - 1) // 12
             try_month = ((month + advance - 1) % 12) + 1
             try:

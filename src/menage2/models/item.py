@@ -19,6 +19,7 @@ ingredients as tasks. Left NULL, ``status == todo`` excludes them by itself.
 
 import datetime
 import enum
+from typing import ClassVar
 
 from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Index, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -80,17 +81,35 @@ class RecurrenceRule(Base):
 class Item(Base):
     __tablename__ = "items"
 
+    __table_args__ = (
+        Index("ix_items_kind", "kind"),
+        Index("ix_items_owner_id", "owner_id"),
+        Index("ix_items_recurrence_id", "recurrence_id"),
+        Index(
+            "ix_items_status_due",
+            "status",
+            "due_date",
+            postgresql_where=Column("status").isnot(None),
+        ),
+    )
+
+    __mapper_args__: ClassVar = {
+        "polymorphic_on": "kind",
+        "polymorphic_identity": "item",
+    }
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     kind: Mapped[str] = mapped_column(Text, nullable=False)
 
-    text = Column(Text, nullable=False)
-    note = Column(Text)
+    text: Mapped[str] = mapped_column(Text)
+    note: Mapped[str] = mapped_column(Text)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
     )
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    owner = relationship("User", foreign_keys=[owner_id])
 
     due_date = Column(Date)
     status = Column(Enum(TodoStatus, name="todostatus"), nullable=True)
@@ -98,9 +117,8 @@ class Item(Base):
     on_hold_at = Column(DateTime(timezone=True))
 
     recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
-
-    owner = relationship("User", foreign_keys=[owner_id])
     recurrence = relationship("RecurrenceRule", lazy="joined")
+
     #: The rows. `tags` below is the set of strings everything else speaks.
     #: selectin, because the task list reads the tags of every row it shows.
     tag_links = relationship(
@@ -139,23 +157,6 @@ class Item(Base):
     tags = NameSet("tag_links", tag_named)
     assignees = NameSet("assignee_links", principal_named)
 
-    __table_args__ = (
-        Index("ix_items_kind", "kind"),
-        Index("ix_items_owner_id", "owner_id"),
-        Index("ix_items_recurrence_id", "recurrence_id"),
-        Index(
-            "ix_items_status_due",
-            "status",
-            "due_date",
-            postgresql_where=Column("status").isnot(None),
-        ),
-    )
-
-    __mapper_args__ = {
-        "polymorphic_on": kind,
-        "polymorphic_identity": "item",
-    }
-
 
 class ItemLink(Base):
     """A link on an item. Ordered, because the order was chosen."""
@@ -190,7 +191,7 @@ class ItemAttachment(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
     )
 
     item = relationship("Item", back_populates="attachments")

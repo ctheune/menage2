@@ -40,7 +40,7 @@ def get_all_principals(dbsession) -> list[dict]:
     rows = dbsession.execute(
         select(Principal.name, Principal.kind)
         .outerjoin(User, User.id == Principal.user_id)
-        .where((Principal.kind == "team") | (User.is_active == True))  # noqa: E712
+        .where((Principal.kind == "team") | (User.is_active == True))
         .order_by(Principal.name)
     ).all()
     return [{"name": name, "type": kind} for name, kind in rows]
@@ -93,7 +93,7 @@ def absent_usernames(dbsession, day) -> set[str]:
         dbsession.execute(
             select(Principal.name)
             .join(User, User.id == Principal.user_id)
-            .where(User.is_active == False)  # noqa: E712
+            .where(User.is_active == False)
         )
         .scalars()
         .all()
@@ -209,7 +209,7 @@ def item_visible_to_user(item, user, memberships: dict[str, str]) -> bool:
     an ingredient to nothing -- the recipe book has no owner and everybody
     logged in cooks from it.
     """
-    from .models.protocol import ProtocolItem, ProtocolRun, ProtocolRunItem
+    from .models.protocol import ProtocolItem, ProtocolRunItem
 
     if user is None:
         return False
@@ -224,10 +224,8 @@ def item_visible_to_user(item, user, memberships: dict[str, str]) -> bool:
         return run is not None and protocol_visible_to_user(
             run.protocol, user, memberships
         )
-    if item.kind == "ingredient":
-        return True
     # An unrecognised kind is not something to guess about.
-    return False
+    return item.kind == "ingredient"
 
 
 def _principal_ids(dbsession, names) -> list[int]:
@@ -246,7 +244,7 @@ def visible_items(
     user,
     memberships: dict[str, str],
     filter_mode: str,
-    covering: set[str] = frozenset(),
+    covering: set[str] | None = None,
 ):
     """`todo_matches_filter` as a WHERE clause over Item.
 
@@ -259,6 +257,8 @@ def visible_items(
     `todo_matches_filter` stays for the one-row question, where building a
     query would be the slower answer. A test asserts the two agree.
     """
+    if covering is None:
+        covering = set()
     from .models.assignee import item_assignees
     from .models.item import Item
 

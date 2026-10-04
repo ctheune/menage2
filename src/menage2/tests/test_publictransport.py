@@ -1,7 +1,3 @@
-import datetime
-
-import arrow
-import requests
 from requests.exceptions import JSONDecodeError, RequestException
 
 from menage2 import publictransport

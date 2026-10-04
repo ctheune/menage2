@@ -2,13 +2,12 @@
 
 import datetime
 
-import pytest
-
-from menage2.models.todo import Todo, TodoStatus
+from menage2.models.item import TodoStatus
+from menage2.models.todo import Todo
 
 
 def _now():
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,110 @@
+        <div class="mb-3" hx-disinherit="*" id="field-links" data-links="${links_json}"
+          _="init
+               set $links to ((my @data-links) as JSON)">
+
+          <label>Links</label>
+
+          <div class="form-control"
+            _="on click[target is me]
+                 focus first <span.new-link/> in me
+                 then halt
+               on keydown[key is 'l' and target is body] from body
+                 focus first <span.new-link/> in me
+                 then halt
+            ">
+            <script type="text/hyperscript-template" live>
+              #for link in $links indexed by i
+                <input type="hidden" name="links.$${i}.label" value="$${link.label}"/>
+                <input type="hidden" name="links.$${i}.url" value="$${link.url}"/>
+                <span class="badge rounded-pill text-bg-secondary text-nowrap">
+                  <a target="_blank" rel="noopener noreferrer" href="$${link.url}" class="link-light">$${link.label}</a>
+                  <i class="bi bi-pencil" role="button" aria-label="Edit link"
+                     _="on click
+                       log $links[$${i}].url
+                       set (next .picker's @data-id) to $${i}
+                       set (next .picker's @data-url) to $links[$${i}].url
+                       set (next .picker's @data-label) to $links[$${i}].label
+                       show next .picker
+                       focus last <input/> in next .picker"></i>
+                  <i class="bi bi-x" role="button" aria-label="Remove link"
+                     _="on click remove $links[$${i}]"></i>
+                </span>
+              #else
+                <input type="hidden" name="clear_fields[]" value="links"/>
+              #end
+              </script>
+
+            <span class="new-link" contentEditable="plaintext-only"
+              _="
+                 on keydown[key is 'Escape']
+                   clear me
+                   blur me
+                   halt
+
+                 on keydown[key is 'Enter']
+                   if my textContent then
+                     set newUrl to my textContent
+                     -- Emptied before asking, not after: naming takes a round
+                     -- trip, and anything typed in the meantime would be wiped
+                     -- by a clear that arrived late.
+                     clear me
+                     -- Ask what it should be called before putting it in the
+                     -- list. The same shortening runs on the server either
+                     -- way; doing it now means the label is on screen and
+                     -- editable straight away, rather than turning up after
+                     -- a save has taken it out of reach.
+                     set labelUrl to '${request.route_url('link_picker_label')}?url='
+                                     + encodeURIComponent(newUrl)
+                     fetch labelUrl
+                     make an Object from { url: newUrl, label: it } called newLink
+                     append newLink to $links
+                   end
+                   halt
+
+                 on keydown[key is 'Backspace']
+                   -- Backspace at the very start takes the one before the cursor.
+                   set caret to window.getSelection()
+                   if $links and caret.isCollapsed and caret.anchorOffset is 0 then
+                      remove $links[-1]
+                   end
+                 end
+                  "></span>&ZeroWidthSpace;
+            <div class="picker position-absolute card shadow w-50 p-2" style="display:none"
+              data-url="" data-label="" data-id=""
+              _="on 'cancel-update-link'
+                  hide me
+                 on 'update-link'
+                  set id to my @data-id
+                  set $links[id].url to @data-url
+                  set $links[id].label to @data-label
+                  hide me
+                 ">
+              <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:.5rem">URL</label>
+              <input class="form-control form-control-sm mb-2" name="link.url" placeholder="https://… or obsidian://…" value=""
+                  _="bind me to (closest <div/>)'s @data-url
+                     on keydown[key is 'Enter']
+                        trigger 'update-link'
+                        halt
+                     on keydown[key is 'Escape']
+                        trigger 'cancel-update-link'
+                        halt
+                        " />
+              <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:.5rem">Label <span style="font-weight:400;color:#6c757d">(optional)</span></label>
+              <input class="form-control form-control-sm" name="link.label" placeholder="Link text…" value=""
+                  _="bind me to (closest <div/>)'s @data-label
+                     on keydown[key is 'Enter']
+                        trigger 'update-link'
+                        halt
+                     on keydown[key is 'Escape']
+                        trigger 'cancel-update-link'
+                        halt
+                        "/>
+              <div class="d-flex gap-2 mt-2 justify-content-end">
+                <button type="button" class="btn btn-sm btn-link text-muted"
+                  _="on click trigger 'cancel-update-link'">Cancel</button>
+                <button type="button" class="btn btn-sm btn-dark"
+                  _="on click trigger 'update-link'">Set</button>
+              </div>
+            </div>
+          </div>
+        </div>

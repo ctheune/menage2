@@ -3,7 +3,7 @@ import hmac
 import json
 import secrets
 import smtplib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 
 from argon2 import PasswordHasher
@@ -23,7 +23,7 @@ DASHBOARD_TOKEN_KEY = "dashboard_secret_token"
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _get_next_url(request):
@@ -402,10 +402,6 @@ def login_passkey_begin(request):
 )
 def login_passkey_complete(request):
     import webauthn
-    from webauthn.helpers.exceptions import (
-        InvalidAuthenticatorDataStructure,
-        InvalidCBORData,
-    )
 
     challenge_b64 = request.session.get("webauthn_auth_challenge")
     if not challenge_b64:

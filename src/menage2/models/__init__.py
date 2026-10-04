@@ -4,8 +4,8 @@ from sqlalchemy.orm import configure_mappers, sessionmaker
 
 # Import or define all models here to ensure they are attached to the
 # ``Base.metadata`` prior to any initialization routines.
-from .config import ConfigItem  # noqa
-from .item import Item, ItemAttachment, ItemLink  # noqa
+from .config import ConfigItem
+from .item import Item, ItemAttachment, ItemLink, TodoStatus
 from .planner import (
     Day,
     Month,
@@ -15,18 +15,50 @@ from .planner import (
     Week,
     Weekday,
 )
-from .principal import Principal  # noqa
-from .protocol import (  # noqa
+from .principal import Principal
+from .protocol import (
     Protocol,
     ProtocolItem,
     ProtocolRun,
     ProtocolRunItem,
 )
-from .recipe import Ingredient, IngredientUsage, Recipe  # noqa
-from .tag import Tag  # noqa
-from .team import Team, TeamMember  # noqa
-from .todo import Todo, TodoStatus  # noqa
-from .user import Absence, Passkey, User  # noqa
+from .recipe import Ingredient, IngredientUsage, Recipe
+from .tag import Tag
+from .team import Team, TeamMember
+from .todo import Todo
+from .user import Absence, Passkey, User
+
+ENSURE_SQLALCHEMY_INIT = {
+    # keep-sorted start
+    Absence,
+    ConfigItem,
+    Day,
+    Ingredient,
+    IngredientUsage,
+    Item,
+    ItemAttachment,
+    ItemLink,
+    Month,
+    Passkey,
+    Principal,
+    Protocol,
+    ProtocolItem,
+    ProtocolRun,
+    ProtocolRunItem,
+    Recipe,
+    RecipeSeasons,
+    RecipeWeekDays,
+    Schedule,
+    Tag,
+    Team,
+    TeamMember,
+    Todo,
+    TodoStatus,
+    User,
+    Week,
+    Weekday,
+    # keep-sorted ends
+}
 
 # Run ``configure_mappers`` after defining all of the models to ensure
 # all relationships can be setup.

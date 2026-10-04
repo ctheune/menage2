@@ -35,7 +35,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import re
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 #: The characters that introduce a marker.
 MARKERS = "#@^*~"
@@ -65,7 +65,7 @@ def escape_payload(value: str) -> str:
     return value.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
 
 
-def read_bracketed(text: str, open_at: int) -> Optional[tuple[str, int]]:
+def read_bracketed(text: str, open_at: int) -> tuple[str, int] | None:
     """Read the ``[...]`` payload whose ``[`` sits at `open_at`.
 
     Returns ``(payload, index after the closing bracket)``, with escapes
@@ -195,9 +195,7 @@ def _needs_brackets(value: str, *, bare_allows_spaces: bool) -> bool:
         return True
     if any(char in MARKERS for char in value) or "[" in value or "]" in value:
         return True
-    if not bare_allows_spaces and any(char.isspace() for char in value):
-        return True
-    return False
+    return bool(not bare_allows_spaces and any(char.isspace() for char in value))
 
 
 def _marker(char: str, value: str) -> str:
@@ -213,9 +211,9 @@ def format_markers(
     tags: Iterable[str] = (),
     assignees: Iterable[str] = (),
     links: Iterable = (),
-    due_date: Optional[datetime.date] = None,
-    recurrence: Optional[str] = None,
-    note: Optional[str] = None,
+    due_date: datetime.date | None = None,
+    recurrence: str | None = None,
+    note: str | None = None,
 ) -> str:
     """Render fields as the marker string a user edits and the parser reads back.
 

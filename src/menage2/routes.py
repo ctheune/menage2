@@ -27,6 +27,8 @@ def includeme(config):
     config.add_route("login_passkey_begin", "/login/passkey/begin")
     config.add_route("login_passkey_complete", "/login/passkey/complete")
 
+    config.add_route("home", "/")
+
     # Account management (authenticated users)
     config.add_route("account", "/account")
     config.add_route("account_change_password", "/account/password")
@@ -68,7 +70,6 @@ def includeme(config):
         "admin_team_member_remove", "/admin/teams/{id}/members/{member_id}/remove"
     )
 
-    config.add_route("home", "/")
     config.add_route("list_recipes", "/recipes")
     config.add_route("add_recipe", "/recipe")
     config.add_route("edit_recipe", "/recipe/{id}/edit")
@@ -95,47 +96,21 @@ def includeme(config):
     config.add_route("timer", "/dashboard/{token}/timer/{id}")
     config.add_route("timer_pause", "/dashboard/{token}/timer/{id}/pause")
 
-    # TODOs / Tasks
+    # Generic task-like items
 
-    config.add_route("list_todos", "/todos")
-
-    config.add_route("list_todo_groups", "/todos/groups")
-    config.add_route("task_subnav", "/todos/subnav")
-
-    config.add_route("todo_details_panel", "/todos/details-panel")
-    config.add_route("todo_link_label", "/todos/link-label")
-    config.add_route("recurrence_history", "/todos/{id}/history")
-    config.add_route("todo_stop_repeating", "/todos/{id:\\d+}/stop-repeating")
     config.add_route(
         "item_attachment_thumbnail",
         "/items/{item_id}/attachment/{uuid}/thumb",
     )
     config.add_route("item_attachment_full", "/items/{item_id}/attachment/{uuid}/full")
 
-    config.add_route("add_todo", "/todos/add")
-    config.add_route("todo_add_fields", "/todos/add/fields")
-
-    config.add_route("todo_update", "/todos/{id:\\d+}")
-    config.add_route("todo_batch_action", "/todos/batch-action")
     config.add_route("item_attachment_upload", "/items/{id}/attachments")
     config.add_route(
         "item_attachment_delete", "/items/{item_id}/attachment/{uuid}/delete"
     )
 
-    # The shared editor, for everything that is an item but not a todo.
     config.add_route("item_panel", "/items/{id}/panel")
     config.add_route("item_update", "/items/{id}")
-
-    config.add_route("todos_done", "/todos/done-items")
-    config.add_route("todos_hold", "/todos/hold-items")
-    config.add_route("todos_postpone", "/todos/postpone-items")
-    config.add_route("todos_activate_all_on_hold", "/todos/activate-on-hold")
-    config.add_route("todo_undo", "/todos/undo")
-
-    config.add_route("parse_date_preview", "/todos/parse-date")  # xxx
-    config.add_route("parse_recurrence_preview", "/todos/parse-recurrence")  # xxx
-    config.add_route("todo_picker_postpone", "/todos/pickers/postpone")  # xxx
-    config.add_route("list_principals_json", "/todos/principals.json")  # xxx
 
     # Pickers. Not a todo's: an ingredient and a checklist open the same
     # ones, because they are the same kind of thing underneath.
@@ -143,6 +118,30 @@ def includeme(config):
     config.add_route("recurrence_picker", "/pickers/recurrence")
     config.add_route("tag_picker", "/pickers/tag")
     config.add_route("assignee_picker", "/pickers/assignee")
+    config.add_route("link_picker_label", "/pickers/link/suggest-label")
+
+    # TODOs / Tasks
+    config.add_route("list_todos", "/todos")
+    config.add_route("list_todo_groups", "/todos/groups")
+    config.add_route("task_subnav", "/todos/subnav")
+
+    config.add_route("todo_details_panel", "/todos/details-panel")
+
+    config.add_route("recurrence_history", "/todos/{id}/history")
+    config.add_route("todo_stop_repeating", "/todos/{id:\\d+}/stop-repeating")
+
+    config.add_route("add_todo", "/todos/add")
+    config.add_route("todo_add_fields", "/todos/add/fields")
+
+    config.add_route("todo_update", "/todos/{id:\\d+}")
+    config.add_route("todo_batch_action", "/todos/batch-action")
+
+    # The shared editor, for everything that is an item but not a todo.
+    config.add_route("todos_done", "/todos/done-items")
+    config.add_route("todos_hold", "/todos/hold-items")
+    config.add_route("todos_postpone", "/todos/postpone-items")
+    config.add_route("todos_activate_all_on_hold", "/todos/activate-on-hold")
+    config.add_route("todo_undo", "/todos/undo")
 
     # Protocols
     config.add_route("list_protocols", "/protocols")

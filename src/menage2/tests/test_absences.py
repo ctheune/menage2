@@ -370,7 +370,8 @@ def test_absences_are_nobody_elses_business(user_testapp, dbsession, admin_user)
 
 
 def _todo_for(dbsession, text, assignees, owner):
-    from menage2.models.todo import Todo, TodoStatus
+    from menage2.models.item import TodoStatus
+    from menage2.models.todo import Todo
 
     todo = Todo(
         text=text,
@@ -378,7 +379,7 @@ def _todo_for(dbsession, text, assignees, owner):
         assignees=set(assignees),
         status=TodoStatus.todo,
         owner=owner,
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(todo)
     dbsession.flush()

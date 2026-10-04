@@ -37,6 +37,9 @@
                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
                 if no #undo-toast exit end
                 trigger undoRequested on body
+              on keydown[key is 'a'] from body
+                if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target exit end
+                set checked of <input[type=checkbox/> in #todo-list to true
               ">
           <!-- Interval for the postpone batch action; the postpone picker binds to it. -->
           <input type="hidden" name="interval" id="interval" value="1d" />

@@ -60,6 +60,7 @@ def main(global_config, **settings):
         config.include("pyramid_beaker")
         config.include(".routes")
         config.include(".models")
+        config.include(".utils")
 
         from .security import SessionSecurityPolicy
 
@@ -67,7 +68,7 @@ def main(global_config, **settings):
         config.set_default_permission("authenticated")
 
         config.add_tween(
-            "menage2.tweens.hx_trigger_tween_factory",
+            "menage2.tweens.utils",
             under="pyramid_tm.tm_tween_factory",
         )
         config.add_tween(

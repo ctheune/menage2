@@ -10,7 +10,7 @@ so `_matches` and `_renamed` are unchanged, and so is everything that reads
 a tag as a string.
 """
 
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select, text, update
@@ -56,10 +56,10 @@ class RetagPlan(BaseModel):
 
     source: str
     #: None removes the tag instead of renaming it.
-    target: Optional[str] = None
+    target: str | None = None
     with_children: bool = False
     #: Every tag that changes, and what it becomes (None where it goes).
-    renames: list[tuple[str, Optional[str]]] = []
+    renames: list[tuple[str, str | None]] = []
     #: How many records each source would have rewritten.
     rows: dict[str, int] = {}
 
@@ -78,7 +78,7 @@ def _matches(tag: str, source: str, with_children: bool) -> bool:
     return with_children and tag.startswith(source + SEPARATOR)
 
 
-def _renamed(tag: str, source: str, target: Optional[str]) -> Optional[str]:
+def _renamed(tag: str, source: str, target: str | None) -> str | None:
     """What `tag` becomes. None means it goes away.
 
     A child keeps whatever hangs off the part being renamed, so merging
@@ -148,7 +148,7 @@ def list_tags(dbsession) -> list[TagCount]:
 
 
 def plan_retag(
-    dbsession, source: str, target: Optional[str] = None, with_children: bool = False
+    dbsession, source: str, target: str | None = None, with_children: bool = False
 ) -> RetagPlan:
     """What renaming `source` to `target` would change, changing nothing.
 
@@ -165,7 +165,7 @@ def plan_retag(
 
 
 def apply_retag(
-    dbsession, source: str, target: Optional[str] = None, with_children: bool = False
+    dbsession, source: str, target: str | None = None, with_children: bool = False
 ) -> RetagPlan:
     """Do it, and say what was done.
 

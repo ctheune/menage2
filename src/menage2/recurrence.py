@@ -16,22 +16,23 @@ meant several of them sweeping at once.
 from __future__ import annotations
 
 import datetime
-from typing import TYPE_CHECKING, Iterable, Optional
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy import update as sqla_update
 
 import menage2.models.protocol
 from menage2.dateparse import RecurrenceSpec, next_occurrence
-from menage2.models.todo import (
+from menage2.models.item import (
     ItemAttachment,
     ItemLink,
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
-    Todo,
     TodoStatus,
 )
+from menage2.models.todo import Todo
 
 if TYPE_CHECKING:  # avoid circular import; models.protocol imports from this module
     from menage2.models.protocol import Protocol, ProtocolRun
@@ -192,7 +193,7 @@ def _has_today_or_future_active(dbsession, rule_id: int, today: datetime.date) -
 
 def _spawn_every_chain(
     dbsession, anchor_todo: Todo, today: datetime.date, now_utc: datetime.datetime
-) -> Optional[Todo]:
+) -> Todo | None:
     """Materialise at least one current or future todo for every recurrence rule.
 
     Guarantees: after a successful sweep the chain has at least one active

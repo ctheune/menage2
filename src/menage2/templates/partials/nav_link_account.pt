@@ -1,0 +1,1 @@
+<a class="btn btn-sm ${'btn-outline-light' if not link.active else 'btn-light'}" href="${link.url}"><i class="bi bi-person"></i>  ${request.identity.username}</a>

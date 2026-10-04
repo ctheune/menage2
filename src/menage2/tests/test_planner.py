@@ -1,7 +1,5 @@
 import datetime
 
-import pytest
-
 from menage2.models import (
     Day,
     Ingredient,
@@ -14,7 +12,8 @@ from menage2.models import (
     Week,
     Weekday,
 )
-from menage2.models.todo import Todo, TodoStatus
+from menage2.models.item import TodoStatus
+from menage2.models.todo import Todo
 from menage2.views.planner import add_week, send_to_shopping_list, toggle_day_shopping
 
 
@@ -65,7 +64,7 @@ def _make_week_with_recipe(dbsession):
 
 
 def test_send_to_shopping_list_creates_todos(app_request, dbsession):
-    week, recipe = _make_week_with_recipe(dbsession)
+    week, _recipe = _make_week_with_recipe(dbsession)
     app_request.matchdict = {"id": str(week.id)}
     app_request.method = "POST"
 
@@ -215,7 +214,7 @@ def test_add_week_starts_after_existing_days(app_request, dbsession):
 
 
 def test_toggle_day_shopping_excludes_day(app_request, dbsession):
-    week, recipe = _make_week_with_recipe(dbsession)
+    week, _recipe = _make_week_with_recipe(dbsession)
     day = week.days[0]
     assert not day.exclude_from_shopping
 
@@ -227,7 +226,7 @@ def test_toggle_day_shopping_excludes_day(app_request, dbsession):
 
 
 def test_toggle_day_shopping_re_includes_day(app_request, dbsession):
-    week, recipe = _make_week_with_recipe(dbsession)
+    week, _recipe = _make_week_with_recipe(dbsession)
     day = week.days[0]
     day.exclude_from_shopping = True
     dbsession.flush()
@@ -240,7 +239,7 @@ def test_toggle_day_shopping_re_includes_day(app_request, dbsession):
 
 
 def test_excluded_day_skipped_in_shopping_list(app_request, dbsession):
-    week, recipe = _make_week_with_recipe(dbsession)
+    week, _recipe = _make_week_with_recipe(dbsession)
     day = week.days[0]
     day.exclude_from_shopping = True
     dbsession.flush()
@@ -328,7 +327,7 @@ def _team(dbsession, name):
 
     from menage2.models.team import Team
 
-    team = Team(name=name, created_at=_dt.datetime.now(_dt.timezone.utc))
+    team = Team(name=name, created_at=_dt.datetime.now(_dt.UTC))
     dbsession.add(team)
     dbsession.flush()
     return team

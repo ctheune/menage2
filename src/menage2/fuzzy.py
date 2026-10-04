@@ -12,7 +12,7 @@ Scoring prefers:
 """
 
 import html as _html
-from typing import Iterable
+from collections.abc import Iterable
 
 _SEPARATORS = frozenset(" -_:./")
 
@@ -73,7 +73,7 @@ def fuzzy_filter(strings: Iterable[str], pattern: str) -> list[str]:
     unchanged.
     """
     if not pattern:
-        return sorted(list(strings))
+        return sorted(strings)
 
     scored: list[tuple[int, str]] = []
     for s in strings:

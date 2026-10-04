@@ -1,0 +1,48 @@
+<tal:block tal:define="nav request.navigation">
+  <nav class="navbar navbar-expand-md navbar-dark">
+    <div class="container-fluid">
+
+      <a class="navbar-brand d-flex align-items-center gap-2" href="${request.navigation.main.url}"><img
+             src="${request.static_url('menage2:static/logo.svg')}" height="28" tal:attributes="alt base_name"
+             style="border-radius: 6px;">${base_name}</a>
+
+      <span class="navbar-text d-md-none small">
+        ${nav.focused.title}
+      </span>
+
+      <button class="navbar-toggler" type="button"
+              data-bs-toggle="collapse" data-bs-target="#nav-links"
+              aria-controls="nav-links" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="nav-links">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item" tal:repeat="link nav.main">
+            ${link.render()}
+          </li>
+        </ul>
+        <ul class="navbar-nav ms-auto align-items-center gap-2">
+          <li class="nav-item" tal:repeat="link nav.account">
+            ${link.render()}
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="helios-subnav ${'' if nav.subnav() else 'd-none d-md-block'">
+    <div class=" px-3 py-1 d-flex align-items-center justify-content-between">
+
+      <ul class="nav nav-tabs border-0">
+        <li class="nav-item" tal:repeat="link nav.subnav()">
+          ${link.render()}
+        </li>
+      </ul>
+
+      <div class="d-flex gap-2">
+        <metal:block define-slot="actions"></metal:block>
+      </div>
+    </div>
+  </div>
+</tal:block>

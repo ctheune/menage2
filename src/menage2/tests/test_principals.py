@@ -12,7 +12,7 @@ from menage2.models.user import User
 
 
 def _now():
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 def _user(dbsession, username: str) -> User:

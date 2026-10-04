@@ -4,14 +4,15 @@ import json
 import pytest
 
 from menage2.dateparse import RecurrenceSpec
-from menage2.models.item import ItemAttachment, ItemLink  # noqa: F401
-from menage2.models.todo import (
+from menage2.models.item import (
+    ItemAttachment,  # noqa: F401  -- registers the mapper
+    ItemLink,
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
-    Todo,
     TodoStatus,
 )
+from menage2.models.todo import Todo
 from menage2.recurrence import spawn_after
 from menage2.views.todo import (
     _batch_postpone,
@@ -33,7 +34,7 @@ from menage2.views.todo import (
 
 
 def _now():
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 def _today():
@@ -1278,7 +1279,7 @@ def test_todo_update_clears_assignees(app_request, dbsession, admin_user, cast):
 
 
 def test_todo_update_sets_links(app_request, dbsession, admin_user):
-    from menage2.models.todo import ItemLink
+    from menage2.models.item import ItemLink
 
     todo = _todo("Read docs")
     dbsession.add(todo)
@@ -1303,7 +1304,7 @@ def test_todo_update_sets_links(app_request, dbsession, admin_user):
 
 
 def test_todo_update_replaces_links(app_request, dbsession, admin_user):
-    from menage2.models.todo import ItemLink
+    from menage2.models.item import ItemLink
 
     todo = _todo("Check ticket")
     dbsession.add(todo)
@@ -1338,12 +1339,12 @@ def test_todo_update_replaces_links(app_request, dbsession, admin_user):
 def test_todo_update_keeps_the_label_it_was_given(app_request, dbsession, admin_user):
     """Whatever the link editor posts is what gets stored.
 
-    The panel shortens a URL as it is typed, by asking `todo_link_label`, so
+    The panel shortens a URL as it is typed, by asking `link_picker_label`, so
     by the time it posts the label is already the one on screen. Setting one
     by hand through the link's own editor has to survive too — including
     setting it back to the URL.
     """
-    from menage2.models.todo import ItemLink
+    from menage2.models.item import ItemLink
 
     todo = _todo("Read up")
     dbsession.add(todo)
@@ -1367,22 +1368,22 @@ def test_todo_update_keeps_the_label_it_was_given(app_request, dbsession, admin_
 
 def test_link_label_endpoint_names_a_url(app_request):
     """What the panel's link field asks for as you type."""
-    from menage2.views.todo import todo_link_label
+    from menage2.views.todo import link_picker_label
 
     app_request.GET["url"] = "https://www.example.com/blog/2024/a-title?utm=x"
-    response = todo_link_label(app_request)
+    response = link_picker_label(app_request)
     assert response.text == "example.com/blog/2024/a-title"
     assert response.content_type == "text/plain"
 
 
 def test_link_label_endpoint_copes_with_nothing_to_name(app_request):
-    from menage2.views.todo import todo_link_label
+    from menage2.views.todo import link_picker_label
 
-    assert todo_link_label(app_request).text == ""
+    assert link_picker_label(app_request).text == ""
 
 
 def test_todo_update_clears_links(app_request, dbsession, admin_user):
-    from menage2.models.todo import ItemLink
+    from menage2.models.item import ItemLink
 
     todo = _todo("Review PR")
     dbsession.add(todo)

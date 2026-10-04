@@ -43,7 +43,7 @@
              autocomplete="off" placeholder="What needs doing?" />
     </div>
 
-    <div metal:use-macro="load: ../_tag_field.pt"></div>
+    <div metal:use-macro="load: ./item/fields/tags.pt"></div>
 
     <div class="mb-3">
       <label class="form-label" for="${p}-due">Due</label>

@@ -11,15 +11,16 @@ import json
 
 from pyramid.httpexceptions import HTTPForbidden, HTTPNotFound
 from pyramid.view import view_config
+from sqlalchemy import select
 
 from menage2.models.item import Item
 from menage2.principals import (
     get_user_team_memberships,
     is_protocol_editor,
     item_visible_to_user,
-    unknown_principals,
 )
-from menage2.views.todo import _validation_error, files_of
+from menage2.schemas import ItemUpdate, validate_request
+from menage2.views.todo import files_of, reject_unknown_assignees
 
 #: What the text field is called, per kind. A checklist's text is its
 #: title and an ingredient's is what it is called; neither reads as "text".
@@ -74,6 +75,12 @@ def _panel(request, item) -> dict:
         "wants_assignees": item.kind not in _NO_ASSIGNEES,
         "tags_json": json.dumps(sorted(item.tags)),
         "assignees_json": json.dumps(sorted(item.assignees)),
+        "links_json": json.dumps(
+            [
+                {"label": t.label, "url": t.url}
+                for t in sorted(item.links, key=lambda t: t.position)
+            ]
+        ),
         **files_of(request, item),
     }
 
@@ -81,7 +88,7 @@ def _panel(request, item) -> dict:
 @view_config(
     route_name="item_panel",
     request_method="GET",
-    renderer="menage2:templates/_item_panel.pt",
+    renderer="menage2:templates/item/panel.pt",
 )
 def item_panel(request):
     return _panel(request, _get_editable(request))
@@ -90,31 +97,85 @@ def item_panel(request):
 @view_config(
     route_name="item_update",
     request_method="POST",
-    renderer="menage2:templates/_item_panel.pt",
+    renderer="menage2:templates/item/panel.pt",
 )
 def item_update(request):
     """Save what the panel changed and hand it back, filled in again."""
     item = _get_editable(request)
-    cleared = request.params.getall("clear_fields[]")
 
-    text = request.params.get("text", "").strip()
-    if not text:
-        return _validation_error(request, "It needs a name.")
-    item.text = text
+    from sqlalchemy import delete as sqla_delete
 
-    item.note = request.params.get("note", "").strip() or None
-    item.tags = set() if "tags" in cleared else set(request.params.getall("tags[]"))
+    from menage2.models.item import ItemLink
+
+    validated = validate_request(request, ItemUpdate)
+    if validated is None:
+        return request.response
+
+    clear_fields = validated.clear_fields
+
+    if validated.text is not None:
+        item.text = validated.text
+
+    if "tags" in clear_fields:
+        item.tags = set()
+    elif validated.tags is not None:
+        item.tags = validated.tags
 
     if item.kind not in _NO_ASSIGNEES:
-        assignees = (
-            set()
-            if "assignees" in cleared
-            else set(request.params.getall("assignees[]"))
+        if "assignees" in clear_fields:
+            item.assignees = set()
+        elif validated.assignees is not None:
+            rejected = reject_unknown_assignees(request, validated.assignees)
+            if rejected is not None:
+                return rejected
+            item.assignees = validated.assignees
+
+    if "note" in clear_fields:
+        item.note = ""
+    elif validated.note is not None:
+        item.note = validated.note
+
+    if "links" in clear_fields:
+        request.dbsession.execute(
+            sqla_delete(ItemLink).where(ItemLink.item_id == item.id)
         )
-        unknown = sorted(unknown_principals(request.dbsession, assignees))
-        if unknown:
-            return _validation_error(request, f"No user or team called @{unknown[0]}.")
-        item.assignees = assignees
+    elif validated.links is not None:
+        request.dbsession.execute(
+            sqla_delete(ItemLink).where(ItemLink.item_id == item.id)
+        )
+
+        for position, link_data in enumerate(validated.links):
+            link = ItemLink(
+                item_id=item.id,
+                label=link_data.label,
+                url=link_data.url,
+                position=position,
+            )
+            request.dbsession.add(link)
+
+    if validated.attachments is not None:
+        from menage2.models.item import ItemAttachment
+        from menage2.views.attachment import _ext_for, _get_attachments_dir
+
+        attachments_dir = _get_attachments_dir(request)
+        existing_uuids = {att.uuid for att in item.attachments}
+        to_keep = validated.attachments
+        to_remove = existing_uuids - to_keep
+
+        for uuid_str in to_remove:
+            att = request.dbsession.execute(
+                select(ItemAttachment).where(
+                    ItemAttachment.item_id == item.id,
+                    ItemAttachment.uuid == uuid_str,
+                )
+            ).scalar_one_or_none()
+            if att:
+                ext = _ext_for(att)
+                for suffix in ("", "_thumb"):
+                    path = attachments_dir / (uuid_str + suffix + ext)
+                    if path.exists():
+                        path.unlink()
+                request.dbsession.delete(att)
 
     request.dbsession.flush()
     # The list beside the panel shows what was just changed, so it refetches.

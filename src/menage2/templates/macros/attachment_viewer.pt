@@ -1,0 +1,65 @@
+<!-- Clicked by hyperscript so Bootstrap still handles the backdrop and the
+       scroll lock, the same way the sheets are opened. -->
+<button type="button" class="d-none" id="attachment-modal-open"
+        data-bs-toggle="modal" data-bs-target="#attachmentModal"></button>
+
+<!-- The picture viewer. It remembers which thumbnail it was handed, so
+       back and forward walk that row's own pictures and wrap round at either
+       end, and the count says where you are. -->
+<div class="modal fade" id="attachmentModal" tabindex="-1" aria-hidden="true"
+     _="on showPicture(pic)
+            set my shown to pic
+            set #attachmentModalImage's src to pic@data-full-url
+            set #attachmentModalImage's alt to pic@alt
+            set row to the closest .todo-attachment-thumbs to pic
+            set pictures to <img/> in row
+            if pictures.length > 1
+              set #attachmentModalCounter's textContent to
+                (pictures.indexOf(pic) + 1) + ' / ' + pictures.length
+              remove .d-none from #attachmentModalPrev
+              remove .d-none from #attachmentModalNext
+            else
+              set #attachmentModalCounter's textContent to ''
+              add .d-none to #attachmentModalPrev
+              add .d-none to #attachmentModalNext
+            end
+
+          on keydown[key is 'ArrowLeft'] from window
+            if I match .show call #attachmentModalPrev.click() end
+
+          on keydown[key is 'ArrowRight'] from window
+            if I match .show call #attachmentModalNext.click() end">
+  <div class="modal-dialog modal-fullscreen-sm-down modal-xl modal-dialog-centered">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-0 pb-0">
+        <span id="attachmentModalCounter" class="text-white-50 small me-auto"></span>
+        <button type="button" class="btn-close btn-close-white btn-lg"
+                data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0 d-flex align-items-center justify-content-center position-relative">
+        <button id="attachmentModalPrev" type="button"
+                class="btn btn-link position-absolute start-0 top-50 translate-middle-y text-white px-3 py-4"
+                aria-label="Previous" style="font-size:2.5rem;line-height:1"
+                _="on click
+                       set here to #attachmentModal's shown
+                       if no here exit end
+                       set other to the previous <img/> from here
+                         within (the closest .todo-attachment-thumbs to here)
+                         with wrapping
+                       if other send showPicture(pic: other) to #attachmentModal end">&#8249;</button>
+        <img id="attachmentModalImage" src="" alt=""
+             class="img-fluid" style="max-height:90vh;object-fit:contain" />
+        <button id="attachmentModalNext" type="button"
+                class="btn btn-link position-absolute end-0 top-50 translate-middle-y text-white px-3 py-4"
+                aria-label="Next" style="font-size:2.5rem;line-height:1"
+                _="on click
+                       set here to #attachmentModal's shown
+                       if no here exit end
+                       set other to the next <img/> from here
+                         within (the closest .todo-attachment-thumbs to here)
+                         with wrapping
+                       if other send showPicture(pic: other) to #attachmentModal end">&#8250;</button>
+      </div>
+    </div>
+  </div>
+</div>

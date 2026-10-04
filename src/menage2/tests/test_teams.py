@@ -5,12 +5,12 @@ import datetime
 import pytest
 from sqlalchemy import select
 
+from menage2.models.item import TodoStatus
 from menage2.models.protocol import Protocol
 from menage2.models.team import Team, TeamMember
-from menage2.models.todo import Todo, TodoStatus
+from menage2.models.todo import Todo
 from menage2.models.user import User
 from menage2.principals import (
-    get_all_principals,
     get_user_team_memberships,
     is_protocol_editor,
     protocol_visible_to_user,
@@ -20,7 +20,7 @@ from menage2.views.todo import parse_todo_input
 
 
 def _now():
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 def _todo(dbsession, text="Test", tags=None, assignees=None, owner_id=None):

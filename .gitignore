@@ -33,10 +33,6 @@ devenv.local.yaml
 # direnv
 .direnv
 
-# pre-commit
-.pre-commit-config.yaml
-
-
 TODO
 var
 node_modules

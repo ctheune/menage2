@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, Text
 from sqlalchemy.orm import backref, relationship, synonym
 
@@ -99,7 +101,7 @@ class Ingredient(Item):
     #: An ingredient's text is what it is called.
     description = synonym("text")
 
-    __mapper_args__ = {"polymorphic_identity": "ingredient"}
+    __mapper_args__: ClassVar = {"polymorphic_identity": "ingredient"}
 
     @property
     def recipes(self):

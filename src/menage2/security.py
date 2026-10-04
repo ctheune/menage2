@@ -1,5 +1,5 @@
 from pyramid.interfaces import ISecurityPolicy
-from pyramid.security import NO_PERMISSION_REQUIRED, Allowed, Denied
+from pyramid.security import Allowed, Denied
 from zope.interface import implementer
 
 PERM_AUTHENTICATED = "authenticated"

@@ -62,12 +62,12 @@ def upgrade():
 
     for table in _ARRAYS:
         op.execute(
-            "INSERT INTO tags (name) "  # noqa: S608 -- fixed list
+            "INSERT INTO tags (name) "
             f"SELECT DISTINCT t FROM {table}, unnest(assignees_placeholder) t "
             "ON CONFLICT (name) DO NOTHING".replace("assignees_placeholder", "tags")
         )
         op.execute(
-            "INSERT INTO item_tags (item_id, tag_id) "  # noqa: S608
+            "INSERT INTO item_tags (item_id, tag_id) "
             f"SELECT c.id, tags.id FROM {table} c, unnest(c.tags) t "
             "JOIN tags ON tags.name = t "
             "ON CONFLICT DO NOTHING"
@@ -109,7 +109,7 @@ def downgrade():
             ),
         )
         op.execute(
-            f"UPDATE {table} SET tags = coalesce(named.names, '{{}}') FROM ("  # noqa: S608
+            f"UPDATE {table} SET tags = coalesce(named.names, '{{}}') FROM ("
             "  SELECT it.item_id, array_agg(tags.name ORDER BY tags.name) AS names"
             "    FROM item_tags it JOIN tags ON tags.id = it.tag_id"
             "   GROUP BY it.item_id"

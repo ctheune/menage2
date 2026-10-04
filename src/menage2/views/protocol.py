@@ -9,17 +9,17 @@ import threading
 
 from pyramid.httpexceptions import HTTPForbidden, HTTPNotFound, HTTPSeeOther
 from pyramid.renderers import render, render_to_response
-from pyramid.response import Response
 from pyramid.view import view_config
 from sqlalchemy import select
 
+from menage2.models.item import TodoStatus
 from menage2.models.protocol import (
     Protocol,
     ProtocolItem,
     ProtocolRun,
     ProtocolRunItem,
 )
-from menage2.models.todo import Todo, TodoStatus
+from menage2.models.todo import Todo
 from menage2.principals import (
     get_user_team_memberships,
     is_protocol_editor,
@@ -31,13 +31,13 @@ from menage2.recurrence import (
     rule_to_spec,
     spawn_protocol_run,
 )
-from menage2.views.todo import _validation_error, parse_todo_input
+from menage2.views.todo import parse_todo_input, validation_error
 
 _snapshot_lock = threading.Lock()
 
 
 def _now_utc():
-    return datetime.datetime.now(tz=datetime.timezone.utc)
+    return datetime.datetime.now(tz=datetime.UTC)
 
 
 def _today():
@@ -200,12 +200,12 @@ def edit_protocol(request):
     }
 
 
-def _reject_unknown_assignees(request, names):
+def reject_unknown_assignees(request, names):
     """Same rule as the task views: a name that addresses nobody is refused."""
     unknown = sorted(unknown_principals(request.dbsession, names))
     if not unknown:
         return None
-    return _validation_error(request, f"No user or team called @{unknown[0]}.")
+    return validation_error(request, f"No user or team called @{unknown[0]}.")
 
 
 @view_config(route_name="edit_protocol", request_method="POST")
@@ -233,7 +233,7 @@ def update_protocol(request):
             for run in active_runs:
                 run.text = new_title
         p.tags = parsed.tags
-        rejected = _reject_unknown_assignees(request, parsed.assignees)
+        rejected = reject_unknown_assignees(request, parsed.assignees)
         if rejected is not None:
             return rejected
         p.assignees = set(parsed.assignees)
@@ -254,7 +254,7 @@ def _apply_protocol_recurrence(protocol, spec, dbsession):
         protocol.recurrence = None
         return
     if protocol.recurrence is not None:
-        from menage2.models.todo import RecurrenceKind, RecurrenceUnit
+        from menage2.models.item import RecurrenceKind, RecurrenceUnit
 
         r = protocol.recurrence
         r.kind = RecurrenceKind(spec.kind)
@@ -293,7 +293,7 @@ def add_protocol_item(request):
         ).scalar()
         or 0
     ) + 1
-    rejected = _reject_unknown_assignees(request, parsed.assignees)
+    rejected = reject_unknown_assignees(request, parsed.assignees)
     if rejected is not None:
         return rejected
     item = ProtocolItem(
@@ -319,7 +319,7 @@ def update_protocol_item(request):
     parsed = parse_todo_input(raw)
     if not parsed.text:
         return HTTPSeeOther(request.route_url("edit_protocol", id=item.protocol_id))
-    rejected = _reject_unknown_assignees(request, parsed.assignees)
+    rejected = reject_unknown_assignees(request, parsed.assignees)
     if rejected is not None:
         return rejected
     item.text = parsed.text
@@ -338,7 +338,7 @@ def update_protocol_item_partial(request):
     if raw:
         parsed = parse_todo_input(raw)
         if parsed.text:
-            rejected = _reject_unknown_assignees(request, parsed.assignees)
+            rejected = reject_unknown_assignees(request, parsed.assignees)
             if rejected is not None:
                 return rejected
             item.text = parsed.text
@@ -436,7 +436,7 @@ def run_item_edit(request):
     parsed = parse_todo_input(raw)
     if not parsed.text:
         return _run_partial_response(request, item.run)
-    rejected = _reject_unknown_assignees(request, parsed.assignees)
+    rejected = reject_unknown_assignees(request, parsed.assignees)
     if rejected is not None:
         return rejected
     item.text = parsed.text

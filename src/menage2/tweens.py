@@ -18,7 +18,7 @@ def first_run_tween_factory(handler, registry):
     return tween
 
 
-def hx_trigger_tween_factory(handler, registry):
+def utils(handler, registry):
     def tween(request):
         request.response.hx_trigger = HXTrigger(request.response)
         return handler(request)

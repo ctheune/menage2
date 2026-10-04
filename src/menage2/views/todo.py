@@ -6,14 +6,12 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypedDict
 from urllib.parse import urlparse as _urlparse
 
-from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel, ValidationError
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.renderers import render, render_to_response
 from pyramid.request import Request
 from pyramid.view import view_config
 from sqlalchemy import and_, asc, desc, func, nulls_last, or_, select
-from sqlalchemy.orm import aliased, joinedload
 
 from menage2.dateparse import (
     RecurrenceSpec,
@@ -22,25 +20,20 @@ from menage2.dateparse import (
 )
 from menage2.fuzzy import fuzzy_filter, fuzzy_highlight
 from menage2.markers import scan
-from menage2.models.item import Item
+from menage2.models.item import (
+    Item,
+    ItemLink,
+    RecurrenceKind,
+    RecurrenceUnit,
+    TodoStatus,
+)
 from menage2.models.principal import Principal
 from menage2.models.protocol import ProtocolRun
 from menage2.models.tag import Tag, item_tags
-from menage2.models.team import Team
-from menage2.models.todo import (
-    ItemAttachment,
-    ItemLink,
-    RecurrenceKind,
-    RecurrenceRule,
-    RecurrenceUnit,
-    Todo,
-    TodoStatus,
-)
+from menage2.models.todo import Todo
 from menage2.models.user import User
 from menage2.principals import (
-    get_all_principals,
     get_user_team_memberships,
-    todo_matches_filter,
     uncovered_teams,
     unknown_principals,
     visible_items,
@@ -54,6 +47,7 @@ from menage2.recurrence import (
     spawn_protocol_every_on_completion,
     spec_to_rule,
 )
+from menage2.schemas import validate_request, validation_error
 from menage2.urls import shorten_url
 
 if TYPE_CHECKING:
@@ -73,7 +67,7 @@ def _link_label(label: str | None, url: str) -> str:
     """The label for a link that arrived without one.
 
     Only for links written as markers, where there is no widget to ask: the
-    panel's link field asks `todo_link_label` as you type, so what it posts
+    panel's link field asks `link_picker_label` as you type, so what it posts
     is already what you saw and can still edit. A label set through the
     link's own editor is left exactly as typed, empty included.
     """
@@ -87,7 +81,7 @@ def _normalize_url(url: str) -> str:
     return url if _urlparse(url).scheme else "http://" + url
 
 
-def _reject_unknown_assignees(request, names):
+def reject_unknown_assignees(request, names):
     """An error toast naming the first `@name` that addresses nobody.
 
     Rejecting rather than quietly dropping it: a task that looks assigned
@@ -97,47 +91,7 @@ def _reject_unknown_assignees(request, names):
     unknown = sorted(unknown_principals(request.dbsession, names))
     if not unknown:
         return None
-    return _validation_error(request, f"No user or team called @{unknown[0]}.")
-
-
-def _validation_error(request, message: str, status: int = 422):
-    """Answer with an error toast rather than a bare status code.
-
-    ``HX-Reswap: none`` stops htmx from swapping the empty error body into the
-    request's target; the message is raised by the ``showValidationError``
-    listener on the error toast in ``_error_toast.pt``.
-    """
-    request.response.status_int = status
-    request.response.headers["HX-Reswap"] = "none"
-    request.response.hx_trigger("showValidationError", {"message": message})
-    return request.response
-
-
-def _validated(request, schema):
-    """Parse the JSON body against `schema`.
-
-    Returns ``None`` when the payload is unusable, having already set up the
-    error response — the caller then returns ``request.response`` unchanged.
-    """
-    try:
-        body = request.json_body
-    except (ValueError, AttributeError):
-        _validation_error(request, "Could not read the request.", status=400)
-        return None
-    if not isinstance(body, dict):
-        _validation_error(request, "Expected a JSON object.", status=400)
-        return None
-    try:
-        return schema(**body)
-    except ValidationError as e:
-        # A toast has room for one problem, not pydantic's full report.
-        first = e.errors()[0]
-        where = ".".join(str(part) for part in first["loc"]) or "request"
-        _validation_error(request, f"{where}: {first['msg']}")
-        return None
-    except (TypeError, ValueError) as e:
-        _validation_error(request, str(e))
-        return None
+    return validation_error(request, f"No user or team called @{unknown[0]}.")
 
 
 def render_note_html(note: str) -> str:
@@ -438,7 +392,7 @@ def build_date_groups(
 
 
 def _now_utc() -> datetime.datetime:
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 def _today() -> datetime.date:
@@ -649,7 +603,7 @@ def _filter_counts(request) -> dict[str, int]:
 
 def _validate_filter(candidate: str):
     if candidate not in _VALID_FILTER_MODES:
-        candidate = list(_VALID_FILTER_MODES)[0]
+        candidate = next(iter(_VALID_FILTER_MODES))
     return candidate
 
 
@@ -686,7 +640,7 @@ def task_subnav_partial(request: Request):
     for section_filter, section_title in _VALID_FILTER_MODES.items():
         section = SubnavSection(
             title=section_title,
-            url=request.route_url("list_todos", _query=dict(filter=section_filter)),
+            url=request.route_url("list_todos", _query={"filter": section_filter}),
             badge=str(counts[section_filter]),
             active=(
                 request.route_path("list_todos") == path
@@ -910,8 +864,8 @@ def add_todo(request):
     except ValidationError as e:
         first = e.errors()[0]
         where = ".".join(str(part) for part in first["loc"]) or "request"
-        return _validation_error(request, f"{where}: {first['msg']}")
-    rejected = _reject_unknown_assignees(request, parsed.assignees)
+        return validation_error(request, f"{where}: {first['msg']}")
+    rejected = reject_unknown_assignees(request, parsed.assignees)
     if rejected is not None:
         return rejected
     owner_id = request.identity.id if request.identity else None
@@ -1080,40 +1034,6 @@ def postpone_todos(request) -> None:
     return request.response
 
 
-# XXX
-@view_config(route_name="parse_date_preview", request_method="GET", renderer="json")
-def parse_date_preview(request):
-    """Live-preview endpoint: ``GET /todos/parse-date?q=tomorrow`` → JSON."""
-    raw = request.params.get("q", "").strip()
-    if not raw:
-        return {"ok": False}
-    parsed = parse_date(raw, _today())
-    if not parsed:
-        return {"ok": False}
-    return {"ok": True, "date": parsed.date.isoformat(), "label": parsed.label}
-
-
-@view_config(
-    route_name="parse_recurrence_preview", request_method="GET", renderer="json"
-)
-def parse_recurrence_preview(request):
-    raw = request.params.get("q", "").strip()
-    if not raw:
-        return {"ok": False}
-    spec = parse_recurrence(raw)
-    if not spec:
-        return {"ok": False}
-    return {
-        "ok": True,
-        "label": spec.label(),
-        "kind": spec.kind,
-        "interval_value": spec.interval_value,
-        "interval_unit": spec.interval_unit,
-        "weekday": spec.weekday,
-        "month_day": spec.month_day,
-    }
-
-
 @view_config(
     route_name="recurrence_history",
     request_method="GET",
@@ -1147,7 +1067,7 @@ def todo_undo(request):
     """
     from menage2.schemas import UndoAction
 
-    validated = _validated(request, UndoAction)
+    validated = validate_request(request, UndoAction)
     if validated is None:
         return request.response
 
@@ -1175,7 +1095,7 @@ def todo_undo(request):
 @view_config(route_name="todo_update", request_method="PUT")
 def todo_update(request):
     """Update a todo using JSON/Pydantic validation. All fields are optional for partial updates."""
-    from menage2.models.todo import ItemLink
+    from menage2.models.item import ItemLink
 
     todo_id = int(request.matchdict["id"])
     todo = request.dbsession.get(Todo, todo_id)
@@ -1185,7 +1105,7 @@ def todo_update(request):
 
     from menage2.schemas import TodoUpdate
 
-    validated = _validated(request, TodoUpdate)
+    validated = validate_request(request, TodoUpdate)
     if validated is None:
         return request.response
 
@@ -1195,22 +1115,27 @@ def todo_update(request):
 
     if validated.text is not None:
         todo.text = validated.text
+
     if "tags" in clear_fields:
         todo.tags = set()
     elif validated.tags is not None:
         todo.tags = validated.tags
+
     if "assignees" in clear_fields:
         todo.assignees = set()
     elif validated.assignees is not None:
-        rejected = _reject_unknown_assignees(request, validated.assignees)
+        rejected = reject_unknown_assignees(request, validated.assignees)
         if rejected is not None:
             return rejected
         todo.assignees = validated.assignees
+
     todo.due_date = validated.due_date
+
     if "note" in clear_fields:
         todo.note = None
     elif validated.note is not None:
         todo.note = validated.note
+
     if "recurrence" in clear_fields:
         todo.recurrence_id = None
     elif validated.recurrence is not None:
@@ -1224,6 +1149,7 @@ def todo_update(request):
             month_day=validated.recurrence.month_day,
         )
         _apply_recurrence_spec(todo, spec, request.dbsession)
+
     if "links" in clear_fields:
         request.dbsession.execute(
             sqla_delete(ItemLink).where(ItemLink.item_id == todo.id)
@@ -1243,9 +1169,7 @@ def todo_update(request):
             request.dbsession.add(link)
 
     if validated.attachments is not None:
-        from pathlib import Path
-
-        from menage2.models.todo import ItemAttachment
+        from menage2.models.item import ItemAttachment
         from menage2.views.attachment import _ext_for, _get_attachments_dir
 
         attachments_dir = _get_attachments_dir(request)
@@ -1270,7 +1194,7 @@ def todo_update(request):
 
     response = HTTPSeeOther(
         request.route_url(
-            "todo_details_panel", _query=dict(todo_ids=str(todo.id), updated="true")
+            "todo_details_panel", _query={"todo_ids": str(todo.id), "updated": "true"}
         ),
     )
     return response
@@ -1290,7 +1214,7 @@ def todo_stop_repeating(request):
     """
     todo = request.dbsession.get(Todo, int(request.matchdict["id"]))
     if todo is None:
-        return _validation_error(request, "No such task.", status=404)
+        return validation_error(request, "No such task.", status=404)
 
     for member in chain_history(request.dbsession, todo):
         member.recurrence_id = None
@@ -1298,7 +1222,7 @@ def todo_stop_repeating(request):
 
     return HTTPSeeOther(
         request.route_url(
-            "todo_details_panel", _query=dict(todo_ids=str(todo.id), updated="true")
+            "todo_details_panel", _query={"todo_ids": str(todo.id), "updated": "true"}
         ),
     )
 
@@ -1308,7 +1232,7 @@ def todo_batch_action(request):
     """Handle batch actions: done, hold, postpone, activate."""
     from menage2.schemas import BatchAction
 
-    validated = _validated(request, BatchAction)
+    validated = validate_request(request, BatchAction)
     if validated is None:
         return request.response
 
@@ -1348,7 +1272,7 @@ def todo_batch_action(request):
     elif action == "postpone":
         interval = validated.interval
         if not interval:
-            return _validation_error(request, "Postpone needs an interval.", status=400)
+            return validation_error(request, "Postpone needs an interval.", status=400)
         # Snapshot before the dates move — undo restores the old due date.
         for todo_id in todo_ids:
             todo = request.dbsession.get(Todo, todo_id)
@@ -1358,14 +1282,14 @@ def todo_batch_action(request):
         try:
             _batch_postpone(request.dbsession, todo_ids, interval, today)
         except ValueError:
-            return _validation_error(
+            return validation_error(
                 request, f"“{interval}” is not a date or interval I understand."
             )
         request.response.hx_trigger.undo(entries, texts, "postponed")
     elif action == "edit":
         update = validated.todo
         if update is None:
-            return _validation_error(request, "Edit needs a todo.", status=400)
+            return validation_error(request, "Edit needs a todo.", status=400)
 
         clear_fields = update.clear_fields
         for todo_id in todo_ids:
@@ -1379,7 +1303,7 @@ def todo_batch_action(request):
             if "assignees" in clear_fields:
                 todo.assignees = set()
             elif update.assignees is not None:
-                rejected = _reject_unknown_assignees(request, update.assignees)
+                rejected = reject_unknown_assignees(request, update.assignees)
                 if rejected is not None:
                     return rejected
                 todo.assignees = update.assignees
@@ -1436,7 +1360,7 @@ def _picker_value(request) -> str | None:
 @view_config(
     route_name="date_picker",
     request_method="GET",
-    renderer="menage2:templates/_date_picker.pt",
+    renderer="menage2:templates/pickers/date.pt",
 )
 def date_picker(request):
     """Render a picker for a date.
@@ -1523,7 +1447,7 @@ def date_picker(request):
 @view_config(
     route_name="recurrence_picker",
     request_method="GET",
-    renderer="menage2:templates/_recurrence_picker.pt",
+    renderer="menage2:templates/pickers/recurrence.pt",
 )
 def recurrence_picker(request):
     """Render a picker for a recurrence.
@@ -1554,7 +1478,7 @@ def recurrence_picker(request):
 @view_config(
     route_name="tag_picker",
     request_method="GET",
-    renderer="menage2:templates/_tag_picker.pt",
+    renderer="menage2:templates/pickers/tag.pt",
 )
 def tag_picker(request):
     """Render a picker for tags.
@@ -1565,9 +1489,7 @@ def tag_picker(request):
     value = _picker_value(request)
 
     if not value:
-        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
-            days=30
-        )
+        cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=30)
         tags = list(
             request.dbsession.execute(
                 select(Tag.name)
@@ -1596,7 +1518,7 @@ def tag_picker(request):
 @view_config(
     route_name="assignee_picker",
     request_method="GET",
-    renderer="menage2:templates/_assignee_picker.pt",
+    renderer="menage2:templates/pickers/assignee.pt",
 )
 def assignee_picker(request):
     """Render a picker for assignees.
@@ -1612,9 +1534,7 @@ def assignee_picker(request):
         request.dbsession.execute(
             select(Principal.name)
             .outerjoin(User, User.id == Principal.user_id)
-            .where(
-                (Principal.kind == "team") | (User.is_active == True)  # noqa: E712
-            )
+            .where((Principal.kind == "team") | (User.is_active == True))
         ).scalars()
     )
 
@@ -1627,8 +1547,8 @@ def assignee_picker(request):
     return {"value": value, "options": names, "new": None, "highlight": fuzzy_highlight}
 
 
-@view_config(route_name="todo_link_label", request_method="GET")
-def todo_link_label(request):
+@view_config(route_name="link_picker_label", request_method="GET")
+def link_picker_label(request):
     """What to call a link that has just been typed in.
 
     The panel's link field asks for this as the URL is entered, so the label
@@ -1735,52 +1655,3 @@ def todo_details_panel(request: Request):
         response=request.response,
     )
     return response
-
-
-@view_config(route_name="list_principals_json", renderer="json")
-def list_principals_json(request):
-    """All principals (active users + teams) for @mention autocomplete."""
-    return get_all_principals(request.dbsession)
-
-
-@view_config(
-    route_name="todo_picker_postpone",
-    request_method="GET",
-    renderer="menage2:templates/_postpone_picker.pt",
-)
-def postpone_picker_partial(request):
-    today = datetime.date.today()
-
-    if month_str := request.params.get("month"):
-        current_month = datetime.datetime.strptime(month_str, "%B %Y").date()
-    else:
-        current_month = today
-
-    current_month = current_month.replace(day=1)
-
-    # todo_id = int(request.matchdict["id"])
-    # todo = request.dbsession.get(Todo, todo_id)
-    # if not todo:
-    #     request.response.status_int = 404
-    #     return {}
-    #
-
-    last_month = current_month - relativedelta(months=1)
-    next_month = current_month + relativedelta(months=1)
-
-    days = []
-    cursor = current_month
-    while cursor.month == current_month.month:
-        days.append(cursor)
-        cursor += datetime.timedelta(days=1)
-
-    mute_days = [None for d in range(days[0].weekday())]
-    days = mute_days + days
-
-    return {
-        "days": days,
-        "today": today,
-        "current_month": current_month.strftime("%B %Y"),
-        "next_month": next_month.strftime("%B %Y"),
-        "last_month": last_month.strftime("%B %Y"),
-    }

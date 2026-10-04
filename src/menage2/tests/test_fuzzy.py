@@ -1,7 +1,5 @@
 """Tests for menage2.fuzzy — pure functions, no DB."""
 
-import pytest
-
 from menage2.fuzzy import fuzzy_filter, fuzzy_highlight
 
 # --- Basic matching ---

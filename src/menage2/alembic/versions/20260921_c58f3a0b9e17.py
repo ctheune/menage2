@@ -36,7 +36,7 @@ def upgrade():
     for table in _CARRIERS:
         rows = connection.execute(
             sa.text(
-                f"SELECT id, assignees FROM {table} "  # noqa: S608 -- fixed list
+                f"SELECT id, assignees FROM {table} "
                 "WHERE EXISTS (SELECT 1 FROM unnest(assignees) a "
                 "WHERE a LIKE '% %' OR a LIKE '%@%')"
             )
@@ -51,9 +51,7 @@ def upgrade():
                 }
             )
             connection.execute(
-                sa.text(
-                    f"UPDATE {table} SET assignees = :names WHERE id = :id"  # noqa: S608
-                ),
+                sa.text(f"UPDATE {table} SET assignees = :names WHERE id = :id"),
                 {"names": names, "id": row_id},
             )
             split += 1
@@ -61,10 +59,7 @@ def upgrade():
     unknown: dict[str, int] = {}
     for table in _CARRIERS:
         for name, count in connection.execute(
-            sa.text(
-                f"SELECT a, count(*) FROM {table}, unnest(assignees) a "  # noqa: S608
-                "GROUP BY a"
-            )
+            sa.text(f"SELECT a, count(*) FROM {table}, unnest(assignees) a GROUP BY a")
         ):
             if name not in known:
                 unknown[name] = unknown.get(name, 0) + count

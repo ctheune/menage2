@@ -3,7 +3,7 @@ import socket
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 import alembic.command
@@ -27,7 +27,7 @@ _ph = PasswordHasher()
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def pytest_addoption(parser):

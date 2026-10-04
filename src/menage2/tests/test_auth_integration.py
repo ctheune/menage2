@@ -1,8 +1,7 @@
 """Integration tests for authentication flows (no browser required)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-import pytest
 from argon2 import PasswordHasher
 
 from menage2 import SETUP_TOKEN_KEY
@@ -13,7 +12,7 @@ _ph = PasswordHasher()
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _seed_setup_token(dbsession, token="test-setup-token"):

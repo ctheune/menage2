@@ -2,7 +2,7 @@
 
 import pytest
 
-from ._browser_helpers import click_until, wait_wired
+from ._browser_helpers import click_until
 
 
 @pytest.fixture(scope="session")

@@ -1,7 +1,7 @@
 """Unit tests for auth logic (no DB interaction)."""
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
 
 import pytest
 from argon2 import PasswordHasher
@@ -13,7 +13,7 @@ _ph = PasswordHasher()
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import datetime as _datetime
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime
 
 from argon2 import PasswordHasher
 from pyramid.httpexceptions import HTTPBadRequest, HTTPNotFound, HTTPSeeOther
@@ -24,7 +24,7 @@ _ph = PasswordHasher()
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(_datetime.UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -518,7 +518,7 @@ def new_team_get(request):
         "users": request.dbsession.execute(
             select(User)
             .join(Principal, Principal.user_id == User.id)
-            .where(User.is_active == True)  # noqa: E712
+            .where(User.is_active == True)
             .order_by(Principal.name)
         )
         .scalars()
@@ -555,7 +555,7 @@ def new_team_post(request):
             "users": request.dbsession.execute(
                 select(User)
                 .join(Principal, Principal.user_id == User.id)
-                .where(User.is_active == True)  # noqa: E712
+                .where(User.is_active == True)
                 .order_by(Principal.name)
             )
             .scalars()
@@ -584,7 +584,7 @@ def edit_team_get(request):
         "users": request.dbsession.execute(
             select(User)
             .join(Principal, Principal.user_id == User.id)
-            .where(User.is_active == True)  # noqa: E712
+            .where(User.is_active == True)
             .order_by(Principal.name)
         )
         .scalars()
@@ -627,7 +627,7 @@ def edit_team_post(request):
             "users": request.dbsession.execute(
                 select(User)
                 .join(Principal, Principal.user_id == User.id)
-                .where(User.is_active == True)  # noqa: E712
+                .where(User.is_active == True)
                 .order_by(Principal.name)
             )
             .scalars()

@@ -1,24 +1,15 @@
-import datetime
+from typing import ClassVar
 
-from sqlalchemy import Column, Constraint, DateTime, ForeignKey, Index, Integer, Text
+from sqlalchemy import Column, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 # Re-exported: these used to live here, and migrations, views and tests all
 # import them from this module. See models/item.py for where they went.
-from .item import (  # noqa: F401
-    Item,
-    ItemAttachment,
-    ItemLink,
-    RecurrenceKind,
-    RecurrenceRule,
-    RecurrenceUnit,
-    TodoStatus,
-)
-from .meta import Base
+from .item import Item
 
 
 class Todo(Item):
-    """A task: an item with a status, a due date and a place in a chain."""
+    """A basic todo item that is shown on todo lists."""
 
     __tablename__ = "todos"
 
@@ -42,7 +33,7 @@ class Todo(Item):
         "Todo", remote_side="Todo.id", foreign_keys=[recurred_into_id]
     )
 
-    __mapper_args__ = {"polymorphic_identity": "todo"}
+    __mapper_args__: ClassVar = {"polymorphic_identity": "todo"}
 
     def marker_text(self) -> str:
         """This todo as the marker string its edit affordances show and parse back."""
@@ -57,3 +48,18 @@ class Todo(Item):
             recurrence=self.recurrence.label if self.recurrence else None,
             note=self.note,
         )
+
+    @classmethod
+    def from_item(cls, item: Item, **kw) -> "Todo":
+        values = {
+            "text": item.text,
+            "note": item.note,
+            "due_date": item.due_date,
+            "recurrence_id": item.recurrence_id,
+            "tag_links": item.tag_links,
+            "assignee_links": item.assignee_links,
+            "attachments": item.attachments,
+            "tags": item.tags,
+        }
+        values.update(kw)
+        return cls(**values)

@@ -2,22 +2,22 @@
 
 import datetime
 
+from menage2.models.item import (
+    RecurrenceKind,
+    RecurrenceRule,
+    RecurrenceUnit,
+    TodoStatus,
+)
 from menage2.models.protocol import (
     Protocol,
     ProtocolItem,
     ProtocolRun,
 )
-from menage2.models.todo import (
-    RecurrenceKind,
-    RecurrenceRule,
-    RecurrenceUnit,
-    Todo,
-    TodoStatus,
-)
+from menage2.models.todo import Todo
 
 
 def _now():
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 def _today():

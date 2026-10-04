@@ -2,97 +2,54 @@
 # See https://prek.j178.dev for more information.
 #:schema https://www.schemastore.org/prek.json
 
-exclude = "^secrets/|^appenv$"
-
 [[repos]]
 hooks = [
+  { id = "check-merge-conflict" },
   { id = "detect-private-key" },
   { id = "check-added-large-files" },
-  {
-    exclude = '''
-(?x)^(
-  secrets/|environments/.*/secret.*|
-  .*\.patch
-)$
-''',
-    id = "trailing-whitespace"
-  },
-  {
-    exclude = '''
-(?x)^(
-  environments/.*/secret.*|
-  .*\.patch
-)$
-''',
-    id = "end-of-file-fixer"
-  },
-  {
-    exclude = '''
-(?x)^(
-  environments/.*/secret.*|
-  .*\.patch
-)$
-''',
-    id = "check-yaml"
-  },
-  {
-    exclude = '''
-(?x)^(
-  environments/.*/secret.*|
-  .*\.patch
-)$
-''',
-    id = "check-json"
-  },
-  {
-    exclude = '''
-(?x)^(
-  environments/.*/secret.*|
-  .*\.patch
-)$
-''',
-    id = "check-xml"
-  },
-  {
-    exclude = '''
-(?x)^(
-  environments/.*/secret.*|
-  .*\.patch
-)$
-''',
-    id = "check-toml"
-  }
+  { id = "trailing-whitespace" },
+  { id = "end-of-file-fixer" },
+  { id = "check-yaml" },
+  { id = "check-json" },
+  { id = "check-xml" },
+  { id = "check-toml" },
 ]
-repo = "https://github.com/pre-commit/pre-commit-hooks"
-rev = "v6.0.0"
+repo = "builtin"
+
 
 [[repos]]
 hooks = [
-  {
-    args = [
-      "--profile",
-      "black",
-      "--filter-files"
-    ],
-    id = "isort",
-    name = "isort (python)"
-  }
-]
-repo = "https://github.com/pycqa/isort"
-rev = "7.0.0"
-
-[[repos]]
-hooks = [
-  {
-    args = [
-      "--ignore",
-      "E501",
-      "--ignore",
-      "F401"
-    ],
-    id = "ruff"
-  },
-  { id = "ruff-format" }
+  { id = "ruff", args = [
+    "--fix",
+    "--unsafe-fixes",
+  ] },
+  { id = "ruff-format" },
 ]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "v0.14.14"
+rev = "v0.16.9"
+
+[[repos]]
+hooks = [
+  { id = "basedpyright" },
+  # The errors that were already there live in .basedpyright/baseline.json, so
+  # the hook above only reports what we newly break. Fixing some of them shrinks
+  # the baseline by itself -- basedpyright rewrites the file when the count goes
+  # down, which shows up as "files were modified by this hook"; commit it and
+  # move on. Absorbing errors is the deliberate step, and only this hook does it:
+  #
+  #   prek run --hook-stage manual basedpyright-baseline
+  #
+  # Reach for it when a batch has to wait, not to silence one you just wrote.
+  { id = "basedpyright", alias = "basedpyright-baseline", name = "basedpyright (rewrite baseline)", args = [
+    "--writebaseline",
+  ], pass_filenames = false, stages = [
+    "manual",
+  ] },
+]
+repo = "https://github.com/DetachHead/basedpyright-prek-mirror"
+rev = "1.40.1"
+
+[[repos]]
+repo = "https://github.com/google/keep-sorted"
+rev = "v0.10.0"
+hooks = [{ id = "keep-sorted" }]

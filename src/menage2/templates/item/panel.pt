@@ -27,9 +27,7 @@
              _="on keydown[key is 'Enter'] send submit to closest <form/> then halt" />
     </div>
 
-    <div metal:use-macro="load: ./_tag_field.pt"></div>
-    <div metal:use-macro="load: ./_assignee_field.pt"
-         tal:condition="wants_assignees"></div>
+    <div metal:use-macro="load: ./fields/tags.pt"></div>
 
     <div class="mb-3">
       <label for="item-note">Note</label>
@@ -37,7 +35,13 @@
                 rows="2">${python:item.note or ''}</textarea>
     </div>
 
-    <div metal:use-macro="load: ./_item_files.pt"></div>
+    <div metal:use-macro="load: ./fields/assignees.pt"
+         tal:condition="wants_assignees"></div>
+
+    <div metal:use-macro="load: ./fields/links.pt"></div>
+
+    <div metal:use-macro="load: ./fields/files.pt"></div>
+
 
     <button type="submit" class="btn btn-primary">Save</button>
   </form>

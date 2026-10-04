@@ -1,7 +1,7 @@
 import base64
 import json
+from datetime import UTC, datetime
 from datetime import date as _date
-from datetime import datetime, timezone
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
@@ -15,7 +15,7 @@ _ph = PasswordHasher()
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +45,7 @@ def parse_absence(request):
     route_name="account",
     renderer="menage2:templates/auth/account.pt",
     permission=PERM_AUTHENTICATED,
+    navigation={"title": "Asdf"},
 )
 def account_view(request):
     user = request.identity

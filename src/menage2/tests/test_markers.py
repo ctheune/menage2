@@ -10,14 +10,15 @@ import datetime
 import pytest
 
 from menage2.markers import format_markers
-from menage2.models.item import ItemAttachment, ItemLink  # noqa: F401
-from menage2.models.protocol import Protocol, ProtocolItem, ProtocolRunItem
-from menage2.models.todo import (
+from menage2.models.item import (  # noqa: F401
+    ItemAttachment,
+    ItemLink,
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
-    Todo,
 )
+from menage2.models.protocol import Protocol, ProtocolItem, ProtocolRunItem
+from menage2.models.todo import Todo
 from menage2.views.todo import parse_todo_input
 
 TODAY = datetime.date(2026, 5, 1)
@@ -201,13 +202,13 @@ def test_round_trip_string_is_stable_across_two_passes():
 
 
 def _rule(**kwargs):
-    defaults = dict(
-        kind=RecurrenceKind.every,
-        interval_value=1,
-        interval_unit=RecurrenceUnit.week,
-        weekday=None,
-        month_day=None,
-    )
+    defaults = {
+        "kind": RecurrenceKind.every,
+        "interval_value": 1,
+        "interval_unit": RecurrenceUnit.week,
+        "weekday": None,
+        "month_day": None,
+    }
     defaults.update(kwargs)
     return RecurrenceRule(**defaults)
 

@@ -167,7 +167,8 @@ def set_dinner(request):
 
 @view_config(route_name="send_to_shopping_list", request_method="POST")
 def send_to_shopping_list(request):
-    from menage2.models.todo import Todo, TodoStatus
+    from menage2.models.item import TodoStatus
+    from menage2.models.todo import Todo
 
     week = (
         request.dbsession.query(models.Week)
@@ -198,18 +199,10 @@ def send_to_shopping_list(request):
         v = int(amount) if amount == int(amount) else amount
         return " ".join(filter(None, [str(v), unit]))
 
-    now = datetime.datetime.now(datetime.timezone.utc)
-
-    def _einkaufen_tags(ingredient):
-        tags = {t.rstrip(":") for t in ingredient.tags if t.startswith("einkaufen:")}
-        tags.discard("einkaufen")  # bare prefix is not a useful tag
-        # Keep only the most specific tags (drop prefixes of other tags in the set)
-        tags = {t for t in tags if not any(other.startswith(t + ":") for other in tags)}
-        return tags or {"einkaufen:supermarkt"}
+    now = datetime.datetime.now(datetime.UTC)
 
     for ingredient, by_unit in aggregated.items():
         for unit, by_recipe in by_unit.items():
-            tags = _einkaufen_tags(ingredient)
             total = sum(by_recipe.values())
             total_str = _fmt_amt(total, unit)
             text = ingredient.description
@@ -224,19 +217,18 @@ def send_to_shopping_list(request):
                 ]
             note = "für: " + ", ".join(parts)
             request.dbsession.add(
-                Todo(
+                Todo.from_item(
+                    ingredient,
                     text=text,
-                    tags=tags,
+                    note=note,
                     status=TodoStatus.todo,
                     owner=request.identity,
                     assignees=_shopping_assignees(request.dbsession),
                     created_at=now,
-                    note=note,
                 )
             )
 
     for usage, recipe_title in non_numeric:
-        tags = _einkaufen_tags(usage.ingredient)
         amt_str = (
             _fmt_amt(usage.numeric_amount() or 0, usage.unit or "")
             if usage.numeric_amount()
@@ -244,14 +236,14 @@ def send_to_shopping_list(request):
         )
         note = "für: " + recipe_title + (f" ({amt_str})" if amt_str else "")
         request.dbsession.add(
-            Todo(
+            Todo.from_item(
+                usage.ingredient,
                 text=usage.to_shopping_list(),
-                tags=tags,
+                note=note,
                 status=TodoStatus.todo,
                 owner=request.identity,
                 assignees=_shopping_assignees(request.dbsession),
                 created_at=now,
-                note=note,
             )
         )
 

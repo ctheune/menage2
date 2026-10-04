@@ -1,13 +1,11 @@
 import datetime
 import io
-from pathlib import Path
 
-import pytest
 from PIL import Image
 from sqlalchemy import select
 
-from menage2.models.item import ItemAttachment
-from menage2.models.todo import Todo, TodoStatus
+from menage2.models.item import ItemAttachment, TodoStatus
+from menage2.models.todo import Todo
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -28,7 +26,7 @@ def _make_todo(dbsession, admin_user, text="Test todo"):
         assignees=set(),
         status=TodoStatus.todo,
         owner_id=admin_user.id,
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(todo)
     dbsession.flush()
@@ -147,7 +145,7 @@ def test_thumbnail_endpoint_requires_auth(
         uuid="test-uuid-thumbnail",
         original_filename="photo.jpg",
         mimetype="image/jpeg",
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(att)
     dbsession.flush()
@@ -172,7 +170,7 @@ def test_thumbnail_returns_image_bytes(
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(att)
     dbsession.flush()
@@ -198,7 +196,7 @@ def test_full_image_endpoint_returns_bytes_and_disposition(
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(att)
     dbsession.flush()
@@ -227,7 +225,7 @@ def test_thumbnail_wrong_todo_id_returns_404(
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(att)
     dbsession.flush()
@@ -252,7 +250,7 @@ def test_other_user_cannot_access_attachment(
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(att)
     dbsession.flush()
@@ -289,7 +287,7 @@ def test_delete_removes_disk_files_and_db_row(
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(att)
     dbsession.flush()
@@ -328,7 +326,7 @@ def test_edit_todo_removes_attachment_via_remove_attachments_param(
         uuid=uuid_str,
         original_filename="photo.jpg",
         mimetype="image/jpeg",
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(att)
     dbsession.flush()
@@ -360,7 +358,7 @@ def _attach_to(dbsession, attachments_dir, item, uuid_str):
             uuid=uuid_str,
             original_filename="photo.jpg",
             mimetype="image/jpeg",
-            created_at=datetime.datetime.now(datetime.timezone.utc),
+            created_at=datetime.datetime.now(datetime.UTC),
         )
     )
     dbsession.flush()
@@ -434,7 +432,7 @@ def test_a_run_line_follows_the_checklist_it_came_from(
         text="Admin's list",
         status=TodoStatus.todo,
         owner_id=admin_user.id,
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(run)
     dbsession.flush()

@@ -48,7 +48,7 @@ def main(argv=sys.argv):
             spawned = run_sweep(
                 env["request"].dbsession,
                 datetime.date.today(),
-                datetime.datetime.now(datetime.timezone.utc),
+                datetime.datetime.now(datetime.UTC),
             )
     finally:
         env["closer"]()

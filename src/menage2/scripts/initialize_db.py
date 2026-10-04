@@ -1,12 +1,8 @@
 import argparse
-import datetime
 import sys
 
 from pyramid.paster import bootstrap, setup_logging
-from sqlalchemy import create_engine, delete, text
 from sqlalchemy.exc import OperationalError
-
-from .. import models
 
 
 def setup_models(dbsession):

@@ -13,10 +13,9 @@ Todo done closes the run.
 """
 
 import datetime
-import enum
-from typing import Optional
+from typing import ClassVar, Optional
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -25,18 +24,13 @@ from sqlalchemy.orm import (
     synonym,
 )
 
-from menage2.models.user import User
 from menage2.recurrence import (
     RecurrenceRule,
-    ensure_protocol_has_run,
-    rule_to_spec,
     spawn_protocol_after,
     spawn_protocol_every_on_completion,
-    spawn_protocol_run,
 )
 
 from .item import Item, TodoStatus
-from .meta import Base
 from .todo import Todo
 
 
@@ -48,7 +42,7 @@ class Protocol(Item):
     id: Mapped[int] = mapped_column(
         ForeignKey("items.id", ondelete="CASCADE"), primary_key=True
     )
-    archived_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+    archived_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
 
@@ -56,7 +50,7 @@ class Protocol(Item):
     #: places that use them, so both stay.
     title = synonym("text")
 
-    __mapper_args__ = {"polymorphic_identity": "protocol"}
+    __mapper_args__: ClassVar = {"polymorphic_identity": "protocol"}
 
     items: Mapped[list["ProtocolItem"]] = relationship(
         "ProtocolItem",
@@ -103,7 +97,7 @@ class ProtocolItem(Item):
     protocol_id = Column(Integer, ForeignKey("protocols.id"), nullable=False)
     position = Column(Integer, nullable=False, default=0)
 
-    __mapper_args__ = {
+    __mapper_args__: ClassVar = {
         "polymorphic_identity": "protocol_item",
         "inherit_condition": id == Item.id,
     }
@@ -139,7 +133,7 @@ class ProtocolRun(Todo):
     #: Spawning is `created_at` and closing is `done_at`, on the item.
     opened_at = Column(DateTime(timezone=True))
 
-    __mapper_args__ = {
+    __mapper_args__: ClassVar = {
         "polymorphic_identity": "protocol_run",
         "inherit_condition": id == Todo.id,
         # The task list loads todos and runs together; without this each run
@@ -190,7 +184,7 @@ class ProtocolRun(Todo):
                     status=TodoStatus.todo,
                 )
             )
-        self.opened_at = datetime.datetime.now(datetime.timezone.utc)
+        self.opened_at = datetime.datetime.now(datetime.UTC)
 
     def maybe_close_run(self):
         """Tick it off when every item is resolved.
@@ -202,7 +196,7 @@ class ProtocolRun(Todo):
             return
         if self.status != TodoStatus.todo:
             return
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         self.status = TodoStatus.done
         self.done_at = now
         dbsession = object_session(self)
@@ -220,7 +214,7 @@ class ProtocolRunItem(Item):
     position = Column(Integer, nullable=False, default=0)
     sent_todo_id = Column(Integer, ForeignKey("todos.id"), nullable=True)
 
-    __mapper_args__ = {
+    __mapper_args__: ClassVar = {
         "polymorphic_identity": "protocol_run_item",
         "inherit_condition": id == Item.id,
     }

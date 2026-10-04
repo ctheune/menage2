@@ -94,12 +94,8 @@ def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession, admin_u
     """The admin button forces a sweep regardless of the daily marker."""
     import datetime
 
-    from menage2.models.todo import (
-        RecurrenceKind,
-        RecurrenceRule,
-        RecurrenceUnit,
-        Todo,
-    )
+    from menage2.models.item import RecurrenceKind, RecurrenceRule, RecurrenceUnit
+    from menage2.models.todo import Todo
 
     today = datetime.date.today()
     rule = RecurrenceRule(
@@ -115,7 +111,7 @@ def test_recurrence_sweep_admin_action(authenticated_testapp, dbsession, admin_u
             tags=set(),
             recurrence_id=rule.id,
             due_date=today - datetime.timedelta(days=14),
-            created_at=datetime.datetime.now(datetime.timezone.utc),
+            created_at=datetime.datetime.now(datetime.UTC),
             owner=admin_user,
         )
     )
@@ -148,7 +144,8 @@ def test_recurrence_sweep_requires_admin(user_testapp):
 def _tagged(dbsession, admin_user, text, tags):
     import datetime
 
-    from menage2.models.todo import Todo, TodoStatus
+    from menage2.models.item import TodoStatus
+    from menage2.models.todo import Todo
 
     todo = Todo(
         text=text,
@@ -156,7 +153,7 @@ def _tagged(dbsession, admin_user, text, tags):
         assignees=set(),
         status=TodoStatus.todo,
         owner=admin_user,
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     dbsession.add(todo)
     dbsession.flush()

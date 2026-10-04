@@ -1,5 +1,5 @@
 import datetime as _dt
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from babel.core import Locale
 from babel.dates import get_timezone
@@ -43,9 +43,7 @@ def date_ago(d: _dt.date, today: _dt.date) -> str:
 
 
 def humanize_ago(dt: datetime) -> str:
-    seconds = int(
-        (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()
-    )
+    seconds = int((datetime.now(_dt.UTC) - dt.astimezone(_dt.UTC)).total_seconds())
     if seconds < 60:
         return "just now"
     if seconds < 3600:

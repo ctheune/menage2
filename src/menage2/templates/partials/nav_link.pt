@@ -1,0 +1,4 @@
+ <a class="nav-link ${link.active and 'active' or ''} ${link.css_class}"
+    href="${link.url}">
+   <i class="bi ${link.icon}"></i> ${link.title}
+ </a>

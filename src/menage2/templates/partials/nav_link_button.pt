@@ -1,0 +1,3 @@
+<a class="btn btn-sm btn-outline-light" href="${request.route_url('account')}">
+     <i class="bi bi-person"></i> ${request.identity.username}
+</a>

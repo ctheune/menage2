@@ -1,21 +1,21 @@
 """Tests for menage2.recurrence — spawn helpers and the daily-sweep gate."""
 
 import datetime
+import itertools
 
 import pytest
 import sqlalchemy
 
 from menage2.dateparse import RecurrenceSpec
-from menage2.models.item import ItemAttachment, ItemLink  # noqa: F401
-from menage2.models.protocol import Protocol, ProtocolRun
-from menage2.models.todo import (
+from menage2.models.item import (
+    ItemAttachment,  # noqa: F401  -- registers the mapper
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
-    Todo,
     TodoStatus,
 )
-from menage2.models.user import User
+from menage2.models.protocol import Protocol, ProtocolRun
+from menage2.models.todo import Todo
 from menage2.recurrence import (
     chain_history,
     ensure_protocol_has_run,
@@ -31,7 +31,7 @@ from menage2.recurrence import (
 
 
 def _now():
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 def _make_rule(dbsession, kind, unit, n=1, weekday=None, month_day=None):
@@ -427,7 +427,7 @@ def test_two_workers_spawning_at_once_produce_one_successor(clean_db, dbengine):
     """
     from sqlalchemy.orm import sessionmaker
 
-    from menage2.models.todo import RecurrenceKind, RecurrenceRule, RecurrenceUnit
+    from menage2.models.item import RecurrenceKind, RecurrenceRule, RecurrenceUnit
 
     Session = sessionmaker(bind=dbengine)
 
@@ -492,7 +492,7 @@ def _chain(dbsession, admin_user, rule, *texts):
         _make_todo(dbsession, text=text, recurrence_id=rule.id, owner=admin_user)
         for text in texts
     ]
-    for earlier, later in zip(todos, todos[1:]):
+    for earlier, later in itertools.pairwise(todos):
         earlier.recurred_into_id = later.id
     dbsession.flush()
     return todos
@@ -500,7 +500,7 @@ def _chain(dbsession, admin_user, rule, *texts):
 
 def test_chain_history_reads_oldest_first(dbsession, admin_user):
     rule = _make_rule(dbsession, "every", "week", n=1)
-    a, b, c = _chain(dbsession, admin_user, rule, "A", "B", "C")
+    _a, _b, c = _chain(dbsession, admin_user, rule, "A", "B", "C")
     assert [t.text for t in chain_history(dbsession, c)] == ["A", "B", "C"]
 
 
@@ -735,7 +735,7 @@ def test_only_the_newest_chain_survives(dbsession, admin_user):
 def test_completed_instances_on_a_branch_go_too(dbsession, admin_user):
     """They are a copy of history, not history."""
     rule = _make_rule(dbsession, "every", "week", n=1)
-    a, b, c, d = _fork(dbsession, admin_user, rule)
+    a, _b, _c, _d = _fork(dbsession, admin_user, rule)
     a.status = TodoStatus.done
     a.done_at = _now()
     dbsession.flush()
@@ -774,7 +774,7 @@ def test_a_protocol_runs_todo_is_kept_where_it_is(dbsession, admin_user):
     dbsession.flush()
 
     rule = _make_rule(dbsession, "every", "week", n=1)
-    a, b, c, d = _fork(dbsession, admin_user, rule)
+    a, _b, _c, _d = _fork(dbsession, admin_user, rule)
     # A is a run: the same row, wearing the subtype. Deleting it would take
     # the checklist with it.
     dbsession.execute(
