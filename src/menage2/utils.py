@@ -150,20 +150,11 @@ class Navigation:
             route_name="home",
             children=[
                 NavItem(
-                    "Food",
-                    route_name="list_weeks",
-                    children=[
-                        NavItem("Meal Planner", "list_weeks"),
-                        NavItem("Recipes", "list_recipes"),
-                        NavItem("Ingredients", "list_ingredients"),
-                    ],
-                ),
-                NavItem(
-                    "TODO",
+                    "Tasks",
                     route_name="list_todos",
                     children=[
                         NavItem(
-                            "My Tasks",
+                            "Mine",
                             "list_todos",
                             _query={"filter": "personal"},
                         ),
@@ -183,6 +174,15 @@ class Navigation:
                             _query={"filter": "all"},
                         ),
                         NavItem("Protocols", "list_protocols"),
+                    ],
+                ),
+                NavItem(
+                    "Food",
+                    route_name="list_weeks",
+                    children=[
+                        NavItem("Meal Planner", "list_weeks"),
+                        NavItem("Recipes", "list_recipes"),
+                        NavItem("Ingredients", "list_ingredients"),
                     ],
                 ),
                 NavItem(

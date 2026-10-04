@@ -1,5 +1,105 @@
 
+
 # DONE
+
+
+* [x] styling der item panels (ingredients, protocols, protocol items ist falsch (padding und background))
+
+
+
+* [x] generalise task-like items that carry most attributes into a base or composite object
+
+  -> ingredients
+
+  all of those have:
+    text
+    tags
+    assignees
+    attachments
+    notes
+    links
+
+  todos, protocol runs have:
+    due dates
+
+  todos, protocols have:
+    frequency
+
+  check whether my distribution is complete and consistent
+
+  the goal is to ensure that all places where the general items
+  are used we can leverage all the attributes and have shared editing, e.g. being able to attach files/images to ingredients, protocols/items/runs, and todos ...
+
+  and i think it's time to make sure tags become proper objects
+  and assignees proper relational references so we can't
+  accidentally reference non-existing users or teams
+
+
+
+
+
+
+* [x] please double check this: tests seem to interact with development server, stop that, only use a server and database started up from within the tests.
+
+
+
+* [x] all pickers should close on mobile after having made a selection, i think the pickers that allow multiple selections currently stay open. i think they close on <enter> on desktop? so lets also close them on clicking.
+
+
+* [x] löschen/abbruch von wiederholungsketten, verstehen warum die sich teilweise vervielfachen? (iasson englisch)
+
+  -> das problem ist, dass die aktuelle datenstruktur keine
+     kette garantiert und parallele requests erzeugen keine
+     konflikte sondern bäume. d.h. es wäre eigentlich besser
+     an jedes element den nachfolger und nicht den vorgänger dranzuschreiben, dann muss es eine kette
+     sein und wenn mehrer
+
+  -> außerdem laufen die checks parallel los, d.h. da wollen
+     wir dann jetzt einen timer job aufbauen, der das regelmäßig macht. wie häufig sollte der laufen?
+
+  -> und dann sollte das nicht mehr implizit bei
+  irgendwelchen requests loslaufen
+
+  * [x] linearize the current tree-like duplications, keep only the chain of the newest one (highest id)
+
+
+
+* [x] obst und gemüse tags umbenennen -> feature für's merging von tags (sollten tags dazu referenzen statt text werden?)
+
+
+* [x] pills do not show up in the edit text fiels in the mobile add form, do we properly use the same mechanics as in editing?
+
+
+* [x] review mobile/desktop split
+
+  - [x] swipe: done / postpone / hold
+
+  - [x] refresh on focus / switching back on mobile
+
+  - [x] editing
+
+  - [x] adding
+
+  - [x] (sub) navigation
+
+  - [x] test coverage
+
+
+
+
+* [x] url labels max 40 zeichen (cut off the middle)
+
+
+
+* [x] keep todo list  sort order stable
+
+* [x] assignees bei "send recipes to todo list" sind manchmal falsch/fehlen
+
+* [x] protocols are broken
+
+* [x] list reload flickers
+
+* [x] new entry is fishy
 
 
 

@@ -17,7 +17,7 @@ from menage2.models.item import (  # noqa: F401
     RecurrenceRule,
     RecurrenceUnit,
 )
-from menage2.models.protocol import Protocol, ProtocolItem, ProtocolRunItem
+from menage2.models.protocol import ProtocolRunItem
 from menage2.models.todo import Todo
 from menage2.views.todo import parse_todo_input
 
@@ -246,30 +246,9 @@ def test_todo_marker_text_bare_todo():
     assert Todo(text="plain", tags=set(), assignees=set()).marker_text() == "plain"
 
 
-def test_protocol_item_marker_text():
-    item = ProtocolItem(text="check fridge", tags={"kitchen"}, assignees={"alice"})
-    assert item.marker_text() == "check fridge #kitchen @alice"
-
-
 def test_protocol_run_item_marker_text():
     item = ProtocolRunItem(text="count towels", tags={"bad"}, note="top shelf")
     assert item.marker_text() == "count towels #bad ~top shelf"
-
-
-def test_protocol_marker_text_uses_the_title():
-    protocol = Protocol(title="Weekly inventory", tags={"haus"}, note="bring a pen")
-    protocol.recurrence = _rule()
-    assert protocol.marker_text() == ("Weekly inventory #haus *every week ~bring a pen")
-
-
-def test_protocol_marker_text_round_trips_into_the_title():
-    protocol = Protocol(title="Weekly inventory", tags={"haus"}, note="bring a pen")
-    protocol.recurrence = _rule()
-    parsed = parse_todo_input(protocol.marker_text(), TODAY)
-    assert parsed.text == protocol.title
-    assert parsed.tags == protocol.tags
-    assert parsed.note == protocol.note
-    assert parsed.recurrence.label() == "every week"
 
 
 # ---------------------------------------------------------------------------

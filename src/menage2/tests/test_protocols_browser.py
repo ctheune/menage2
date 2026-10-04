@@ -164,7 +164,7 @@ def test_completing_linked_todo_closes_run(page, context, live_server):
 
 
 # ---------------------------------------------------------------------------
-# Editing — plain text inputs with a view/edit toggle per line
+# Editing — the title and each line open the item panel beside the list
 # ---------------------------------------------------------------------------
 
 
@@ -187,55 +187,6 @@ def test_add_item_through_the_form_keeps_the_input_focused(page, context, live_s
     assert new_item.input_value() == ""
 
 
-def test_clicking_an_item_opens_its_editor_with_the_marker_text(
-    page, context, live_server
-):
-    pid = _make_protocol(context, live_server, "Edit flow", ["wipe counter #kitchen"])
-    page.goto(f"/protocols/{pid}/edit")
-    page.wait_for_selector(".proto-item-view", timeout=10000)
-    page.locator(".proto-item-view").first.click()
-    page.wait_for_selector(".proto-item-edit:not(.d-none)", timeout=5000)
-    field = page.locator(".proto-item-edit input[name='text']").first
-    assert field.input_value() == "wipe counter #kitchen"
-    assert page.evaluate(
-        "document.activeElement === "
-        "document.querySelector(\".proto-item-edit input[name='text']\")"
-    )
-
-
-def test_editing_an_item_saves_and_returns_to_view_mode(
-    page, context, live_server, second_user
-):
-    pid = _make_protocol(context, live_server, "Save flow", ["old text"])
-    page.goto(f"/protocols/{pid}/edit")
-    page.wait_for_selector(".proto-item-view", timeout=10000)
-    page.locator(".proto-item-view").first.click()
-    field = page.locator(".proto-item-edit input[name='text']").first
-    field.fill("new text #done @alice ~with a note")
-    field.press("Enter")
-    page.wait_for_selector(".proto-item-view:has-text('new text')", timeout=10000)
-    view = page.locator(".proto-item-view").first
-    assert "#done" in view.inner_text()
-    assert "@alice" in view.inner_text()
-    assert "~with a note" in view.inner_text()
-    # Back in view mode: the editor is hidden again.
-    assert page.locator(".proto-item-edit:not(.d-none)").count() == 0
-
-
-def test_escape_cancels_an_item_edit(page, context, live_server):
-    pid = _make_protocol(context, live_server, "Cancel flow", ["keep me"])
-    page.goto(f"/protocols/{pid}/edit")
-    page.wait_for_selector(".proto-item-view", timeout=10000)
-    page.locator(".proto-item-view").first.click()
-    field = page.locator(".proto-item-edit input[name='text']").first
-    field.fill("discard me")
-    field.press("Escape")
-    page.wait_for_selector(".proto-item-view:not(.d-none)", timeout=5000)
-    assert "keep me" in page.locator(".proto-item-view").first.inner_text()
-    page.reload()
-    assert "keep me" in page.locator(".proto-item-view").first.inner_text()
-
-
 def test_deleting_an_item_removes_the_row(page, context, live_server):
     pid = _make_protocol(context, live_server, "Delete flow", ["one", "two"])
     page.on("dialog", lambda dialog: dialog.accept())
@@ -247,20 +198,8 @@ def test_deleting_an_item_removes_the_row(page, context, live_server):
         "document.querySelectorAll('.proto-item').length === 1", timeout=10000
     )
     assert "two" in page.locator(".proto-item-view").first.inner_text()
-
-
-def test_editing_the_title_updates_the_rendered_view(page, context, live_server):
-    pid = _make_protocol(context, live_server, "Old title", [])
-    page.goto(f"/protocols/{pid}/edit")
-    page.locator(".proto-title-view").click()
-    field = page.locator(".proto-title-edit input[name='composite']")
-    field.fill("New title #weekly *every month ~remember the keys")
-    field.press("Enter")
-    page.wait_for_selector(".proto-title-view:has-text('New title')", timeout=10000)
-    view = page.locator(".proto-title-view")
-    assert "#weekly" in view.inner_text()
-    assert "every month" in view.inner_text()
-    assert "~remember the keys" in view.inner_text()
+    # The delete button keeps its click to itself: the line did not open.
+    assert page.locator("#item-pane form").count() == 0
 
 
 def test_run_item_edit_via_e_key(page, context, live_server):
@@ -331,17 +270,17 @@ def test_a_checklist_can_carry_a_file(page, context, live_server, attachments_di
     assert resp.ok, f"Uploading to the checklist failed: {resp.status}"
 
     page.goto(f"/protocols/{pid}/edit")
-    # The editor lives beside the list; the pencil on the title opens it.
+    # The editor lives beside the list; the title card opens it.
     click_until(
         page,
-        ".proto-title-view [title='Edit, with files']",
+        ".proto-title-view",
         "#field-attachments img",
     )
     assert page.locator("#field-attachments img").count() == 1
 
 
 def test_a_checklist_line_can_carry_a_file(page, context, live_server, attachments_dir):
-    """The pencil beside a line opens the same editor an ingredient gets."""
+    """A line opens the same editor an ingredient gets."""
     import io
 
     from PIL import Image
@@ -351,7 +290,7 @@ def test_a_checklist_line_can_carry_a_file(page, context, live_server, attachmen
     page.goto(f"/protocols/{pid}/edit")
     click_until(
         page,
-        ".proto-item-view [title='Edit, with files']",
+        ".proto-item-view",
         "#item-pane #field-attachments",
     )
 
@@ -377,18 +316,27 @@ def test_a_checklist_line_can_carry_a_file(page, context, live_server, attachmen
     page.wait_for_selector(".proto-item-view .bi-paperclip", timeout=10000)
 
 
+def _retitle(page, text):
+    """Type over the pane's heading, the way somebody would."""
+    title = page.locator("#item-pane #field-title h5")
+    title.click()
+    title.press("ControlOrMeta+a")
+    title.type(text)
+    title.press("Enter")
+
+
 def test_editing_a_line_in_the_pane_saves_it(page, context, live_server):
     pid = _make_protocol(context, live_server, "Spring clean", ["Windows"])
 
     page.goto(f"/protocols/{pid}/edit")
     click_until(
         page,
-        ".proto-item-view [title='Edit, with files']",
-        "#item-pane #item-text",
+        ".proto-item-view",
+        "#item-pane #field-title h5",
     )
     wait_wired(page, "#item-pane #field-tags .new-tag")
 
-    page.locator("#item-pane #item-text").fill("Windows, inside and out")
+    _retitle(page, "Windows, inside and out")
     # The pane arrives by swap and its handlers are attached afterwards, so a
     # click in between is dropped; saving the same text twice is harmless.
     click_until(
@@ -396,3 +344,20 @@ def test_editing_a_line_in_the_pane_saves_it(page, context, live_server):
         '#item-pane button[type="submit"]',
         ".proto-item-view:has-text('Windows, inside and out')",
     )
+
+
+def test_editing_the_title_and_repeat_in_the_pane(page, context, live_server):
+    pid = _make_protocol(context, live_server, "Old title", [])
+
+    page.goto(f"/protocols/{pid}/edit")
+    click_until(page, ".proto-title-view", "#item-pane #field-recurrence")
+    wait_wired(page, "#item-pane #field-tags .new-tag")
+
+    _retitle(page, "New title")
+    page.locator("#item-pane #item-recurrence").fill("every month")
+    click_until(
+        page,
+        '#item-pane button[type="submit"]',
+        ".proto-title-view:has-text('New title')",
+    )
+    assert "every month" in page.locator(".proto-title-view").inner_text()

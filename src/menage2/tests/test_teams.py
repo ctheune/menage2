@@ -151,31 +151,6 @@ def test_add_remove_team_member(
 
 
 # ---------------------------------------------------------------------------
-# Principals JSON endpoint
-# ---------------------------------------------------------------------------
-
-
-def test_principals_json_returns_users_and_teams(
-    authenticated_testapp, admin_user, dbsession
-):
-    authenticated_testapp.post("/admin/teams/new", {"name": "alpha"}, status=303)
-    res = authenticated_testapp.get("/todos/principals.json", status=200)
-    names = [p["name"] for p in res.json]
-    assert admin_user.username in names
-    assert "alpha" in names
-
-
-def test_principals_json_excludes_inactive_users(
-    authenticated_testapp, dbsession, regular_user
-):
-    regular_user.is_active = False
-    dbsession.flush()
-    res = authenticated_testapp.get("/todos/principals.json", status=200)
-    names = [p["name"] for p in res.json]
-    assert regular_user.username not in names
-
-
-# ---------------------------------------------------------------------------
 # add_todo sets owner_id
 # ---------------------------------------------------------------------------
 
@@ -460,19 +435,10 @@ def test_protocol_assignee_cannot_edit_or_archive(
     user_testapp.get(f"/protocols/{p.id}/edit", status=200)
 
     # All mutating endpoints return 403.
-    user_testapp.post(f"/protocols/{p.id}/edit", {"title": "Hacked"}, status=403)
+    user_testapp.post_json(f"/items/{p.id}", {"text": "Hacked"}, status=403)
     user_testapp.post(f"/protocols/{p.id}/archive", status=403)
     user_testapp.post(f"/protocols/{p.id}/items", {"text": "injected"}, status=403)
-    user_testapp.post(
-        f"/protocols/{p.id}/items/{item.id}",
-        {"text": "changed"},
-        status=403,
-    )
-    user_testapp.post(
-        f"/protocols/{p.id}/items/{item.id}/partial",
-        {"text": "changed"},
-        status=403,
-    )
+    user_testapp.post_json(f"/items/{item.id}", {"text": "changed"}, status=403)
     user_testapp.post(f"/protocols/{p.id}/items/{item.id}/delete", status=403)
 
 
@@ -531,9 +497,7 @@ def test_protocol_supervisor_can_edit(
     p.archived_at = None
     dbsession.flush()
     user_testapp.post(f"/protocols/{p.id}/items", {"text": "New step"}, status=200)
-    user_testapp.post(
-        f"/protocols/{p.id}/items/{item.id}", {"text": "Changed"}, status=303
-    )
+    user_testapp.post_json(f"/items/{item.id}", {"text": "Changed"}, status=200)
 
 
 def test_protocol_assignee_role_cannot_edit(
@@ -561,9 +525,7 @@ def test_protocol_assignee_role_cannot_edit(
     user_testapp.get(f"/protocols/{p.id}/edit", status=200)
     user_testapp.post(f"/protocols/{p.id}/archive", status=403)
     user_testapp.post(f"/protocols/{p.id}/items", {"text": "injected"}, status=403)
-    user_testapp.post(
-        f"/protocols/{p.id}/items/{item.id}", {"text": "changed"}, status=403
-    )
+    user_testapp.post_json(f"/items/{item.id}", {"text": "changed"}, status=403)
 
 
 # ---------------------------------------------------------------------------

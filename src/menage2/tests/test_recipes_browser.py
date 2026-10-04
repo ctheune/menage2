@@ -250,7 +250,7 @@ def test_the_editor_sits_beside_the_list_and_stays_put(
 ):
     """Two columns, and the editor does not scroll away from the list.
 
-    The sticky pane is the same one the task list uses; this pins that the
+    The pane is sticky through Bootstrap's `sticky-lg-top`; this pins that the
     ingredient page actually gets it, because a column that quietly stacks
     or scrolls off is the sort of thing nothing else would notice.
     """

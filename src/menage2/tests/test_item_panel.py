@@ -29,7 +29,7 @@ def test_an_ingredient_is_not_handed_to_anybody(
     assert "field-tags" in body
     assert "field-attachments" in body
     assert "field-assignees" not in body
-    assert ">Name<" in body
+    assert "field-title" in body
 
 
 def test_a_checklist_is(authenticated_testapp, dbsession, admin_user):
@@ -41,7 +41,9 @@ def test_a_checklist_is(authenticated_testapp, dbsession, admin_user):
 
     assert "field-assignees" in body
     assert "field-attachments" in body
-    assert ">Title<" in body
+    assert "field-title" in body
+    # A checklist repeats; its lines do not.
+    assert "field-recurrence" in body
 
 
 def test_a_checklist_line_gets_the_same_editor(
@@ -59,6 +61,7 @@ def test_a_checklist_line_gets_the_same_editor(
 
     assert "field-attachments" in body
     assert f"/items/{line.id}/attachments" in body
+    assert "field-recurrence" not in body
 
 
 def test_a_todo_keeps_its_own(authenticated_testapp, dbsession, admin_user):
@@ -77,9 +80,9 @@ def test_saving_writes_what_the_fields_say(
     dbsession.add(ingredient)
     dbsession.flush()
 
-    authenticated_testapp.post(
+    authenticated_testapp.post_json(
         f"/items/{ingredient.id}",
-        {"text": "Ceylon-Zimt", "note": "das gute", "tags[]": "einkaufen:supermarkt"},
+        {"text": "Ceylon-Zimt", "note": "das gute", "tags": ["einkaufen:supermarkt"]},
         status=200,
     )
 
@@ -96,7 +99,7 @@ def test_saving_refuses_a_name_that_is_not_there(
     dbsession.add(ingredient)
     dbsession.flush()
 
-    response = authenticated_testapp.post(
+    response = authenticated_testapp.post_json(
         f"/items/{ingredient.id}", {"text": "  "}, status=422
     )
 
@@ -110,9 +113,9 @@ def test_saving_refuses_an_assignee_that_is_nobody(
     dbsession.add(protocol)
     dbsession.flush()
 
-    response = authenticated_testapp.post(
+    response = authenticated_testapp.post_json(
         f"/items/{protocol.id}",
-        {"text": "Spring clean", "assignees[]": "nobdoy"},
+        {"text": "Spring clean", "assignees": ["nobdoy"]},
         status=422,
     )
 

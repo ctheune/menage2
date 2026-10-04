@@ -155,6 +155,40 @@ def test_send_to_shopping_list_untagged_ingredient_gets_sonstiges(
     assert "einkaufen:supermarkt" in todos[0].tags
 
 
+def _send_one(app_request, dbsession, tags):
+    """Send a week with one ingredient tagged `tags`; return the todo's tags."""
+    ingredient = Ingredient(description="Wasser", tags=tags)
+    dbsession.add(ingredient)
+    recipe = Recipe(title="Suppe")
+    recipe.schedule = Schedule()
+    dbsession.add(recipe)
+    dbsession.flush()
+    dbsession.add(
+        IngredientUsage(recipe=recipe, ingredient=ingredient, amount="1", unit="l")
+    )
+    week = Week()
+    dbsession.add(week)
+    dbsession.flush()
+    dbsession.add(Day(day=datetime.date(2026, 4, 21), week=week, dinner=recipe))
+    dbsession.flush()
+
+    app_request.matchdict = {"id": str(week.id)}
+    send_to_shopping_list(app_request)
+    dbsession.flush()
+    (todo,) = dbsession.query(Todo).all()
+    return todo.tags
+
+
+def test_send_to_shopping_list_keeps_a_bare_einkaufen(app_request, dbsession):
+    """Said to be bought, not where: that stays as it is."""
+    assert _send_one(app_request, dbsession, {"einkaufen", "suppe"}) == {"einkaufen"}
+
+
+def test_send_to_shopping_list_keeps_only_the_most_specific(app_request, dbsession):
+    tags = {"einkaufen", "einkaufen:markt", "einkaufen:markt:obst", "einkaufenliste"}
+    assert _send_one(app_request, dbsession, tags) == {"einkaufen:markt:obst"}
+
+
 def test_send_to_shopping_list_redirects_to_todos(app_request, dbsession):
     week = Week()
     dbsession.add(week)

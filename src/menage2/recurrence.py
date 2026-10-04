@@ -25,8 +25,6 @@ from sqlalchemy import update as sqla_update
 import menage2.models.protocol
 from menage2.dateparse import RecurrenceSpec, next_occurrence
 from menage2.models.item import (
-    ItemAttachment,
-    ItemLink,
     RecurrenceKind,
     RecurrenceRule,
     RecurrenceUnit,
@@ -70,29 +68,13 @@ def spec_to_rule(spec: RecurrenceSpec) -> RecurrenceRule:
 def _clone_for_recurrence(
     parent: Todo, due_date: datetime.date, now_utc: datetime.datetime
 ) -> Todo:
-    return Todo(
-        text=parent.text,
-        tags=set(parent.tags),
-        assignees=set(parent.assignees),
-        note=parent.note,
+    return Todo.from_item(
+        parent,
         status=TodoStatus.todo,
         created_at=now_utc,
         due_date=due_date,
         recurrence_id=parent.recurrence_id,
         owner_id=parent.owner_id,
-        links=[
-            ItemLink(label=lnk.label, url=lnk.url, position=lnk.position)
-            for lnk in parent.links
-        ],
-        attachments=[
-            ItemAttachment(
-                uuid=att.uuid,
-                original_filename=att.original_filename,
-                mimetype=att.mimetype,
-                created_at=att.created_at,
-            )
-            for att in parent.attachments
-        ],
     )
 
 

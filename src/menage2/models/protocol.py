@@ -72,21 +72,6 @@ class Protocol(Item):
         "RecurrenceRule", lazy="joined"
     )
 
-    def marker_text(self) -> str:
-        """This protocol as the marker string its title line shows and parses back.
-
-        The title takes the place a todo's text would.
-        """
-        from menage2.markers import format_markers
-
-        return format_markers(
-            self.title,
-            tags=self.tags,
-            assignees=self.assignees,
-            recurrence=self.recurrence.label if self.recurrence else None,
-            note=self.note,
-        )
-
 
 class ProtocolItem(Item):
     """One line of a checklist template."""
@@ -105,14 +90,6 @@ class ProtocolItem(Item):
     protocol = relationship(
         "Protocol", back_populates="items", foreign_keys=[protocol_id]
     )
-
-    def marker_text(self) -> str:
-        """This item as the marker string its edit line shows and parses back."""
-        from menage2.markers import format_markers
-
-        return format_markers(
-            self.text, tags=self.tags, assignees=self.assignees, note=self.note
-        )
 
 
 class ProtocolRun(Todo):
@@ -170,17 +147,12 @@ class ProtocolRun(Todo):
         protocol = self.protocol
         session = object_session(self)
         for src in sorted(protocol.items, key=lambda i: i.position):
-            item_assignees = (
-                set(src.assignees) if src.assignees else set(protocol.assignees)
-            )
             session.add(
-                ProtocolRunItem(
+                ProtocolRunItem.from_item(
+                    src,
                     run=self,
                     position=src.position,
-                    text=src.text,
-                    tags=set(src.tags),
-                    assignees=item_assignees,
-                    note=src.note,
+                    assignees=set(src.assignees or protocol.assignees),
                     status=TodoStatus.todo,
                 )
             )

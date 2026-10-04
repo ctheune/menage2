@@ -1,0 +1,75 @@
+<!-- The repeat field: typed, with the recurrence picker below it suggesting
+     what the text could mean.
+
+     Emptying it stops the repetition. The schema cannot tell "not sent"
+     from "sent empty", so an empty field says so through `clear_fields`.
+
+     Needs `item` in scope.
+-->
+<div class="mb-3" hx-disinherit="*" id="field-recurrence"
+     tal:define="label _recurrence_label(item)">
+  <label for="item-recurrence" class="form-label">Repeat</label>
+  <input type="text" class="form-control picker-target" id="item-recurrence"
+    name="recurrence" autocomplete="off" value="${label}"
+    hx-get="${request.route_url('recurrence_picker')}"
+    hx-target="next .picker"
+    hx-trigger="focus, input changed delay:100ms"
+    hx-vals="js:{value: this.value}"
+    hx-params="value"
+    _="on input
+         set #item-clear-recurrence's disabled to (my value is not '')
+
+       on keydown[key is 'Escape']
+         blur
+         halt
+
+       on keydown[key is 'ArrowDown']
+         set items to <li[data-picker-value]/> in next .picker
+         if items
+           set active to first <li.picker-selected/> in next .picker
+           if active
+             remove .picker-selected from active
+             set nxt to next <li[data-picker-value]/> from active
+             if nxt add .picker-selected to nxt
+             else add .picker-selected to first in items end
+           else
+             add .picker-selected to first in items
+           end
+         end
+         halt
+
+       on keydown[key is 'ArrowUp']
+         set items to <li[data-picker-value]/> in next .picker
+         if items
+           set active to first <li.picker-selected/> in next .picker
+           if active
+             remove .picker-selected from active
+             set prv to previous <li[data-picker-value]/> from active
+             if prv add .picker-selected to prv
+             else add .picker-selected to last in items end
+           else
+             add .picker-selected to last in items
+           end
+         end
+         halt
+
+       on keydown[key is 'Enter']
+         set active to first <li.picker-selected/> in next .picker
+         if active
+           set my value to active's @data-picker-value
+           blur me
+         else
+           send submit to closest <form/>
+         end
+         halt
+
+       on focus
+         show next .picker
+
+       on blur
+         hide next .picker" />
+  <div class="picker"></div>
+  <input type="hidden" name="clear_fields[]" value="recurrence"
+         id="item-clear-recurrence"
+         tal:attributes="disabled python:'disabled' if label else None" />
+</div>

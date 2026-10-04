@@ -157,6 +157,40 @@ class Item(Base):
     tags = NameSet("tag_links", tag_named)
     assignees = NameSet("assignee_links", principal_named)
 
+    @classmethod
+    def from_item(cls, item: "Item", **kw):
+        """A new item of this kind carrying what `item` says.
+
+        Text, note, tags, assignees, links and files -- what every kind has.
+        Links and files are copied, not handed over: a row belongs to one
+        item, so passing the source's own rows would move them off it. A
+        copied file shares the stored image, which is only deleted once no
+        item refers to it any more (`views.attachment.remove_attachment`).
+
+        Anything in `kw` replaces what was copied.
+        """
+        values = {
+            "text": item.text,
+            "note": item.note,
+            "tags": set(item.tags),
+            "assignees": set(item.assignees),
+            "links": [
+                ItemLink(label=link.label, url=link.url, position=link.position)
+                for link in item.links
+            ],
+            "attachments": [
+                ItemAttachment(
+                    uuid=att.uuid,
+                    original_filename=att.original_filename,
+                    mimetype=att.mimetype,
+                    created_at=att.created_at,
+                )
+                for att in item.attachments
+            ],
+        }
+        values.update(kw)
+        return cls(**values)
+
 
 class ItemLink(Base):
     """A link on an item. Ordered, because the order was chosen."""

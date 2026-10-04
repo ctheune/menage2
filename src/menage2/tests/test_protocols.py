@@ -99,85 +99,62 @@ def test_new_protocol_creates_and_redirects_to_editor(authenticated_testapp, dbs
     )
 
 
-def test_edit_protocol_composite_tags_and_note(
-    authenticated_testapp, dbsession, admin_user
-):
+def test_edit_protocol_in_the_panel(authenticated_testapp, dbsession, admin_user, cast):
     p = _make_protocol(dbsession, admin_user)
-    authenticated_testapp.post(
-        f"/protocols/{p.id}/edit",
-        {"composite": "Cleaning round #household ~check corners"},
-        status=303,
-    )
-    dbsession.flush()
-    dbsession.refresh(p)
-    assert p.title == "Cleaning round"
-    assert "household" in p.tags
-    assert p.note == "check corners"
-
-
-def test_edit_protocol_composite_assignees(
-    authenticated_testapp, dbsession, admin_user, cast
-):
-    p = _make_protocol(dbsession, admin_user)
-    authenticated_testapp.post(
-        f"/protocols/{p.id}/edit",
-        {"composite": "Clean house #household @alice @bob"},
-        status=303,
+    authenticated_testapp.post_json(
+        f"/items/{p.id}",
+        {
+            "text": "Clean house",
+            "tags": ["household"],
+            "assignees": ["alice", "bob"],
+            "note": "check corners",
+        },
+        status=200,
     )
     dbsession.flush()
     dbsession.refresh(p)
     assert p.title == "Clean house"
-    assert "household" in p.tags
-    assert "alice" in p.assignees
-    assert "bob" in p.assignees
+    assert p.tags == {"household"}
+    assert p.assignees == {"alice", "bob"}
+    assert p.note == "check corners"
 
 
-def test_edit_protocol_composite_clears_assignees(
-    authenticated_testapp, dbsession, admin_user, cast
-):
+def test_edit_protocol_sets_recurrence(authenticated_testapp, dbsession, admin_user):
     p = _make_protocol(dbsession, admin_user)
-    p.assignees = {"alice"}
-    dbsession.flush()
-    authenticated_testapp.post(
-        f"/protocols/{p.id}/edit",
-        {"composite": "Clean house"},
-        status=303,
+    authenticated_testapp.post_json(
+        f"/items/{p.id}", {"recurrence": "every wednesday"}, status=200
     )
     dbsession.flush()
     dbsession.refresh(p)
-    assert p.assignees == set()
-
-
-def test_edit_protocol_composite_shows_in_form(
-    authenticated_testapp, dbsession, admin_user
-):
-    """The title's edit mode is prefilled with the canonical marker string."""
-    p = _make_protocol(dbsession, admin_user)
-    p.tags = {"weekly"}
-    p.note = "bring the ladder"
-    dbsession.flush()
-    res = authenticated_testapp.get(f"/protocols/{p.id}/edit", status=200)
-    assert b'name="composite"' in res.body
-    assert b"#weekly ~bring the ladder" in res.body
-
-
-def test_edit_protocol_updates_title_and_recurrence(
-    authenticated_testapp, dbsession, admin_user
-):
-    p = _make_protocol(dbsession, admin_user)
-    authenticated_testapp.post(
-        f"/protocols/{p.id}/edit",
-        {"composite": "Renamed *every wednesday"},
-        status=303,
-    )
-    dbsession.flush()
-    dbsession.refresh(p)
-    assert p.title == "Renamed"
     assert p.recurrence is not None
     assert p.recurrence.weekday == 2
+    # A repeating checklist always has a run waiting.
+    assert (
+        dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).count()
+        == 1
+    )
 
 
-def test_edit_protocol_clears_recurrence_when_empty(
+def test_edit_protocol_clears_recurrence(authenticated_testapp, dbsession, admin_user):
+    rule = RecurrenceRule(
+        kind=RecurrenceKind.every,
+        interval_value=1,
+        interval_unit=RecurrenceUnit.week,
+    )
+    dbsession.add(rule)
+    dbsession.flush()
+    p = _make_protocol(dbsession, admin_user)
+    p.recurrence = rule
+    dbsession.flush()
+    authenticated_testapp.post_json(
+        f"/items/{p.id}", {"clear_fields": ["recurrence"]}, status=200
+    )
+    dbsession.flush()
+    dbsession.refresh(p)
+    assert p.recurrence_id is None
+
+
+def test_edit_protocol_leaves_recurrence_alone_when_not_sent(
     authenticated_testapp, dbsession, admin_user
 ):
     rule = RecurrenceRule(
@@ -190,14 +167,64 @@ def test_edit_protocol_clears_recurrence_when_empty(
     p = _make_protocol(dbsession, admin_user)
     p.recurrence = rule
     dbsession.flush()
-    authenticated_testapp.post(
-        f"/protocols/{p.id}/edit",
-        {"composite": p.title},
-        status=303,
+    authenticated_testapp.post_json(f"/items/{p.id}", {"note": "x"}, status=200)
+    dbsession.flush()
+    dbsession.refresh(p)
+    assert p.recurrence is rule
+
+
+def test_a_protocol_item_does_not_repeat(authenticated_testapp, dbsession, admin_user):
+    """Only the checklist has a cadence; a recurrence sent for a line is ignored."""
+    p = _make_protocol(dbsession, admin_user, items=["initial"])
+    item = p.items[0]
+    authenticated_testapp.post_json(
+        f"/items/{item.id}", {"recurrence": "every week"}, status=200
     )
     dbsession.flush()
     dbsession.refresh(p)
-    assert p.recurrence_id is None
+    assert p.recurrence is None
+
+
+def test_update_protocol_item_in_the_panel(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["initial"])
+    item = p.items[0]
+    authenticated_testapp.post_json(
+        f"/items/{item.id}",
+        {"text": "updated", "tags": ["tag"], "note": "my note"},
+        status=200,
+    )
+    dbsession.flush()
+    dbsession.refresh(item)
+    assert item.text == "updated"
+    assert item.tags == {"tag"}
+    assert item.note == "my note"
+
+
+def test_edit_protocol_title_syncs_to_active_run_todos(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, title="Old title", items=["x"])
+    authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
+    run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
+    assert run.text == "Old title"
+    authenticated_testapp.post_json(f"/items/{p.id}", {"text": "New title"}, status=200)
+    dbsession.flush()
+    dbsession.refresh(run)
+    assert run.text == "New title"
+
+
+def test_the_edit_page_has_no_inline_editors(
+    authenticated_testapp, dbsession, admin_user
+):
+    """The lines and the title open the panel; there is nothing to type into."""
+    p = _make_protocol(dbsession, admin_user, items=["one"])
+    body = authenticated_testapp.get(f"/protocols/{p.id}/edit", status=200).text
+    assert 'name="composite"' not in body
+    assert "proto-item-edit" not in body
+    assert f"/items/{p.id}/panel" in body
+    assert f"/items/{p.items[0].id}/panel" in body
 
 
 def test_archive_and_unarchive(authenticated_testapp, dbsession, admin_user):
@@ -228,20 +255,6 @@ def test_add_protocol_item_extracts_tags(authenticated_testapp, dbsession, admin
     assert item.tags == {"shopping:groceries"}
 
 
-def test_update_protocol_item(authenticated_testapp, dbsession, admin_user):
-    p = _make_protocol(dbsession, admin_user, items=["initial"])
-    item = p.items[0]
-    authenticated_testapp.post(
-        f"/protocols/{p.id}/items/{item.id}",
-        {"text": "updated #tag"},
-        status=303,
-    )
-    dbsession.flush()
-    dbsession.refresh(item)
-    assert item.text == "updated"
-    assert item.tags == {"tag"}
-
-
 def test_add_protocol_item_extracts_note(authenticated_testapp, dbsession, admin_user):
     p = _make_protocol(dbsession, admin_user)
     authenticated_testapp.post(
@@ -254,25 +267,6 @@ def test_add_protocol_item_extracts_note(authenticated_testapp, dbsession, admin
     item = p.items[0]
     assert item.text == "Check fridge"
     assert item.note == "look in the back"
-
-
-def test_update_protocol_item_partial_returns_html(
-    authenticated_testapp, dbsession, admin_user
-):
-    p = _make_protocol(dbsession, admin_user, items=["original"])
-    item = p.items[0]
-    res = authenticated_testapp.post(
-        f"/protocols/{p.id}/items/{item.id}/partial",
-        {"text": "updated #tag ~my note"},
-        status=200,
-    )
-    assert res.content_type == "text/html"
-    assert b"updated" in res.body
-    dbsession.flush()
-    dbsession.refresh(item)
-    assert item.text == "updated"
-    assert item.tags == {"tag"}
-    assert item.note == "my note"
 
 
 def test_delete_protocol_item(authenticated_testapp, dbsession, admin_user):
@@ -417,6 +411,94 @@ def test_run_item_send_creates_todo_and_links_back(
     assert todo.text == "buy bread"
 
 
+def _dress_up(dbsession, line):
+    """Give a checklist line everything an item can carry."""
+    from menage2.models.item import ItemAttachment, ItemLink
+
+    line.note = "the big one"
+    line.tags = {"kitchen"}
+    line.links = [ItemLink(label="Manual", url="https://example.com/m", position=0)]
+    line.attachments = [
+        ItemAttachment(
+            uuid="11111111-2222-3333-4444-555555555555",
+            original_filename="shelf.jpg",
+            mimetype="image/jpeg",
+        )
+    ]
+    dbsession.flush()
+
+
+def _carries_everything(item):
+    assert item.note == "the big one"
+    assert item.tags == {"kitchen"}
+    assert [(link.label, link.url) for link in item.links] == [
+        ("Manual", "https://example.com/m")
+    ]
+    assert [att.uuid for att in item.attachments] == [
+        "11111111-2222-3333-4444-555555555555"
+    ]
+
+
+def test_a_run_item_carries_everything_its_line_has(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["descale kettle"])
+    line = p.items[0]
+    _dress_up(dbsession, line)
+
+    run = _start_and_open_run(authenticated_testapp, dbsession, p)
+
+    _carries_everything(run.items[0])
+    # Copied, not moved: the template line keeps its own.
+    dbsession.expire_all()
+    _carries_everything(line)
+
+
+def test_a_sent_todo_carries_everything_its_run_item_has(
+    authenticated_testapp, dbsession, admin_user
+):
+    p = _make_protocol(dbsession, admin_user, items=["descale kettle"])
+    _dress_up(dbsession, p.items[0])
+    run = _start_and_open_run(authenticated_testapp, dbsession, p)
+    item = run.items[0]
+
+    authenticated_testapp.post(
+        f"/protocols/run/{run.id}/items/{item.id}/send", status=200
+    )
+    dbsession.expire_all()
+
+    _carries_everything(dbsession.get(Todo, item.sent_todo_id))
+    _carries_everything(item)
+
+
+def test_a_shared_file_stays_while_another_item_has_it(
+    authenticated_testapp, dbsession, admin_user, attachments_dir
+):
+    """The run item and its line share one stored image; dropping it from
+    the run item must not take it away from the line."""
+    p = _make_protocol(dbsession, admin_user, items=["descale kettle"])
+    line = p.items[0]
+    _dress_up(dbsession, line)
+    stored = attachments_dir / "11111111-2222-3333-4444-555555555555.jpg"
+    stored.write_bytes(b"jpeg")
+    run = _start_and_open_run(authenticated_testapp, dbsession, p)
+    item = run.items[0]
+
+    authenticated_testapp.post_json(
+        f"/items/{item.id}", {"attachments": []}, status=200
+    )
+    dbsession.expire_all()
+
+    assert item.attachments == []
+    assert len(line.attachments) == 1
+    assert stored.exists()
+
+    authenticated_testapp.post_json(
+        f"/items/{line.id}", {"attachments": []}, status=200
+    )
+    assert not stored.exists()
+
+
 def test_run_item_edit_updates_text(authenticated_testapp, dbsession, admin_user):
     p = _make_protocol(dbsession, admin_user, items=["original"])
     run = _start_and_open_run(authenticated_testapp, dbsession, p)
@@ -469,22 +551,6 @@ def test_completing_protocol_run_todo_closes_run(
     dbsession.flush()
     dbsession.refresh(run)
     assert run.status == TodoStatus.done
-
-
-def test_edit_protocol_title_syncs_to_active_run_todos(
-    authenticated_testapp, dbsession, admin_user
-):
-    p = _make_protocol(dbsession, admin_user, title="Old title", items=["x"])
-    authenticated_testapp.post(f"/protocols/{p.id}/start", status=303)
-    run = dbsession.query(ProtocolRun).filter(ProtocolRun.protocol_id == p.id).one()
-    todo = run  # the run is the task; one row, not two
-    assert todo.text == "Old title"
-    authenticated_testapp.post(
-        f"/protocols/{p.id}/edit", {"composite": "New title"}, status=303
-    )
-    dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.text == "New title"
 
 
 def test_run_all_done_spawns_next_for_after_rule(

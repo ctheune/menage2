@@ -1,0 +1,21 @@
+<!-- The item's text, as the panel's heading: click it (or press `e`) to
+     edit, Enter or Escape to leave it. A hidden input carries it, because a
+     heading is not a form field.
+
+     Needs `item` in scope.
+-->
+<div id="field-title">
+  <input type="hidden" name="text" id="input-item-text" value="${item.text}" />
+
+  <h5 class="card-title" contenteditable="true"
+    _="bind me to #input-item-text
+       on keydown[key is 'Enter'] from me blur
+       on keydown[key is 'e'] from body
+         if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target
+           exit end
+         -- With a checklist open, 'e' edits the current run item.
+         if #protocol-run exit end
+         focus me
+         then halt
+       on keydown[key is 'Escape'] blur">${item.text}</h5>
+</div>

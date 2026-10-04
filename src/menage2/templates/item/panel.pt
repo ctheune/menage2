@@ -1,34 +1,34 @@
 <!-- Editing one item: text, tags, assignees, a note and its files.
 
      The same form for a checklist, a checklist line and an ingredient,
-     because underneath they are the same thing. A todo keeps its own,
-     richer panel: it has a status, a due date, a repetition and sometimes
-     a checklist behind it, none of which these have.
+     because underneath they are the same thing. A checklist also gets a
+     repeat field. A todo keeps its own, richer panel: it has a status, a
+     due date and sometimes a checklist behind it, none of which these have.
 
-     It renders the pane around itself rather than being swapped into one:
-     a pane that something else has to un-hide depends on hyperscript
-     having been wired before the click, which is a race nothing can win
-     reliably. Arriving already visible has no such step.
+     It renders the pane around itself (the column beside the list,
+     holding a card, as the todo panel does) rather than being swapped
+     into one: a pane that something else has to un-hide depends on
+     hyperscript having been wired before the click, which is a race
+     nothing can win reliably. Arriving already visible has no such step.
 
      Needs `item`, `tags_json`, `assignees_json`, `attachments_json` and
      `upload_url` in scope.
 -->
-<div class="details-pane" id="item-pane">
- <div class="todo-list-wrap card-body">
+<div class="col-lg-6 sticky-lg-top align-self-start" id="item-pane">
+ <div class="card">
 
   <form hx-post="${request.route_url('item_update', id=item.id)}"
         hx-target="#item-pane"
         hx-ext="form-json"
         hx-swap="outerHTML">
+   <div class="card-body">
 
-    <div class="mb-3">
-      <label for="item-text">${text_label}</label>
-      <input type="text" class="form-control" id="item-text" name="text"
-             autocomplete="off" value="${item.text}"
-             _="on keydown[key is 'Enter'] send submit to closest <form/> then halt" />
-    </div>
+    <div metal:use-macro="load: ./fields/title.pt"></div>
 
     <div metal:use-macro="load: ./fields/tags.pt"></div>
+
+    <div metal:use-macro="load: ./fields/recurrence.pt"
+         tal:condition="wants_recurrence"></div>
 
     <div class="mb-3">
       <label for="item-note">Note</label>
@@ -45,6 +45,7 @@
 
 
     <button type="submit" class="btn btn-primary">Save</button>
+   </div>
   </form>
 
  </div>

@@ -60,6 +60,26 @@ def _ext_for(att):
     return ".bin"
 
 
+def remove_attachment(request, att: ItemAttachment) -> None:
+    """Take a file off its item, and out of the store if nothing else has it.
+
+    One stored image can sit on several items: a repeat, a checklist run and
+    a todo sent from it all carry their own row for the same file. Only the
+    last one to go takes the file with it.
+    """
+    request.dbsession.delete(att)
+    request.dbsession.flush()
+
+    still_referenced = request.dbsession.execute(
+        select(func.count()).where(ItemAttachment.uuid == att.uuid)
+    ).scalar()
+    if not still_referenced:
+        attachments_dir = _get_attachments_dir(request)
+        ext = _ext_for(att)
+        for suffix in ("", "_thumb"):
+            (attachments_dir / (att.uuid + suffix + ext)).unlink(missing_ok=True)
+
+
 @view_config(route_name="item_attachment_upload", request_method="POST")
 def upload_attachment(request):
     item_id = int(request.matchdict["id"])
@@ -210,17 +230,7 @@ def delete_attachment(request):
     if att is None:
         raise HTTPNotFound()
 
-    request.dbsession.delete(att)
-    request.dbsession.flush()
-
-    still_referenced = request.dbsession.execute(
-        select(func.count()).where(ItemAttachment.uuid == uuid_str)
-    ).scalar()
-    if not still_referenced:
-        attachments_dir = _get_attachments_dir(request)
-        ext = _ext_for(att)
-        for suffix in ("", "_thumb"):
-            (attachments_dir / (uuid_str + suffix + ext)).unlink(missing_ok=True)
+    remove_attachment(request, att)
     request.dbsession.expire(item)
 
     request.response.content_type = "text/html"

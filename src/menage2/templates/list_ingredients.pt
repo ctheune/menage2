@@ -45,9 +45,9 @@
         </ul>
       </div>
 
-      <!-- The editor, beside the list and staying put while it scrolls.
+      <!-- The editor, in the column beside the list and staying put while it scrolls.
            Empty until something is opened; the panel replaces it whole. -->
-      <div class="details-pane d-none" id="item-pane"></div>
+      <div class="col-lg-6 sticky-lg-top align-self-start d-none" id="item-pane"></div>
 
     </div>
   </div>

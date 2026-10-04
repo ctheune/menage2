@@ -201,6 +201,15 @@ def send_to_shopping_list(request):
 
     now = datetime.datetime.now(datetime.UTC)
 
+    def _einkaufen_tags(ingredient):
+        tags = {t.rstrip(":") for t in ingredient.tags}
+        tags = {t for t in tags if t == "einkaufen" or t.startswith("einkaufen:")}
+        # Keep only the most specific tags (drop prefixes of other tags in the
+        # set). A bare "einkaufen" survives when it is all there is: somebody
+        # said "buy it" without saying where.
+        tags = {t for t in tags if not any(other.startswith(t + ":") for other in tags)}
+        return tags or {"einkaufen:supermarkt"}
+
     for ingredient, by_unit in aggregated.items():
         for unit, by_recipe in by_unit.items():
             total = sum(by_recipe.values())
@@ -220,6 +229,7 @@ def send_to_shopping_list(request):
                 Todo.from_item(
                     ingredient,
                     text=text,
+                    tags=_einkaufen_tags(ingredient),
                     note=note,
                     status=TodoStatus.todo,
                     owner=request.identity,
@@ -239,6 +249,7 @@ def send_to_shopping_list(request):
             Todo.from_item(
                 usage.ingredient,
                 text=usage.to_shopping_list(),
+                tags=_einkaufen_tags(usage.ingredient),
                 note=note,
                 status=TodoStatus.todo,
                 owner=request.identity,

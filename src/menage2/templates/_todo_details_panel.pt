@@ -8,21 +8,8 @@
 
       <div class="card-body">
 
-        <div id="field-title">
-          <input type="hidden" name="text" id="input-todo-text" value="${todo.text}" />
-
-          <h5 class="card-title" contenteditable="true"
-            _="bind me to #input-todo-text
-               on keydown[key is 'Enter'] from me blur
-               on keydown[key is 'e'] from body
-                 if the tagName of target is 'INPUT' or the tagName of target is 'TEXTAREA' or the isContentEditable of target
-                   exit end
-                 -- With a checklist open, 'e' edits the current run item.
-                 if #protocol-run exit end
-                 focus me
-                 then halt
-               on keydown[key is 'Escape'] blur">${todo.text}</h5>
-        </div>
+        <div metal:use-macro="load: ./item/fields/title.pt"
+             tal:define="item todo"></div>
 
         <div metal:use-macro="load: ./item/fields/tags.pt"></div>
 

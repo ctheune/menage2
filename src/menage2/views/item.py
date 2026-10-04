@@ -2,16 +2,15 @@
 
 A checklist, a checklist line and an ingredient all carry text, tags,
 assignees, a note and files, so they are all edited through one panel and
-saved through one endpoint. A todo is not here: it has a status, a due
-date, a repetition and sometimes a checklist behind it, and its own panel
-says so.
+saved through one endpoint. A checklist also repeats, which is the one
+field it has that the others do not. A todo is not here: it has a status,
+a due date and sometimes a checklist behind it, and its own panel says so.
 """
 
 import json
 
 from pyramid.httpexceptions import HTTPForbidden, HTTPNotFound
 from pyramid.view import view_config
-from sqlalchemy import select
 
 from menage2.models.item import Item
 from menage2.principals import (
@@ -19,23 +18,23 @@ from menage2.principals import (
     is_protocol_editor,
     item_visible_to_user,
 )
-from menage2.schemas import ItemUpdate, validate_request
+from menage2.schemas import (
+    ItemUpdate,
+    RecurringUpdate,
+    validate_request,
+    validation_error,
+)
+from menage2.views.protocol import rename_open_runs, set_protocol_recurrence
 from menage2.views.todo import files_of, reject_unknown_assignees
-
-#: What the text field is called, per kind. A checklist's text is its
-#: title and an ingredient's is what it is called; neither reads as "text".
-_TEXT_LABEL = {
-    "protocol": "Title",
-    "protocol_item": "Text",
-    "protocol_run_item": "Text",
-    "ingredient": "Name",
-}
 
 #: An ingredient is not handed to anybody; the rest are.
 _NO_ASSIGNEES = {"ingredient"}
 
+#: Only a checklist repeats; its lines and its runs' lines do not.
+_RECURRING = {"protocol"}
+
 #: Kinds this panel edits. A todo has its own.
-_EDITABLE = set(_TEXT_LABEL)
+_EDITABLE = {"protocol", "protocol_item", "protocol_run_item", "ingredient"}
 
 
 def _protocol_behind(item):
@@ -71,8 +70,8 @@ def _get_editable(request) -> Item:
 def _panel(request, item) -> dict:
     return {
         "item": item,
-        "text_label": _TEXT_LABEL[item.kind],
         "wants_assignees": item.kind not in _NO_ASSIGNEES,
+        "wants_recurrence": item.kind in _RECURRING,
         "tags_json": json.dumps(sorted(item.tags)),
         "assignees_json": json.dumps(sorted(item.assignees)),
         "links_json": json.dumps(
@@ -107,14 +106,20 @@ def item_update(request):
 
     from menage2.models.item import ItemLink
 
-    validated = validate_request(request, ItemUpdate)
+    schema = RecurringUpdate if item.kind in _RECURRING else ItemUpdate
+    validated = validate_request(request, schema)
     if validated is None:
         return request.response
 
     clear_fields = validated.clear_fields
 
+    renamed = False
     if validated.text is not None:
-        item.text = validated.text
+        text = validated.text.strip()
+        if not text:
+            return validation_error(request, "It needs a name.")
+        renamed = text != item.text
+        item.text = text
 
     if "tags" in clear_fields:
         item.tags = set()
@@ -154,28 +159,20 @@ def item_update(request):
             request.dbsession.add(link)
 
     if validated.attachments is not None:
-        from menage2.models.item import ItemAttachment
-        from menage2.views.attachment import _ext_for, _get_attachments_dir
+        from menage2.views.attachment import remove_attachment
 
-        attachments_dir = _get_attachments_dir(request)
-        existing_uuids = {att.uuid for att in item.attachments}
-        to_keep = validated.attachments
-        to_remove = existing_uuids - to_keep
+        for att in list(item.attachments):
+            if att.uuid not in validated.attachments:
+                remove_attachment(request, att)
 
-        for uuid_str in to_remove:
-            att = request.dbsession.execute(
-                select(ItemAttachment).where(
-                    ItemAttachment.item_id == item.id,
-                    ItemAttachment.uuid == uuid_str,
-                )
-            ).scalar_one_or_none()
-            if att:
-                ext = _ext_for(att)
-                for suffix in ("", "_thumb"):
-                    path = attachments_dir / (uuid_str + suffix + ext)
-                    if path.exists():
-                        path.unlink()
-                request.dbsession.delete(att)
+    if item.kind == "protocol":
+        if renamed:
+            rename_open_runs(request.dbsession, item)
+        if isinstance(validated, RecurringUpdate):
+            if "recurrence" in clear_fields:
+                set_protocol_recurrence(item, None, request.dbsession)
+            elif validated.recurrence is not None:
+                set_protocol_recurrence(item, validated.recurrence, request.dbsession)
 
     request.dbsession.flush()
     # The list beside the panel shows what was just changed, so it refetches.

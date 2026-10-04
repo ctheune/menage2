@@ -43,7 +43,7 @@
              autocomplete="off" placeholder="What needs doing?" />
     </div>
 
-    <div metal:use-macro="load: ./item/fields/tags.pt"></div>
+    <div metal:use-macro="load: ../item/fields/tags.pt"></div>
 
     <div class="mb-3">
       <label class="form-label" for="${p}-due">Due</label>
@@ -82,7 +82,7 @@
              tal:attributes="disabled python:'disabled' if (has and todo.recurrence_id) else None" />
     </div>
 
-    <div metal:use-macro="load: ../_assignee_field.pt"></div>
+    <div metal:use-macro="load: ../item/fields/assignees.pt"></div>
 
     <div class="mb-3">
       <label class="form-label" for="${p}-note">Note</label>

@@ -21,32 +21,26 @@
     <div class="row">
       <div class="col-lg-6">
 
-    <!-- Title / tags / recurrence / note. Same view-or-edit line as the items;
-         saving reloads the page because the title also heads it. -->
-    <div class="card mb-3">
-      <div class="card-body">
-        <div class="proto-title-view d-flex align-items-center gap-2 flex-wrap"
-             _="on click
-                  if closest <a, button/> to target exit end
-                  set form to the first <form.proto-title-edit/> in the closest .card
-                  if no form exit end
-                  add .d-none to me
-                  remove .d-none from form
-                  focus the first <input/> in form">
+    <!-- Title / tags / recurrence / note. For an editor the card opens the
+         editor beside the list, as the lines do. Refetched when that editor
+         saves; disinherit, because the card fetches its own editor and would
+         otherwise inherit this block's hx-select and swap nothing. -->
+    <div id="proto-header"
+         hx-disinherit="*"
+         hx-get="${request.route_url('edit_protocol', id=protocol.id)}"
+         hx-trigger="item-updated from:body"
+         hx-target="#proto-header"
+         hx-select="#proto-header"
+         hx-swap="outerHTML">
+      <div class="card mb-3">
+        <div class="proto-title-view card-body d-flex align-items-center gap-2 flex-wrap"
+             hx-target="#item-pane"
+             hx-swap="outerHTML"
+             tal:attributes="hx-get python:request.route_url('item_panel', id=protocol.id) if is_editor else None;
+                             role python:'button' if is_editor else None">
           <strong class="flex-grow-1">${protocol.title}</strong>
           <span tal:condition="protocol.attachments"
                 class="flex-shrink-0" title="Has files"><i class="bi bi-paperclip"></i></span>
-          <!-- The same pair the lines offer: the line itself is the quick
-               edit, the pencil is the full one beside the list. -->
-          <button tal:condition="is_editor"
-                  type="button"
-                  class="btn btn-link btn-sm p-0 flex-shrink-0"
-                  hx-get="${request.route_url('item_panel', id=protocol.id)}"
-                  hx-target="#item-pane"
-                  hx-swap="outerHTML"
-                  title="Edit, with files">
-            <i class="bi bi-pencil"></i>
-          </button>
           <span tal:repeat="t python:sorted(protocol.tags)"
                 class="badge rounded-pill bg-secondary">#${t}</span>
           <span tal:repeat="a python:sorted(protocol.assignees)"
@@ -54,23 +48,6 @@
           <span tal:condition="rule_label" class="text-warning-emphasis small">↻ ${rule_label}</span>
           <span tal:condition="protocol.note" class="text-muted small w-100">~${protocol.note}</span>
         </div>
-
-        <form tal:condition="is_editor"
-              class="proto-title-edit d-none"
-              hx-post="${request.route_url('edit_protocol', id=protocol.id)}"
-              hx-target="body">
-          <input type="text"
-                 name="composite"
-                 class="form-control"
-                 autocomplete="off"
-                 title="Enter saves, Escape cancels"
-                 value="${protocol.marker_text()}"
-                 _="on keydown[key is 'Escape']
-                      set card to the closest .card
-                      add .d-none to the closest <form/>
-                      remove .d-none from the first <.proto-title-view/> in card
-                      halt" />
-        </form>
       </div>
     </div>
 
@@ -98,10 +75,10 @@
 
       </div>
 
-      <!-- The editor, beside the list and staying put while it scrolls.
+      <!-- The editor, in the column beside the list and staying put while it scrolls.
            The same one an ingredient opens: a checklist, its lines and an
            ingredient are the same kind of thing underneath. -->
-      <div class="details-pane d-none" id="item-pane"></div>
+      <div class="col-lg-6 sticky-lg-top align-self-start d-none" id="item-pane"></div>
 
     </div>
   </div>

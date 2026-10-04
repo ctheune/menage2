@@ -48,18 +48,3 @@ class Todo(Item):
             recurrence=self.recurrence.label if self.recurrence else None,
             note=self.note,
         )
-
-    @classmethod
-    def from_item(cls, item: Item, **kw) -> "Todo":
-        values = {
-            "text": item.text,
-            "note": item.note,
-            "due_date": item.due_date,
-            "recurrence_id": item.recurrence_id,
-            "tag_links": item.tag_links,
-            "assignee_links": item.assignee_links,
-            "attachments": item.attachments,
-            "tags": item.tags,
-        }
-        values.update(kw)
-        return cls(**values)

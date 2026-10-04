@@ -106,22 +106,10 @@ class ItemUpdate(BaseModel):
         return v
 
 
-class TodoUpdate(ItemUpdate):
-    due_date: date | None = None
-    recurrence: RecurrenceSpec | None = None
+class RecurringUpdate(ItemUpdate):
+    """An item that can repeat: a todo, and a checklist that spawns runs."""
 
-    @field_validator("due_date", mode="before")
-    @classmethod
-    def parse_due_date(cls, v: object) -> date | None:
-        if not v:
-            return None
-        if isinstance(v, date):
-            return v
-        if isinstance(v, str):
-            parsed = _parse_date(v, _dt.date.today())
-            if parsed:
-                return parsed.date
-        raise ValueError(f"Cannot parse date: {v!r}")
+    recurrence: RecurrenceSpec | None = None
 
     @field_validator("recurrence", mode="before")
     @classmethod
@@ -135,6 +123,23 @@ class TodoUpdate(ItemUpdate):
             if parsed:
                 return parsed
         raise ValueError(f"Cannot parse recurrence: {v!r}")
+
+
+class TodoUpdate(RecurringUpdate):
+    due_date: date | None = None
+
+    @field_validator("due_date", mode="before")
+    @classmethod
+    def parse_due_date(cls, v: object) -> date | None:
+        if not v:
+            return None
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str):
+            parsed = _parse_date(v, _dt.date.today())
+            if parsed:
+                return parsed.date
+        raise ValueError(f"Cannot parse date: {v!r}")
 
 
 class TodoCreate(BaseModel):
@@ -250,7 +255,7 @@ def validation_error(request, message: str, status: int = 422):
 
     ``HX-Reswap: none`` stops htmx from swapping the empty error body into the
     request's target; the message is raised by the ``showValidationError``
-    listener on the error toast in ``_error_toast.pt``.
+    listener on the error toast in ``macros/errors.pt``.
     """
     request.response.status_int = status
     request.response.headers["HX-Reswap"] = "none"

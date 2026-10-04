@@ -1057,22 +1057,6 @@ def test_recurrence_clone_preserves_links(app_request, dbsession, admin_user):
     assert child.links[0].url == "https://example.com/docs"
 
 
-def test_parse_recurrence_preview_endpoint(authenticated_testapp):
-    res = authenticated_testapp.get(
-        "/todos/parse-recurrence?q=every+monday", status=200
-    )
-    body = json.loads(res.body)
-    assert body["ok"] is True
-    assert body["label"] == "every Monday"
-    assert body["weekday"] == 0
-
-
-def test_parse_recurrence_preview_unparseable(authenticated_testapp):
-    res = authenticated_testapp.get("/todos/parse-recurrence?q=blah", status=200)
-    body = json.loads(res.body)
-    assert body["ok"] is False
-
-
 def test_recurrence_history_returns_chain(authenticated_testapp, dbsession):
     rule = RecurrenceRule(
         kind=RecurrenceKind.every,

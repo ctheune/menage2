@@ -150,10 +150,6 @@ def includeme(config):
     config.add_route("archive_protocol", "/protocols/{id}/archive")
     config.add_route("unarchive_protocol", "/protocols/{id}/unarchive")
     config.add_route("add_protocol_item", "/protocols/{id}/items")
-    config.add_route("update_protocol_item", "/protocols/{id}/items/{item_id}")
-    config.add_route(
-        "update_protocol_item_partial", "/protocols/{id}/items/{item_id}/partial"
-    )
     config.add_route("delete_protocol_item", "/protocols/{id}/items/{item_id}/delete")
     config.add_route("start_protocol_run", "/protocols/{id}/start")
     config.add_route("run_item_done", "/protocols/run/{id}/items/{item_id}/done")

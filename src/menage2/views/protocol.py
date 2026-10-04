@@ -208,44 +208,31 @@ def reject_unknown_assignees(request, names):
     return validation_error(request, f"No user or team called @{unknown[0]}.")
 
 
-@view_config(route_name="edit_protocol", request_method="POST")
-def update_protocol(request):
-    p = _get_or_404(request, Protocol)
-    _require_editor(request, p)
+def rename_open_runs(dbsession, protocol):
+    """Give the runs still waiting to be done the checklist's new title.
 
-    # Composite input (title + #tags + *recurrence + ~note)
-    composite = request.params.get("composite", "").strip()
-    if composite:
-        parsed = parse_todo_input(composite, _today())
-        new_title = parsed.text.strip() or p.title
-        if new_title != p.title:
-            p.title = new_title
-            active_runs = (
-                request.dbsession.execute(
-                    select(ProtocolRun).where(
-                        ProtocolRun.protocol_id == p.id,
-                        ProtocolRun.status == TodoStatus.todo,
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            for run in active_runs:
-                run.text = new_title
-        p.tags = parsed.tags
-        rejected = reject_unknown_assignees(request, parsed.assignees)
-        if rejected is not None:
-            return rejected
-        p.assignees = set(parsed.assignees)
-        p.note = parsed.note or None
-        if parsed.recurrence:
-            _apply_protocol_recurrence(p, parsed.recurrence, request.dbsession)
-            request.dbsession.flush()
-            ensure_protocol_has_run(p, _today(), _now_utc(), request.dbsession)
-        else:
-            _apply_protocol_recurrence(p, None, request.dbsession)
+    A run on the task list is the checklist's title with a date; one that
+    was already done keeps the name it was done under.
+    """
+    for run in dbsession.execute(
+        select(ProtocolRun).where(
+            ProtocolRun.protocol_id == protocol.id,
+            ProtocolRun.status == TodoStatus.todo,
+        )
+    ).scalars():
+        run.text = protocol.title
 
-    return HTTPSeeOther(request.route_url("edit_protocol", id=p.id))
+
+def set_protocol_recurrence(protocol, spec, dbsession):
+    """Repeat the checklist by `spec`, or stop repeating it if that is None.
+
+    A checklist that repeats has a run waiting at all times, so setting one
+    makes sure there is one.
+    """
+    _apply_protocol_recurrence(protocol, spec, dbsession)
+    if spec is not None:
+        dbsession.flush()
+        ensure_protocol_has_run(protocol, _today(), _now_utc(), dbsession)
 
 
 def _apply_protocol_recurrence(protocol, spec, dbsession):
@@ -309,46 +296,6 @@ def add_protocol_item(request):
     return _html(request, _render_protocol_items(request, p))
 
 
-@view_config(route_name="update_protocol_item", request_method="POST")
-def update_protocol_item(request):
-    item = _get_or_404(request, ProtocolItem, "item_id")
-    _require_editor(request, item.protocol)
-    raw = request.params.get("text", "").strip()
-    if not raw:
-        return HTTPSeeOther(request.route_url("edit_protocol", id=item.protocol_id))
-    parsed = parse_todo_input(raw)
-    if not parsed.text:
-        return HTTPSeeOther(request.route_url("edit_protocol", id=item.protocol_id))
-    rejected = reject_unknown_assignees(request, parsed.assignees)
-    if rejected is not None:
-        return rejected
-    item.text = parsed.text
-    item.tags = parsed.tags
-    item.assignees = parsed.assignees
-    item.note = parsed.note
-    return HTTPSeeOther(request.route_url("edit_protocol", id=item.protocol_id))
-
-
-@view_config(route_name="update_protocol_item_partial", request_method="POST")
-def update_protocol_item_partial(request):
-    item = _get_or_404(request, ProtocolItem, "item_id")
-    p = _get_or_404(request, Protocol)
-    _require_editor(request, p)
-    raw = request.params.get("text", "").strip()
-    if raw:
-        parsed = parse_todo_input(raw)
-        if parsed.text:
-            rejected = reject_unknown_assignees(request, parsed.assignees)
-            if rejected is not None:
-                return rejected
-            item.text = parsed.text
-            item.tags = parsed.tags
-            item.assignees = parsed.assignees
-            item.note = parsed.note
-    request.dbsession.flush()
-    return _html(request, _render_protocol_item(request, p, item))
-
-
 @view_config(route_name="delete_protocol_item", request_method="POST")
 def delete_protocol_item(request):
     """Delete an item; the empty body lets htmx swap the row out of the list."""
@@ -408,11 +355,8 @@ def run_item_done(request):
 def run_item_send(request):
     item = _get_or_404(request, ProtocolRunItem, "item_id")
     owner_id = request.identity.id if request.identity else None
-    new_todo = Todo(
-        text=item.text,
-        tags=set(item.tags),
-        assignees=set(item.assignees),
-        note=item.note,
+    new_todo = Todo.from_item(
+        item,
         owner_id=owner_id,
         status=TodoStatus.todo,
         created_at=_now_utc(),

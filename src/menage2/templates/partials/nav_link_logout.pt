@@ -1,4 +1,3 @@
 <form method="post" action="${link.url}" class="m-0">
-  <button type="submit" class="btn btn-sm btn-outline-light"><i class="bi bi-door-open"></i> Log
-    off</button>
+  <button type="submit" class="btn btn-sm btn-outline-light"><i class="bi bi-door-open"></i> Log off</button>
 </form>

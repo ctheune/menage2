@@ -1169,28 +1169,11 @@ def todo_update(request):
             request.dbsession.add(link)
 
     if validated.attachments is not None:
-        from menage2.models.item import ItemAttachment
-        from menage2.views.attachment import _ext_for, _get_attachments_dir
+        from menage2.views.attachment import remove_attachment
 
-        attachments_dir = _get_attachments_dir(request)
-        existing_uuids = {att.uuid for att in todo.attachments}
-        to_keep = validated.attachments
-        to_remove = existing_uuids - to_keep
-
-        for uuid_str in to_remove:
-            att = request.dbsession.execute(
-                select(ItemAttachment).where(
-                    ItemAttachment.item_id == todo.id,
-                    ItemAttachment.uuid == uuid_str,
-                )
-            ).scalar_one_or_none()
-            if att:
-                ext = _ext_for(att)
-                for suffix in ("", "_thumb"):
-                    path = attachments_dir / (uuid_str + suffix + ext)
-                    if path.exists():
-                        path.unlink()
-                request.dbsession.delete(att)
+        for att in list(todo.attachments):
+            if att.uuid not in validated.attachments:
+                remove_attachment(request, att)
 
     response = HTTPSeeOther(
         request.route_url(

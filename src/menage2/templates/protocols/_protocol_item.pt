@@ -1,65 +1,30 @@
+<!-- One line of the checklist. For an editor the whole line opens the
+     editor beside the list, the same one an ingredient opens. -->
 <li id="item-${item.id}" class="proto-item card mb-1">
-  <div class="card-body py-1 px-3">
-
-    <!-- View mode: the parsed result. Clicking it opens the editor, when there
-         is one — the hyperscript below bails out for non-editors. -->
-    <div class="proto-item-view d-flex align-items-center gap-2"
-         _="on click
-              if closest <a, button/> to target exit end
-              set form to the first <form.proto-item-edit/> in the closest <li/>
-              if no form exit end
-              add .d-none to me
-              remove .d-none from form
-              focus the first <input/> in form">
-      <span class="flex-grow-1">${item.text}</span>
-      <span tal:condition="item.attachments"
-            class="flex-shrink-0" title="Has files"><i class="bi bi-paperclip"></i></span>
-      <span tal:repeat="t python:sorted(item.tags)"
-            class="badge rounded-pill bg-secondary">#${t}</span>
-      <span tal:repeat="a python:sorted(item.assignees)"
-            class="badge rounded-pill todo-assignee-pill-sm">@${a}</span>
-      <span tal:condition="item.note" class="text-muted small">~${item.note}</span>
-      <!-- The pencil opens the full editor beside the list; clicking the
-           line itself still gives the quick marker input. -->
-      <button tal:condition="is_editor"
-              type="button"
-              class="btn btn-link btn-sm p-0 flex-shrink-0"
-              hx-get="${request.route_url('item_panel', id=item.id)}"
-              hx-target="#item-pane"
-              hx-swap="outerHTML"
-              title="Edit, with files">
-        <i class="bi bi-pencil"></i>
-      </button>
-      <button tal:condition="is_editor"
-              type="button"
-              class="btn btn-link btn-sm p-0 text-danger flex-shrink-0"
-              hx-post="${request.route_url('delete_protocol_item', id=protocol.id, item_id=item.id)}"
-              hx-target="#item-${item.id}"
-              hx-swap="outerHTML"
-              hx-confirm="Delete this item?"
-              title="Delete item">
-        <i class="bi bi-trash3"></i>
-      </button>
-    </div>
-
-    <!-- Edit mode: the same line as plain text, Enter saves, Escape cancels. -->
-    <form tal:condition="is_editor"
-          class="proto-item-edit d-none"
-          hx-post="${request.route_url('update_protocol_item_partial', id=protocol.id, item_id=item.id)}"
-          hx-target="#item-${item.id}"
-          hx-swap="outerHTML">
-      <input type="text"
-             name="text"
-             class="form-control form-control-sm"
-             autocomplete="off"
-             title="Enter saves, Escape cancels"
-             value="${item.marker_text()}"
-             _="on keydown[key is 'Escape']
-                  set li to the closest <li/>
-                  add .d-none to the closest <form/>
-                  remove .d-none from the first <.proto-item-view/> in li
-                  halt" />
-    </form>
-
+  <div class="proto-item-view card-body py-1 px-3 d-flex align-items-center gap-2"
+       hx-target="#item-pane"
+       hx-swap="outerHTML"
+       tal:attributes="hx-get python:request.route_url('item_panel', id=item.id) if is_editor else None;
+                       role python:'button' if is_editor else None">
+    <span class="flex-grow-1">${item.text}</span>
+    <span tal:condition="item.attachments"
+          class="flex-shrink-0" title="Has files"><i class="bi bi-paperclip"></i></span>
+    <span tal:repeat="t python:sorted(item.tags)"
+          class="badge rounded-pill bg-secondary">#${t}</span>
+    <span tal:repeat="a python:sorted(item.assignees)"
+          class="badge rounded-pill todo-assignee-pill-sm">@${a}</span>
+    <span tal:condition="item.note" class="text-muted small">~${item.note}</span>
+    <!-- Its click stops here, or the line would open the editor as well. -->
+    <button tal:condition="is_editor"
+            type="button"
+            class="btn btn-link btn-sm p-0 text-danger flex-shrink-0"
+            hx-post="${request.route_url('delete_protocol_item', id=protocol.id, item_id=item.id)}"
+            hx-target="#item-${item.id}"
+            hx-swap="outerHTML"
+            hx-confirm="Delete this item?"
+            title="Delete item"
+            _="on click halt the event's bubbling">
+      <i class="bi bi-trash3"></i>
+    </button>
   </div>
 </li>

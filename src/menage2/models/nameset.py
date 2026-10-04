@@ -15,6 +15,8 @@ are resolved when the session next flushes. Reading them back in the
 meantime returns what was set, so the wait is invisible.
 """
 
+from typing import Any, Self, overload
+
 from sqlalchemy import event
 from sqlalchemy.orm import Session, object_session
 
@@ -31,6 +33,12 @@ class NameSet:
     def __set_name__(self, owner, name: str) -> None:
         self.field = name
         self.pending = f"_{name}_pending"
+
+    @overload
+    def __get__(self, item: None, owner: Any = None) -> Self: ...
+
+    @overload
+    def __get__(self, item: object, owner: Any = None) -> set[str]: ...
 
     def __get__(self, item, owner=None):
         if item is None:
