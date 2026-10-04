@@ -1,4 +1,5 @@
 import datetime
+from dataclasses import dataclass, field
 
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.view import view_config
@@ -165,8 +166,47 @@ def set_dinner(request):
     return HTTPSeeOther(request.route_url("edit_week", id=day.week.id))
 
 
+def _fmt_number(value: float) -> str:
+    return str(int(value) if value == int(value) else value)
+
+
+@dataclass
+class _Amount:
+    """How much of one ingredient, in one unit.
+
+    Numbers add up. Anything else ("1/2", "etwas") cannot, so it is kept as
+    written beside the total rather than dropped.
+    """
+
+    unit: str
+    total: float = 0
+    uncounted: list[str] = field(default_factory=list)
+
+    def add(self, usage) -> None:
+        number = usage.numeric_amount()
+        if number:
+            self.total += number
+        elif usage.amount:
+            self.uncounted.append(usage.amount)
+
+    def merge(self, other: "_Amount") -> None:
+        self.total += other.total
+        self.uncounted += other.uncounted
+
+    def __str__(self) -> str:
+        parts = [_fmt_number(self.total)] if self.total else []
+        parts += self.uncounted
+        return " + ".join(" ".join(filter(None, [p, self.unit])) for p in parts)
+
+
 @view_config(route_name="send_to_shopping_list", request_method="POST")
 def send_to_shopping_list(request):
+    """One shopping item per ingredient and unit, whatever the recipes said.
+
+    Three recipes that each want "Salz" with no amount are one "Salz", for
+    all three. Amounts in the same unit add up; a different unit is a
+    different item, because 500 g and 2 Stück do not.
+    """
     from menage2.models.item import TodoStatus
     from menage2.models.todo import Todo
 
@@ -177,27 +217,17 @@ def send_to_shopping_list(request):
         .one()
     )
 
-    # aggregated: ingredient -> {unit -> {recipe_title -> amount_float}}
-    aggregated = {}
-    non_numeric = []
+    # (ingredient, unit) -> recipe title -> how much that recipe wants
+    wanted: dict[tuple, dict[str, _Amount]] = {}
 
     for day in week.days:
         if not day.dinner or day.exclude_from_shopping:
             continue
         recipe_title = day.dinner.title
         for usage in day.dinner.ingredients:
-            amount = usage.numeric_amount()
-            if not amount:
-                non_numeric.append((usage, recipe_title))
-                continue
             unit = usage.unit or ""
-            by_unit = aggregated.setdefault(usage.ingredient, {})
-            by_recipe = by_unit.setdefault(unit, {})
-            by_recipe[recipe_title] = by_recipe.get(recipe_title, 0.0) + amount
-
-    def _fmt_amt(amount, unit):
-        v = int(amount) if amount == int(amount) else amount
-        return " ".join(filter(None, [str(v), unit]))
+            by_recipe = wanted.setdefault((usage.ingredient, unit), {})
+            by_recipe.setdefault(recipe_title, _Amount(unit)).add(usage)
 
     now = datetime.datetime.now(datetime.UTC)
 
@@ -210,47 +240,27 @@ def send_to_shopping_list(request):
         tags = {t for t in tags if not any(other.startswith(t + ":") for other in tags)}
         return tags or {"einkaufen:supermarkt"}
 
-    for ingredient, by_unit in aggregated.items():
-        for unit, by_recipe in by_unit.items():
-            total = sum(by_recipe.values())
-            total_str = _fmt_amt(total, unit)
-            text = ingredient.description
-            if total_str:
-                text += f" ({total_str})"
-            if len(by_recipe) == 1:
-                parts = list(by_recipe.keys())
-            else:
-                parts = [
-                    f"{title} ({_fmt_amt(amt, unit)})"
-                    for title, amt in by_recipe.items()
-                ]
-            note = "für: " + ", ".join(parts)
-            request.dbsession.add(
-                Todo.from_item(
-                    ingredient,
-                    text=text,
-                    tags=_einkaufen_tags(ingredient),
-                    note=note,
-                    status=TodoStatus.todo,
-                    owner=request.identity,
-                    assignees=_shopping_assignees(request.dbsession),
-                    created_at=now,
-                )
-            )
-
-    for usage, recipe_title in non_numeric:
-        amt_str = (
-            _fmt_amt(usage.numeric_amount() or 0, usage.unit or "")
-            if usage.numeric_amount()
-            else ""
-        )
-        note = "für: " + recipe_title + (f" ({amt_str})" if amt_str else "")
+    for (ingredient, unit), by_recipe in wanted.items():
+        total = _Amount(unit)
+        for amount in by_recipe.values():
+            total.merge(amount)
+        text = ingredient.description
+        if str(total):
+            text += f" ({total})"
+        # Who wants how much only matters when more than one recipe does.
+        if len(by_recipe) == 1:
+            parts = list(by_recipe)
+        else:
+            parts = [
+                f"{title} ({amount})" if str(amount) else title
+                for title, amount in by_recipe.items()
+            ]
         request.dbsession.add(
             Todo.from_item(
-                usage.ingredient,
-                text=usage.to_shopping_list(),
-                tags=_einkaufen_tags(usage.ingredient),
-                note=note,
+                ingredient,
+                text=text,
+                tags=_einkaufen_tags(ingredient),
+                note="für: " + ", ".join(parts),
                 status=TodoStatus.todo,
                 owner=request.identity,
                 assignees=_shopping_assignees(request.dbsession),

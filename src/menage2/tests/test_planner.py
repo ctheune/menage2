@@ -201,6 +201,7 @@ def test_send_to_shopping_list_redirects_to_todos(app_request, dbsession):
     app_request.matchdict = {"id": str(week.id)}
     response = send_to_shopping_list(app_request)
     assert response.status_int == 303
+    assert response.location
     assert "/todos" in response.location
 
 
@@ -410,3 +411,127 @@ def test_the_shopping_list_survives_the_household_being_gone(app_request, dbsess
 
     tomaten = dbsession.query(Todo).filter(Todo.text == "Tomaten (500 g)").one()
     assert tomaten.assignees == set()
+
+
+def _shop(app_request, dbsession, menu):
+    """Cook `menu` on consecutive days and send it to the shopping list.
+
+    `menu` is ``[(recipe title, [(ingredient, amount, unit), ...]), ...]``.
+    Returns the shopping todos by text.
+    """
+    week = Week()
+    dbsession.add(week)
+    dbsession.flush()
+    for offset, (title, uses) in enumerate(menu):
+        recipe = Recipe(title=title)
+        recipe.schedule = Schedule()
+        dbsession.add(recipe)
+        dbsession.flush()
+        for ingredient, amount, unit in uses:
+            dbsession.add(
+                IngredientUsage(
+                    recipe=recipe, ingredient=ingredient, amount=amount, unit=unit
+                )
+            )
+        dbsession.add(
+            Day(
+                day=datetime.date(2026, 4, 21) + datetime.timedelta(days=offset),
+                week=week,
+                dinner=recipe,
+            )
+        )
+    dbsession.flush()
+
+    app_request.matchdict = {"id": str(week.id)}
+    send_to_shopping_list(app_request)
+    dbsession.flush()
+    return {t.text: t for t in dbsession.query(Todo).all()}
+
+
+def test_the_same_thing_without_an_amount_is_bought_once(app_request, dbsession):
+    salz = Ingredient(description="Salz")
+    dbsession.add(salz)
+
+    todos = _shop(
+        app_request,
+        dbsession,
+        [(title, [(salz, None, None)]) for title in ("Suppe", "Brot", "Pasta")],
+    )
+
+    assert list(todos) == ["Salz"]
+    assert todos["Salz"].note == "für: Suppe, Brot, Pasta"
+
+
+def test_the_same_thing_without_an_amount_but_separate_units_is_split(
+    app_request, dbsession
+):
+    salz = Ingredient(description="Salz")
+    dbsession.add(salz)
+
+    todos = _shop(
+        app_request,
+        dbsession,
+        [
+            ("Suppe", [(salz, None, "Prise")]),
+            ("Hühnchen", [(salz, None, None)]),
+            ("Brot", [(salz, "etwas", None)]),
+            ("Pasta", [(salz, "2", "Gramm")]),
+        ],
+    )
+
+    assert list(todos) == ["Salz", "Salz (etwas)", "Salz (2 Gramm)"]
+    assert todos["Salz"].note == "für: Suppe"
+    assert todos["Salz (etwas)"].note == "für: Hühnchen, Brot (etwas)"
+    assert todos["Salz (2 Gramm)"].note == "für: Pasta"
+
+
+def test_amounts_in_the_same_unit_add_up_whatever_they_say(app_request, dbsession):
+    """Numbers add up; "1/2" does not, so it is kept beside the total."""
+    zucker = Ingredient(description="Zucker")
+    dbsession.add(zucker)
+
+    todos = _shop(
+        app_request,
+        dbsession,
+        [
+            ("Kuchen", [(zucker, "1", "TL")]),
+            ("Tee", [(zucker, "1/2", "TL")]),
+            ("Kaffee", [(zucker, "2", "TL")]),
+        ],
+    )
+
+    assert list(todos) == ["Zucker (3 TL + 1/2 TL)"]
+    note = todos["Zucker (3 TL + 1/2 TL)"].note
+    assert note == "für: Kuchen (1 TL), Tee (1/2 TL), Kaffee (2 TL)"
+
+
+def test_a_different_unit_is_a_different_item(app_request, dbsession):
+    tomaten = Ingredient(description="Tomaten")
+    dbsession.add(tomaten)
+
+    todos = _shop(
+        app_request,
+        dbsession,
+        [
+            ("Salat", [(tomaten, "500", "g")]),
+            ("Sauce", [(tomaten, "2", "Stück")]),
+            ("Pizza", [(tomaten, "200", "g")]),
+        ],
+    )
+
+    assert sorted(todos) == ["Tomaten (2 Stück)", "Tomaten (700 g)"]
+    assert todos["Tomaten (2 Stück)"].note == "für: Sauce"
+
+
+def test_a_recipe_cooked_twice_wants_twice_as_much(app_request, dbsession):
+    mehl = Ingredient(description="Mehl")
+    dbsession.add(mehl)
+
+    todos = _shop(
+        app_request,
+        dbsession,
+        [("Brot", [(mehl, "500", "g")]), ("Brot", [(mehl, "500", "g")])],
+    )
+
+    assert list(todos) == ["Mehl (1000 g)"]
+    assert todos["Mehl (1000 g)"].note == "für: Brot"

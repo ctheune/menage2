@@ -65,21 +65,6 @@ class IngredientUsage(Base):
             filter(None, [self.amount, self.unit, self.ingredient.description])
         )
 
-    def to_shopping_list(self):
-        result = self.ingredient.description
-        amount = " ".join(
-            filter(
-                None,
-                [
-                    self.amount,
-                    self.unit,
-                ],
-            )
-        )
-        if amount:
-            result += " (" + amount + ")"
-        return result
-
     def numeric_amount(self) -> float | int | None:
         try:
             return int(self.amount)
