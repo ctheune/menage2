@@ -18,6 +18,7 @@
 
   <form hx-post="${request.route_url('item_update', id=item.id)}"
         hx-target="#item-pane"
+        hx-ext="form-json"
         hx-swap="outerHTML">
 
     <div class="mb-3">

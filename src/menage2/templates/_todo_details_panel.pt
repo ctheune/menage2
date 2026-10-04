@@ -1,7 +1,10 @@
 <div class="col-md-6" id="details-pane">
   <div class="card" id="details-panel">
-    <form hx-put="${request.route_url('todo_update', id=todo.id)}" hx-target="#details-pane" hx-swap="outerHTML"
-      hx-ext="form-json" id="todo-edit-form">
+    <form id="todo-edit-form"
+      hx-put="${request.route_url('todo_update', id=todo.id)}"
+      hx-target="#details-pane"
+      hx-swap="outerHTML"
+      hx-ext="form-json" >
 
       <div class="card-body">
 
