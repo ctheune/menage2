@@ -336,5 +336,5 @@ def is_protocol_editor(user, protocol, memberships: dict[str, str]) -> bool:
         return False
     if protocol.owner == user:
         return True
-    supervisor_teams = {tn for tn, role in memberships.items() if role == "supervisor"}
+    supervisor_teams = {tn for tn, role in memberships.items()}
     return bool(supervisor_teams & protocol.assignees)
