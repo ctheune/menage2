@@ -3,6 +3,7 @@
 {
   packages = [ pkgs.opencode ];
   languages.python.enable = true;
+  languages.python.uv.enable = true;
 
   tasks."menage:upgrade-db".exec = "uv run alembic -c development.ini upgrade head";
 
