@@ -24,7 +24,6 @@ from menage2.models.item import (
     Item,
     ItemLink,
     TodoStatus,
-    item_holds,
 )
 from menage2.models.principal import Principal
 from menage2.models.protocol import ProtocolRun
@@ -956,9 +955,7 @@ def todos_hold(request):
 
 @view_config(route_name="todos_activate_all_on_hold", request_method="POST")
 def todos_activate_all_on_hold(request):
-    request.dbsession.execute(
-        item_holds.delete().where(item_holds.c.user_id == request.identity.id)
-    )
+    Item.release_all(request.dbsession, request.identity)
     return HTTPSeeOther(request.route_url("list_todos"))
 
 

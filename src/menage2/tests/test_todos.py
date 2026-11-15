@@ -1,12 +1,12 @@
 import datetime
 import json
+from types import SimpleNamespace
 
 import pytest
 
 from menage2.dateparse import RecurrenceSpec
 from menage2.models.item import (
     HOLD_DURATION,
-    item_holds,
     ItemAttachment,  # noqa: F401  -- registers the mapper
     ItemLink,
     RecurrenceKind,
@@ -64,25 +64,6 @@ def _json_post(app_request, body: dict):
     app_request.content_type = "application/json"
     app_request.body = json.dumps(body).encode()
     return app_request
-
-
-def _hold(dbsession, todo, user_id, held_at=None):
-    """Put `todo` on `user_id`'s hold list (as of `held_at`, default now)."""
-    dbsession.execute(
-        item_holds.insert().values(
-            item_id=todo.id, user_id=user_id, held_at=held_at or _now()
-        )
-    )
-    dbsession.flush()
-
-
-def _holds(dbsession, todo):
-    return {
-        row.user_id
-        for row in dbsession.execute(
-            item_holds.select().where(item_holds.c.item_id == todo.id)
-        )
-    }
 
 
 def _todo(text="Test", tags=None, status=TodoStatus.todo, owner_id=1, **kwargs):
@@ -546,7 +527,7 @@ def test_todos_hold_records_a_hold_for_the_user(app_request, dbsession, admin_us
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.todo
-    assert _holds(dbsession, todo) == {admin_user.id}
+    assert todo.is_held_by(admin_user)
 
 
 def test_hold_is_per_user(app_request, dbsession, admin_user):
@@ -555,7 +536,7 @@ def test_hold_is_per_user(app_request, dbsession, admin_user):
     todo = _todo("Shared", owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
-    _hold(dbsession, todo, admin_user.id + 1000)  # somebody else's hold
+    todo.hold(SimpleNamespace(id=admin_user.id + 1000))  # somebody else's hold
     info = list_todo_groups(app_request)
     assert [i.text for g in info["groups"] for i in g["items"]] == ["Shared"]
 
@@ -567,13 +548,8 @@ def test_hold_lapses_after_an_hour(app_request, dbsession, admin_user):
     stale = _todo("Stale", owner_id=admin_user.id)
     dbsession.add_all([fresh, stale])
     dbsession.flush()
-    _hold(dbsession, fresh, admin_user.id)
-    _hold(
-        dbsession,
-        stale,
-        admin_user.id,
-        _now() - HOLD_DURATION - datetime.timedelta(minutes=1),
-    )
+    fresh.hold(admin_user)
+    stale.hold(admin_user, _now() - HOLD_DURATION - datetime.timedelta(minutes=1))
     info = list_todo_groups(app_request)
     assert [i.text for g in info["groups"] for i in g["items"]] == ["Stale"]
 
@@ -627,11 +603,11 @@ def test_todos_activate_all_on_hold(app_request, dbsession, admin_user):
         dbsession.add(t)
     dbsession.flush()
     for t in todos:
-        _hold(dbsession, t, admin_user.id)
+        t.hold(admin_user)
     todos_activate_all_on_hold(app_request)
     dbsession.flush()
     for t in todos:
-        assert _holds(dbsession, t) == set()
+        assert not t.is_held_by(admin_user)
 
 
 def test_todo_undo_reverts_done_to_todo(app_request, dbsession, admin_user):
@@ -650,13 +626,13 @@ def test_todo_undo_reverts_on_hold_to_todo(app_request, dbsession, admin_user):
     todo = _todo(owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
-    _hold(dbsession, todo, admin_user.id)
+    todo.hold(admin_user)
     _json_post(app_request, {"entries": [{"id": todo.id, "status": "todo"}]})
     todo_undo(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.todo
-    assert _holds(dbsession, todo) == set()
+    assert not todo.is_held_by(admin_user)
 
 
 def test_todo_undo_returns_list_html_with_confirm_trigger(
@@ -681,7 +657,7 @@ def test_list_todos_only_shows_active(app_request, dbsession, admin_user):
     t_held = _todo("Held", owner_id=admin_user.id)
     dbsession.add_all([t_active, t_done, t_held])
     dbsession.flush()
-    _hold(dbsession, t_held, admin_user.id)
+    t_held.hold(admin_user)
     from menage2.views.todo import list_todo_groups
 
     info = list_todo_groups(app_request)
@@ -713,7 +689,7 @@ def test_list_todos_counts(app_request, dbsession, admin_user):
     dbsession.add(_todo("S1", due_date=today + datetime.timedelta(days=2)))
     dbsession.flush()
     for t in held:
-        _hold(dbsession, t, admin_user.id)
+        t.hold(admin_user)
     info = list_todos(app_request)
     assert "status" in info
     assert "filter_mode" in info
@@ -789,10 +765,10 @@ def test_activate_on_hold_restores(authenticated_testapp, dbsession, admin_user)
     todo = _todo("HeldItem", owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
-    _hold(dbsession, todo, admin_user.id)
+    todo.hold(admin_user)
     authenticated_testapp.post("/todos/activate-on-hold", status=303)
     dbsession.flush()
-    assert _holds(dbsession, todo) == set()
+    assert not todo.is_held_by(admin_user)
 
 
 def test_batch_done_endpoint(authenticated_testapp, dbsession):
@@ -1361,13 +1337,8 @@ def test_todo_update_sets_links(app_request, dbsession, admin_user):
     )
     todo_update(app_request)
     dbsession.flush()
-    links = (
-        dbsession.execute(
-            __import__("sqlalchemy").select(ItemLink).where(ItemLink.item_id == todo.id)
-        )
-        .scalars()
-        .all()
-    )
+    dbsession.refresh(todo)
+    links = todo.links
     assert len(links) == 1
     assert links[0].url == "https://example.com"
     assert links[0].label == "Example"
@@ -1394,13 +1365,8 @@ def test_todo_update_replaces_links(app_request, dbsession, admin_user):
     todo_update(app_request)
     dbsession.flush()
 
-    from sqlalchemy import select as sa_select
-
-    links = (
-        dbsession.execute(sa_select(ItemLink).where(ItemLink.item_id == todo.id))
-        .scalars()
-        .all()
-    )
+    dbsession.refresh(todo)
+    links = todo.links
     assert len(links) == 1
     assert links[0].url == "https://new.example.com"
     assert links[0].label == "New"
@@ -1425,13 +1391,8 @@ def test_todo_update_keeps_the_label_it_was_given(app_request, dbsession, admin_
     todo_update(app_request)
     dbsession.flush()
 
-    from sqlalchemy import select as sa_select
-
-    links = (
-        dbsession.execute(sa_select(ItemLink).where(ItemLink.item_id == todo.id))
-        .scalars()
-        .all()
-    )
+    dbsession.refresh(todo)
+    links = todo.links
     assert links[0].url == url
     assert links[0].label == url
 
@@ -1467,13 +1428,8 @@ def test_todo_update_clears_links(app_request, dbsession, admin_user):
     todo_update(app_request)
     dbsession.flush()
 
-    from sqlalchemy import select as sa_select
-
-    links = (
-        dbsession.execute(sa_select(ItemLink).where(ItemLink.item_id == todo.id))
-        .scalars()
-        .all()
-    )
+    dbsession.refresh(todo)
+    links = todo.links
     assert links == []
 
 
@@ -1635,7 +1591,7 @@ def test_undo_restores_each_item_to_its_own_previous_state(
     was_held = _todo("Was held", owner_id=admin_user.id)
     dbsession.add_all([was_done, was_held])
     dbsession.flush()
-    _hold(dbsession, was_held, admin_user.id)
+    was_held.hold(admin_user)
     _batch_request(
         app_request,
         {"action": "activate", "todo_ids": [was_done.id, was_held.id]},
@@ -1655,7 +1611,7 @@ def test_undo_restores_each_item_to_its_own_previous_state(
     dbsession.refresh(was_done)
     dbsession.refresh(was_held)
     assert was_done.status == TodoStatus.done
-    assert _holds(dbsession, was_held) == {admin_user.id}
+    assert was_held.is_held_by(admin_user)
 
 
 def test_date_groups_carry_breadcrumbs_like_tag_groups(
@@ -1829,8 +1785,9 @@ def test_item_hold_is_per_user_and_lapses(dbsession, admin_user):
     assert not todo.is_held_by(admin_user, now)
 
 
-def test_sweep_purges_lapsed_holds(dbsession, admin_user):
-    from menage2.models.item import HOLD_DURATION, purge_lapsed_holds
+def test_housekeeping_purges_lapsed_holds(dbsession, admin_user):
+    from menage2.housekeeping import run_housekeeping
+    from menage2.models.item import HOLD_DURATION
 
     old, fresh = _todo("old"), _todo("fresh")
     dbsession.add_all([old, fresh])
@@ -1839,6 +1796,6 @@ def test_sweep_purges_lapsed_holds(dbsession, admin_user):
     old.hold(admin_user, now - HOLD_DURATION - datetime.timedelta(minutes=1))
     fresh.hold(admin_user, now)
 
-    assert purge_lapsed_holds(dbsession, now) == 1
-    assert _holds(dbsession, old) == set()
-    assert _holds(dbsession, fresh) == {admin_user.id}
+    run_housekeeping(dbsession, _today(), now)
+    assert not old.is_held_by(admin_user)
+    assert fresh.is_held_by(admin_user)

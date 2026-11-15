@@ -251,6 +251,11 @@ class Item(Base):
         )
 
     @classmethod
+    def release_all(cls, dbsession, user) -> None:
+        """Take everything off `user`'s hold list."""
+        dbsession.execute(item_holds.delete().where(item_holds.c.user_id == user.id))
+
+    @classmethod
     def from_item(cls, item: "Item", **kw):
         """A new item of this kind carrying what `item` says.
 
