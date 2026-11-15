@@ -37,3 +37,8 @@ needs to be properly respect to avoid crazy local solutions.
 # Git
 
 Ensure at every step we are actually working on a proper feature branch. Split commits into proper semantic units, order smaller cleanup/typing/linting commits first.
+
+# Tests
+
+Run the tests using devenv `devenv test`. This triggers a pytest run according
+to `pytest.ini` and `devenv.nix`.
