@@ -30,7 +30,9 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Table,
     Text,
+    exists,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -43,7 +45,41 @@ from .tag import item_tags, tag_named
 class TodoStatus(enum.Enum):
     todo = "todo"
     done = "done"
-    on_hold = "on_hold"
+
+
+#: How long a hold lasts before the item is back on the holder's list.
+HOLD_DURATION = datetime.timedelta(hours=1)
+
+#: An item one user has set aside for a while. Per user: in a team one member
+#: can hold an item without it vanishing for the others. A hold lapses
+#: `HOLD_DURATION` after `held_at`; nothing needs to clear it, queries just
+#: stop counting it (see `active_hold`).
+item_holds = Table(
+    "item_holds",
+    Base.metadata,
+    Column(
+        "item_id",
+        Integer,
+        ForeignKey("items.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "user_id",
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("held_at", DateTime(timezone=True), nullable=False),
+)
+
+
+def active_hold(user_id: int, now: datetime.datetime):
+    """EXISTS clause: `user_id` holds the item, and the hold has not lapsed."""
+    return exists().where(
+        item_holds.c.item_id == Item.id,
+        item_holds.c.user_id == user_id,
+        item_holds.c.held_at > now - HOLD_DURATION,
+    )
 
 
 class RecurrenceKind(enum.Enum):
@@ -131,7 +167,6 @@ class Item(Base):
     due_date = Column(Date)
     status = Column(Enum(TodoStatus, name="todostatus"), nullable=True)
     done_at = Column(DateTime(timezone=True))
-    on_hold_at = Column(DateTime(timezone=True))
 
     recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
     recurrence = relationship("RecurrenceRule", lazy="joined")
