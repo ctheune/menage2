@@ -1,9 +1,13 @@
 { pkgs, lib, config, inputs, ... }:
 
 {
-  packages = [ pkgs.opencode ];
+  packages = [ pkgs.opencode pkgs.prek ];
   languages.python.enable = true;
   languages.python.uv.enable = true;
+  # basedpyright resolves imports through the uv environment in
+  # .devenv/state/venv (see pyproject.toml), so it must exist before the prek
+  # hooks run.
+  languages.python.uv.sync.enable = true;
 
   tasks."menage:upgrade-db".exec = "uv run alembic -c development.ini upgrade head";
 

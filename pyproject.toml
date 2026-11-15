@@ -72,8 +72,8 @@ build-backend = "setuptools.build_meta"
 [tool.basedpyright]
 typeCheckingMode = "standard"
 pythonVersion = "3.13"
-venvPath = "."
-venv = ".venv"
+venvPath = ".devenv/state"
+venv = "venv"
 include = ["src"]
 
 
