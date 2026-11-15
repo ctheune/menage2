@@ -46,3 +46,7 @@ to `pytest.ini` and `devenv.nix`.
 If you want to run `pytest` inside devenv, you need to run `devenv up` in a parallel shell.
 
 Test results from `devenv test` are available in `junit.xml` and `pytest.log`.
+
+
+Use `devenv shell  prek --all-files` to check pre-commit issues including
+ruff and basedpyright.
