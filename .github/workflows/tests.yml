@@ -23,3 +23,6 @@ jobs:
 
       - name: Run tests
         run: devenv test
+
+      - name: Show test output
+        run: cat pytest.log
