@@ -11,4 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: j178/prek-action@v1
+      - uses: cachix/install-nix-action@v31
+
+      # Optional binary cache; drop this step if you don't use cachix.
+      - uses: cachix/cachix-action@v16
+        with:
+          name: devenv
+
+      - name: Install devenv
+        run: nix profile install nixpkgs#devenv
+
+      # Run inside devenv so uv has synced .venv (needed by basedpyright).
+      - name: Run prek
+        run: devenv shell -- prek run --all-files --show-diff-on-failure
