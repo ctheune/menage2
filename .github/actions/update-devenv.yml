@@ -1,0 +1,23 @@
+name: Update devenv
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v16
+        with: { name: devenv }
+      - run: nix profile install nixpkgs#devenv
+      - run: devenv update
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/devenv-update
+          title: "chore: update devenv inputs"
+          commit-message: "chore: update devenv.lock"
