@@ -29,6 +29,7 @@ from menage2.models.item import (
     RecurrenceRule,
     RecurrenceUnit,
     TodoStatus,
+    purge_lapsed_holds,
 )
 from menage2.models.todo import Todo
 
@@ -237,6 +238,7 @@ def run_sweep(dbsession, today: datetime.date, now_utc: datetime.datetime) -> in
     """
     spawned = _sweep_every_rules(dbsession, today, now_utc)
     spawned += _sweep_every_protocols(dbsession, today, now_utc)
+    purge_lapsed_holds(dbsession, now_utc)
     return spawned
 
 

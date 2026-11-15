@@ -1809,3 +1809,36 @@ def test_assigning_to_somebody_real_still_works(
     dbsession.flush()
 
     assert dbsession.query(Todo).one().assignees == {"alice"}
+
+
+def test_item_hold_is_per_user_and_lapses(dbsession, admin_user):
+    from menage2.models.item import HOLD_DURATION
+
+    todo = _todo()
+    dbsession.add(todo)
+    dbsession.flush()
+    other = type("U", (), {"id": admin_user.id + 1000})()
+    now = _now()
+
+    todo.hold(admin_user, now)
+    assert todo.is_held_by(admin_user, now)
+    assert not todo.is_held_by(other, now)
+    assert not todo.is_held_by(admin_user, now + HOLD_DURATION)
+
+    todo.release(admin_user)
+    assert not todo.is_held_by(admin_user, now)
+
+
+def test_sweep_purges_lapsed_holds(dbsession, admin_user):
+    from menage2.models.item import HOLD_DURATION, purge_lapsed_holds
+
+    old, fresh = _todo("old"), _todo("fresh")
+    dbsession.add_all([old, fresh])
+    dbsession.flush()
+    now = _now()
+    old.hold(admin_user, now - HOLD_DURATION - datetime.timedelta(minutes=1))
+    fresh.hold(admin_user, now)
+
+    assert purge_lapsed_holds(dbsession, now) == 1
+    assert _holds(dbsession, old) == set()
+    assert _holds(dbsession, fresh) == {admin_user.id}

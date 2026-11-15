@@ -24,7 +24,6 @@ from menage2.models.item import (
     Item,
     ItemLink,
     TodoStatus,
-    active_hold,
     item_holds,
 )
 from menage2.models.principal import Principal
@@ -419,41 +418,7 @@ def _snapshot(request, todo: Todo) -> "UndoEntry":
         id=todo.id,
         status=todo.status.value,
         due_date=todo.due_date,
-        on_hold=_is_held(request, todo),
-    )
-
-
-def _is_held(request, todo: Todo) -> bool:
-    """Whether the current user has this item on hold right now."""
-    return bool(
-        request.dbsession.execute(
-            select(active_hold(request.identity.id, _now_utc()))
-            .where(Item.id == todo.id)
-            .select_from(Item)
-        ).scalar()
-    )
-
-
-def _hold(request, todo_id: int, now: datetime.datetime) -> None:
-    """Put the item on the current user's hold list, (re)starting the hour."""
-    user_id = request.identity.id
-    request.dbsession.execute(
-        item_holds.delete().where(
-            item_holds.c.item_id == todo_id, item_holds.c.user_id == user_id
-        )
-    )
-    request.dbsession.execute(
-        item_holds.insert().values(item_id=todo_id, user_id=user_id, held_at=now)
-    )
-
-
-def _release(request, todo_id: int) -> None:
-    """Take the item off the current user's hold list."""
-    request.dbsession.execute(
-        item_holds.delete().where(
-            item_holds.c.item_id == todo_id,
-            item_holds.c.user_id == request.identity.id,
-        )
+        on_hold=todo.is_held_by(request.identity),
     )
 
 
@@ -568,7 +533,7 @@ def _filter_todos(
     Items this user has on hold (for less than an hour) are set aside: they
     show under "on hold" instead of "active".
     """
-    held = active_hold(user.id, _now_utc())
+    held = Item.held_by(user)
 
     query = dbsession.query(Todo).where(_visible(dbsession, today, user, filter_mode))
     order = _todo_order(Todo.due_date)
@@ -616,7 +581,7 @@ def _filter_counts(request) -> dict[str, int]:
     active = and_(
         Todo.status == TodoStatus.todo,
         or_(Todo.due_date.is_(None), Todo.due_date <= today),
-        ~active_hold(request.identity.id, _now_utc()),
+        ~Item.held_by(request.identity),
     )
     # Counted, not fetched. This used to build all four lists in full on
     # every page render, which meant loading every active task four times
@@ -979,7 +944,7 @@ def todos_hold(request):
         if todo:
             texts.append(todo.text)
             entries.append(_snapshot(request, todo))
-            _hold(request, todo.id, _now_utc())
+            todo.hold(request.identity)
     request.dbsession.flush()
     response = request.response
     response.content_type = "text/html"
@@ -1105,9 +1070,9 @@ def todo_undo(request):
         todo.due_date = entry.due_date
         todo.done_at = _now_utc() if prev_status == TodoStatus.done else None
         if entry.on_hold:
-            _hold(request, todo.id, _now_utc())
+            todo.hold(request.identity)
         else:
-            _release(request, todo.id)
+            todo.release(request.identity)
     request.dbsession.flush()
     label = texts[0] if len(texts) == 1 else f"{len(texts)} items"
     request.response.content_type = "text/html"
@@ -1265,7 +1230,7 @@ def todo_batch_action(request):
             if todo and todo.status == TodoStatus.todo:
                 texts.append(todo.text)
                 entries.append(_snapshot(request, todo))
-                _hold(request, todo.id, now)
+                todo.hold(request.identity, now)
         request.response.hx_trigger.undo(entries, texts, "put on hold")
     elif action == "postpone":
         interval = validated.interval
@@ -1316,13 +1281,13 @@ def todo_batch_action(request):
         for todo_id in todo_ids:
             todo = request.dbsession.get(Todo, todo_id)
             if todo and (
-                todo.status == TodoStatus.done or _is_held(request, todo)
+                todo.status == TodoStatus.done or todo.is_held_by(request.identity)
             ):
                 texts.append(todo.text)
                 entries.append(_snapshot(request, todo))
                 todo.status = TodoStatus.todo
                 todo.done_at = None
-                _release(request, todo.id)
+                todo.release(request.identity)
         if entries:
             request.response.hx_trigger.undo(entries, texts, "reactivated")
     else:
