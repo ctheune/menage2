@@ -32,6 +32,8 @@
   # https://devenv.sh/tests/
   enterTest = ''
     uv run playwright install chromium
+    wait_for_port 6543
+    wait_for_port 5432
     uv run pytest
   '';
 
