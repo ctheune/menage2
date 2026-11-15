@@ -34,7 +34,7 @@
     uv run playwright install chromium
     wait_for_port 6543
     wait_for_port 5432
-    uv run pytest
+    uv run pytest -v --tb=short -ra --junitxml=unit.xml &> pytest.log
   '';
 
 }

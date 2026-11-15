@@ -42,3 +42,7 @@ Ensure at every step we are actually working on a proper feature branch. Split c
 
 Run the tests using devenv `devenv test`. This triggers a pytest run according
 to `pytest.ini` and `devenv.nix`.
+
+If you want to run `pytest` inside devenv, you need to run `devenv up` in a parallel shell.
+
+Test results from `devenv test` are available in `junit.xml` and `pytest.log`.

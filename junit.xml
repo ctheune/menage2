@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="0.229" timestamp="2026-11-15T16:39:24.146699" hostname="oona-2.local"><testcase classname="src.menage2.tests.test_markers" name="test_todo_marker_text_round_trips" time="0.001" /></testsuite></testsuites>
