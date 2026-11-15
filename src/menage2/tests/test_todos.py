@@ -5,6 +5,8 @@ import pytest
 
 from menage2.dateparse import RecurrenceSpec
 from menage2.models.item import (
+    HOLD_DURATION,
+    item_holds,
     ItemAttachment,  # noqa: F401  -- registers the mapper
     ItemLink,
     RecurrenceKind,
@@ -62,6 +64,25 @@ def _json_post(app_request, body: dict):
     app_request.content_type = "application/json"
     app_request.body = json.dumps(body).encode()
     return app_request
+
+
+def _hold(dbsession, todo, user_id, held_at=None):
+    """Put `todo` on `user_id`'s hold list (as of `held_at`, default now)."""
+    dbsession.execute(
+        item_holds.insert().values(
+            item_id=todo.id, user_id=user_id, held_at=held_at or _now()
+        )
+    )
+    dbsession.flush()
+
+
+def _holds(dbsession, todo):
+    return {
+        row.user_id
+        for row in dbsession.execute(
+            item_holds.select().where(item_holds.c.item_id == todo.id)
+        )
+    }
 
 
 def _todo(text="Test", tags=None, status=TodoStatus.todo, owner_id=1, **kwargs):
@@ -510,10 +531,12 @@ def test_todos_done_response_has_hx_trigger(app_request, dbsession, admin_user):
     assert trigger["showUndoToast"]["label"] == "Test"
     # The snapshot travels as a JSON string and describes the pre-change state.
     entries = json.loads(trigger["showUndoToast"]["entries"])
-    assert entries == [{"id": todo.id, "status": "todo", "due_date": None}]
+    assert entries == [
+        {"id": todo.id, "status": "todo", "due_date": None, "on_hold": False}
+    ]
 
 
-def test_todos_hold_sets_status(app_request, dbsession, admin_user):
+def test_todos_hold_records_a_hold_for_the_user(app_request, dbsession, admin_user):
     todo = _todo()
     dbsession.add(todo)
     dbsession.flush()
@@ -522,9 +545,37 @@ def test_todos_hold_sets_status(app_request, dbsession, admin_user):
     todos_hold(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
-    assert todo.status == TodoStatus.on_hold
-    assert todo.on_hold_at is not None
-    assert todo.on_hold_at.tzinfo is not None
+    assert todo.status == TodoStatus.todo
+    assert _holds(dbsession, todo) == {admin_user.id}
+
+
+def test_hold_is_per_user(app_request, dbsession, admin_user):
+    from menage2.views.todo import list_todo_groups
+
+    todo = _todo("Shared", owner_id=admin_user.id)
+    dbsession.add(todo)
+    dbsession.flush()
+    _hold(dbsession, todo, admin_user.id + 1000)  # somebody else's hold
+    info = list_todo_groups(app_request)
+    assert [i.text for g in info["groups"] for i in g["items"]] == ["Shared"]
+
+
+def test_hold_lapses_after_an_hour(app_request, dbsession, admin_user):
+    from menage2.views.todo import list_todo_groups
+
+    fresh = _todo("Fresh", owner_id=admin_user.id)
+    stale = _todo("Stale", owner_id=admin_user.id)
+    dbsession.add_all([fresh, stale])
+    dbsession.flush()
+    _hold(dbsession, fresh, admin_user.id)
+    _hold(
+        dbsession,
+        stale,
+        admin_user.id,
+        _now() - HOLD_DURATION - datetime.timedelta(minutes=1),
+    )
+    info = list_todo_groups(app_request)
+    assert [i.text for g in info["groups"] for i in g["items"]] == ["Stale"]
 
 
 def test_todos_postpone_sets_due_date_one_day_default(dbsession, admin_user):
@@ -571,16 +622,16 @@ def test_todos_done_marks_multiple(app_request, dbsession, admin_user):
 
 
 def test_todos_activate_all_on_hold(app_request, dbsession, admin_user):
-    todos = [_todo(f"H{i}", status=TodoStatus.on_hold) for i in range(2)]
+    todos = [_todo(f"H{i}", owner_id=admin_user.id) for i in range(2)]
     for t in todos:
         dbsession.add(t)
     dbsession.flush()
+    for t in todos:
+        _hold(dbsession, t, admin_user.id)
     todos_activate_all_on_hold(app_request)
     dbsession.flush()
     for t in todos:
-        dbsession.refresh(t)
-        assert t.status == TodoStatus.todo
-        assert t.on_hold_at is None
+        assert _holds(dbsession, t) == set()
 
 
 def test_todo_undo_reverts_done_to_todo(app_request, dbsession, admin_user):
@@ -596,15 +647,16 @@ def test_todo_undo_reverts_done_to_todo(app_request, dbsession, admin_user):
 
 
 def test_todo_undo_reverts_on_hold_to_todo(app_request, dbsession, admin_user):
-    todo = _todo(status=TodoStatus.on_hold, on_hold_at=_now(), owner_id=admin_user.id)
+    todo = _todo(owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
+    _hold(dbsession, todo, admin_user.id)
     _json_post(app_request, {"entries": [{"id": todo.id, "status": "todo"}]})
     todo_undo(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
     assert todo.status == TodoStatus.todo
-    assert todo.on_hold_at is None
+    assert _holds(dbsession, todo) == set()
 
 
 def test_todo_undo_returns_list_html_with_confirm_trigger(
@@ -626,9 +678,10 @@ def test_todo_undo_returns_list_html_with_confirm_trigger(
 def test_list_todos_only_shows_active(app_request, dbsession, admin_user):
     t_active = _todo("Active")
     t_done = _todo("Done", status=TodoStatus.done, done_at=_now())
-    t_held = _todo("Held", status=TodoStatus.on_hold)
+    t_held = _todo("Held", owner_id=admin_user.id)
     dbsession.add_all([t_active, t_done, t_held])
     dbsession.flush()
+    _hold(dbsession, t_held, admin_user.id)
     from menage2.views.todo import list_todo_groups
 
     info = list_todo_groups(app_request)
@@ -655,10 +708,12 @@ def test_list_todos_hides_future_dated(app_request, dbsession, admin_user):
 
 def test_list_todos_counts(app_request, dbsession, admin_user):
     today = _today()
-    dbsession.add(_todo("H1", status=TodoStatus.on_hold))
-    dbsession.add(_todo("H2", status=TodoStatus.on_hold))
+    held = [_todo("H1", owner_id=admin_user.id), _todo("H2", owner_id=admin_user.id)]
+    dbsession.add_all(held)
     dbsession.add(_todo("S1", due_date=today + datetime.timedelta(days=2)))
     dbsession.flush()
+    for t in held:
+        _hold(dbsession, t, admin_user.id)
     info = list_todos(app_request)
     assert "status" in info
     assert "filter_mode" in info
@@ -730,14 +785,14 @@ def test_scheduled_view_lists_future_items(
     assert b"Pay rent" in res.body
 
 
-def test_activate_on_hold_restores(authenticated_testapp, dbsession):
-    todo = _todo("HeldItem", status=TodoStatus.on_hold)
+def test_activate_on_hold_restores(authenticated_testapp, dbsession, admin_user):
+    todo = _todo("HeldItem", owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
+    _hold(dbsession, todo, admin_user.id)
     authenticated_testapp.post("/todos/activate-on-hold", status=303)
     dbsession.flush()
-    dbsession.refresh(todo)
-    assert todo.status == TodoStatus.todo
+    assert _holds(dbsession, todo) == set()
 
 
 def test_batch_done_endpoint(authenticated_testapp, dbsession):
@@ -1577,9 +1632,10 @@ def test_undo_restores_each_item_to_its_own_previous_state(
 ):
     """A mixed batch undoes item by item, which one shared status could not do."""
     was_done = _todo("Was done", status=TodoStatus.done, done_at=_now(), owner_id=1)
-    was_held = _todo("Was held", status=TodoStatus.on_hold, owner_id=1)
+    was_held = _todo("Was held", owner_id=admin_user.id)
     dbsession.add_all([was_done, was_held])
     dbsession.flush()
+    _hold(dbsession, was_held, admin_user.id)
     _batch_request(
         app_request,
         {"action": "activate", "todo_ids": [was_done.id, was_held.id]},
@@ -1588,9 +1644,9 @@ def test_undo_restores_each_item_to_its_own_previous_state(
     dbsession.flush()
     trigger = json.loads(app_request.response.headers["HX-Trigger"])
     entries = json.loads(trigger["showUndoToast"]["entries"])
-    assert {e["id"]: e["status"] for e in entries} == {
-        was_done.id: "done",
-        was_held.id: "on_hold",
+    assert {e["id"]: (e["status"], e["on_hold"]) for e in entries} == {
+        was_done.id: ("done", False),
+        was_held.id: ("todo", True),
     }
 
     _json_post(_next_request(app_request), {"entries": entries})
@@ -1599,7 +1655,7 @@ def test_undo_restores_each_item_to_its_own_previous_state(
     dbsession.refresh(was_done)
     dbsession.refresh(was_held)
     assert was_done.status == TodoStatus.done
-    assert was_held.status == TodoStatus.on_hold
+    assert _holds(dbsession, was_held) == {admin_user.id}
 
 
 def test_date_groups_carry_breadcrumbs_like_tag_groups(

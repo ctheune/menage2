@@ -24,6 +24,8 @@ from menage2.models.item import (
     Item,
     ItemLink,
     TodoStatus,
+    active_hold,
+    item_holds,
 )
 from menage2.models.principal import Principal
 from menage2.models.protocol import ProtocolRun
@@ -401,7 +403,7 @@ def _render_todo_form(request, next_url: str) -> str:
     )
 
 
-def _snapshot(todo: Todo) -> "UndoEntry":
+def _snapshot(request, todo: Todo) -> "UndoEntry":
     """What undo needs to put `todo` back the way it is right now.
 
     Taken before the change, never after. Status and due date between them
@@ -413,7 +415,46 @@ def _snapshot(todo: Todo) -> "UndoEntry":
     """
     from menage2.schemas import UndoEntry
 
-    return UndoEntry(id=todo.id, status=todo.status.value, due_date=todo.due_date)
+    return UndoEntry(
+        id=todo.id,
+        status=todo.status.value,
+        due_date=todo.due_date,
+        on_hold=_is_held(request, todo),
+    )
+
+
+def _is_held(request, todo: Todo) -> bool:
+    """Whether the current user has this item on hold right now."""
+    return bool(
+        request.dbsession.execute(
+            select(active_hold(request.identity.id, _now_utc()))
+            .where(Item.id == todo.id)
+            .select_from(Item)
+        ).scalar()
+    )
+
+
+def _hold(request, todo_id: int, now: datetime.datetime) -> None:
+    """Put the item on the current user's hold list, (re)starting the hour."""
+    user_id = request.identity.id
+    request.dbsession.execute(
+        item_holds.delete().where(
+            item_holds.c.item_id == todo_id, item_holds.c.user_id == user_id
+        )
+    )
+    request.dbsession.execute(
+        item_holds.insert().values(item_id=todo_id, user_id=user_id, held_at=now)
+    )
+
+
+def _release(request, todo_id: int) -> None:
+    """Take the item off the current user's hold list."""
+    request.dbsession.execute(
+        item_holds.delete().where(
+            item_holds.c.item_id == todo_id,
+            item_holds.c.user_id == request.identity.id,
+        )
+    )
 
 
 def _todo_order(date_column, newest_first: bool = False):
@@ -522,7 +563,12 @@ def _filter_todos(
     filter_mode: str = "personal",
     status: str = "active",
 ) -> list[Todo]:
-    """Items shown in the main list: status=todo and due today/earlier (or undated)."""
+    """Items shown in the main list: status=todo and due today/earlier (or undated).
+
+    Items this user has on hold (for less than an hour) are set aside: they
+    show under "on hold" instead of "active".
+    """
+    held = active_hold(user.id, _now_utc())
 
     query = dbsession.query(Todo).where(_visible(dbsession, today, user, filter_mode))
     order = _todo_order(Todo.due_date)
@@ -531,9 +577,10 @@ def _filter_todos(
         query = query.where(
             Todo.status == TodoStatus.todo,
             or_(Todo.due_date.is_(None), Todo.due_date <= today),
+            ~held,
         )
     elif status == "on_hold":
-        query = query.where(Todo.status == TodoStatus.on_hold)
+        query = query.where(Todo.status == TodoStatus.todo, held)
     elif status == "scheduled":
         query = query.where(Todo.status == TodoStatus.todo, Todo.due_date > today)
     elif status == "done":
@@ -569,6 +616,7 @@ def _filter_counts(request) -> dict[str, int]:
     active = and_(
         Todo.status == TodoStatus.todo,
         or_(Todo.due_date.is_(None), Todo.due_date <= today),
+        ~active_hold(request.identity.id, _now_utc()),
     )
     # Counted, not fetched. This used to build all four lists in full on
     # every page render, which meant loading every active task four times
@@ -889,7 +937,7 @@ def todos_done(request):
         todo = request.dbsession.get(Todo, todo_id)
         if todo:
             texts.append(todo.text)
-            entries.append(_snapshot(todo))
+            entries.append(_snapshot(request, todo))
             todo.status = TodoStatus.done
             todo.done_at = now
             spawn_after(todo, today, now, request.dbsession)
@@ -913,7 +961,7 @@ def todos_done(request):
 
 @view_config(route_name="todos_hold", request_method="POST")
 def todos_hold(request):
-    """Put items 'on hold' indefinitely (the renamed paused/postponed action).
+    """Put items on the current user's hold list for an hour.
 
     Accepts `todo_ids` either as a single comma-separated value (legacy keydown
     handler) or as repeated values from the form-driven POST.
@@ -930,9 +978,8 @@ def todos_hold(request):
         todo = request.dbsession.get(Todo, todo_id)
         if todo:
             texts.append(todo.text)
-            entries.append(_snapshot(todo))
-            todo.status = TodoStatus.on_hold
-            todo.on_hold_at = _now_utc()
+            entries.append(_snapshot(request, todo))
+            _hold(request, todo.id, _now_utc())
     request.dbsession.flush()
     response = request.response
     response.content_type = "text/html"
@@ -944,14 +991,9 @@ def todos_hold(request):
 
 @view_config(route_name="todos_activate_all_on_hold", request_method="POST")
 def todos_activate_all_on_hold(request):
-    held = (
-        request.dbsession.execute(select(Todo).where(Todo.status == TodoStatus.on_hold))
-        .scalars()
-        .all()
+    request.dbsession.execute(
+        item_holds.delete().where(item_holds.c.user_id == request.identity.id)
     )
-    for todo in held:
-        todo.status = TodoStatus.todo
-        todo.on_hold_at = None
     return HTTPSeeOther(request.route_url("list_todos"))
 
 
@@ -985,7 +1027,7 @@ def _batch_postpone(
     """
     for todo_id in todo_ids:
         todo = dbsession.get(Todo, todo_id)
-        if todo and todo.status in (TodoStatus.on_hold, TodoStatus.todo):
+        if todo and todo.status == TodoStatus.todo:
             todo.due_date = _bump_due_date(todo.due_date, today, interval)
     dbsession.flush()
 
@@ -1062,8 +1104,10 @@ def todo_undo(request):
         todo.status = prev_status
         todo.due_date = entry.due_date
         todo.done_at = _now_utc() if prev_status == TodoStatus.done else None
-        if prev_status != TodoStatus.on_hold:
-            todo.on_hold_at = None
+        if entry.on_hold:
+            _hold(request, todo.id, _now_utc())
+        else:
+            _release(request, todo.id)
     request.dbsession.flush()
     label = texts[0] if len(texts) == 1 else f"{len(texts)} items"
     request.response.content_type = "text/html"
@@ -1204,7 +1248,7 @@ def todo_batch_action(request):
             todo = request.dbsession.get(Todo, todo_id)
             if todo:
                 texts.append(todo.text)
-                entries.append(_snapshot(todo))
+                entries.append(_snapshot(request, todo))
                 todo.status = TodoStatus.done
                 todo.done_at = now
                 spawn_after(todo, today, now, request.dbsession)
@@ -1220,9 +1264,8 @@ def todo_batch_action(request):
             todo = request.dbsession.get(Todo, todo_id)
             if todo and todo.status == TodoStatus.todo:
                 texts.append(todo.text)
-                entries.append(_snapshot(todo))
-                todo.status = TodoStatus.on_hold
-                todo.on_hold_at = now
+                entries.append(_snapshot(request, todo))
+                _hold(request, todo.id, now)
         request.response.hx_trigger.undo(entries, texts, "put on hold")
     elif action == "postpone":
         interval = validated.interval
@@ -1231,9 +1274,9 @@ def todo_batch_action(request):
         # Snapshot before the dates move — undo restores the old due date.
         for todo_id in todo_ids:
             todo = request.dbsession.get(Todo, todo_id)
-            if todo and todo.status in (TodoStatus.on_hold, TodoStatus.todo):
+            if todo and todo.status == TodoStatus.todo:
                 texts.append(todo.text)
-                entries.append(_snapshot(todo))
+                entries.append(_snapshot(request, todo))
         try:
             _batch_postpone(request.dbsession, todo_ids, interval, today)
         except ValueError:
@@ -1272,12 +1315,14 @@ def todo_batch_action(request):
         # item, so each goes back to whichever state it came from.
         for todo_id in todo_ids:
             todo = request.dbsession.get(Todo, todo_id)
-            if todo and todo.status in (TodoStatus.done, TodoStatus.on_hold):
+            if todo and (
+                todo.status == TodoStatus.done or _is_held(request, todo)
+            ):
                 texts.append(todo.text)
-                entries.append(_snapshot(todo))
+                entries.append(_snapshot(request, todo))
                 todo.status = TodoStatus.todo
                 todo.done_at = None
-                todo.on_hold_at = None
+                _release(request, todo.id)
         if entries:
             request.response.hx_trigger.undo(entries, texts, "reactivated")
     else:

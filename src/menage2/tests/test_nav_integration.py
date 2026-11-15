@@ -2,7 +2,7 @@
 
 import datetime
 
-from menage2.models.item import TodoStatus
+from menage2.models.item import TodoStatus, item_holds
 from menage2.models.todo import Todo
 
 
@@ -105,11 +105,17 @@ def test_list_todos_hold_shows_on_hold_item(
     todo = Todo(
         text="Paused task",
         tags=set(),
-        status=TodoStatus.on_hold,
+        status=TodoStatus.todo,
         owner_id=admin_user.id,
         created_at=_now(),
     )
     dbsession.add(todo)
+    dbsession.flush()
+    dbsession.execute(
+        item_holds.insert().values(
+            item_id=todo.id, user_id=admin_user.id, held_at=_now()
+        )
+    )
     dbsession.flush()
 
     res = authenticated_testapp.get(
@@ -122,11 +128,17 @@ def test_list_todos_hold_activate_all(authenticated_testapp, dbsession, admin_us
     todo = Todo(
         text="On hold item",
         tags=set(),
-        status=TodoStatus.on_hold,
+        status=TodoStatus.todo,
         owner_id=admin_user.id,
         created_at=_now(),
     )
     dbsession.add(todo)
+    dbsession.flush()
+    dbsession.execute(
+        item_holds.insert().values(
+            item_id=todo.id, user_id=admin_user.id, held_at=_now()
+        )
+    )
     dbsession.flush()
 
     res = authenticated_testapp.post("/todos/activate-on-hold", status=303)
