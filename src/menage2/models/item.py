@@ -30,12 +30,11 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Table,
     Text,
+    delete,
     exists,
-    select,
 )
-from sqlalchemy.orm import Mapped, mapped_column, object_session, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, object_session, relationship
 
 from .assignee import item_assignees, principal_named
 from .meta import Base
@@ -51,37 +50,34 @@ class TodoStatus(enum.Enum):
 #: How long a hold lasts before the item is back on the holder's list.
 HOLD_DURATION = datetime.timedelta(hours=1)
 
-#: An item one user has set aside for a while. Per user: in a team one member
-#: can hold an item without it vanishing for the others. A hold lapses
-#: `HOLD_DURATION` after `held_at`; nothing needs to clear it, queries just
-#: stop counting it (see `active_hold`).
-item_holds = Table(
-    "item_holds",
-    Base.metadata,
-    Column(
-        "item_id",
-        Integer,
-        ForeignKey("items.id", ondelete="CASCADE"),
-        primary_key=True,
-    ),
-    Column(
-        "user_id",
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        primary_key=True,
-    ),
-    Column("held_at", DateTime(timezone=True), nullable=False),
-)
+
+class ItemHold(Base):
+    """An item one user has set aside for a while.
+
+    Per user: in a team one member can hold an item without it vanishing for
+    the others. A hold lapses `HOLD_DURATION` after `held_at`; queries stop
+    counting it by themselves and `purge_lapsed_holds` keeps the table small.
+    """
+
+    __tablename__ = "item_holds"
+
+    item_id = mapped_column(
+        Integer, ForeignKey("items.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    held_at = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 def purge_lapsed_holds(dbsession, now: datetime.datetime) -> int:
     """Delete holds that have lapsed; returns how many.
 
     Housekeeping only: lapsed rows are already ignored by every query, this
-    just keeps the table from growing. Run from the sweep command.
+    just keeps the table from growing. Run from `housekeeping`.
     """
     result = dbsession.execute(
-        item_holds.delete().where(item_holds.c.held_at <= now - HOLD_DURATION)
+        delete(ItemHold).where(ItemHold.held_at <= now - HOLD_DURATION)
     )
     return result.rowcount
 
@@ -218,42 +214,44 @@ class Item(Base):
         """SQL clause: `user` holds the item and the hold has not lapsed."""
         now = now or datetime.datetime.now(datetime.UTC)
         return exists().where(
-            item_holds.c.item_id == cls.id,
-            item_holds.c.user_id == user.id,
-            item_holds.c.held_at > now - HOLD_DURATION,
+            ItemHold.item_id == cls.id,
+            ItemHold.user_id == user.id,
+            ItemHold.held_at > now - HOLD_DURATION,
         )
+
+    def _session(self) -> Session:
+        session = object_session(self)
+        assert session is not None, "item is not attached to a session"
+        return session
 
     def is_held_by(self, user, now: datetime.datetime | None = None) -> bool:
         """Whether `user` has this item on hold right now."""
-        session = object_session(self)
-        return bool(
-            session.execute(
-                select(self.held_by(user, now))
-                .where(Item.id == self.id)
-                .select_from(Item)
-            ).scalar()
-        )
+        now = now or datetime.datetime.now(datetime.UTC)
+        hold = self._session().get(ItemHold, (self.id, user.id))
+        return hold is not None and hold.held_at > now - HOLD_DURATION
 
     def hold(self, user, now: datetime.datetime | None = None) -> None:
         """Put the item on `user`'s hold list, (re)starting the hour."""
         now = now or datetime.datetime.now(datetime.UTC)
-        self.release(user)
-        object_session(self).execute(
-            item_holds.insert().values(item_id=self.id, user_id=user.id, held_at=now)
-        )
+        session = self._session()
+        hold = session.get(ItemHold, (self.id, user.id))
+        if hold is None:
+            session.add(ItemHold(item_id=self.id, user_id=user.id, held_at=now))
+        else:
+            hold.held_at = now
 
     def release(self, user) -> None:
         """Take the item off `user`'s hold list."""
-        object_session(self).execute(
-            item_holds.delete().where(
-                item_holds.c.item_id == self.id, item_holds.c.user_id == user.id
-            )
-        )
+        session = self._session()
+        hold = session.get(ItemHold, (self.id, user.id))
+        if hold is not None:
+            session.delete(hold)
+            session.flush()
 
     @classmethod
     def release_all(cls, dbsession, user) -> None:
         """Take everything off `user`'s hold list."""
-        dbsession.execute(item_holds.delete().where(item_holds.c.user_id == user.id))
+        dbsession.execute(delete(ItemHold).where(ItemHold.user_id == user.id))
 
     @classmethod
     def from_item(cls, item: "Item", **kw):

@@ -1,6 +1,5 @@
 import datetime
 import json
-from types import SimpleNamespace
 
 import pytest
 
@@ -526,17 +525,16 @@ def test_todos_hold_records_a_hold_for_the_user(app_request, dbsession, admin_us
     todos_hold(app_request)
     dbsession.flush()
     dbsession.refresh(todo)
-    assert todo.status == TodoStatus.todo
-    assert todo.is_held_by(admin_user)
+    assert (todo.status, todo.is_held_by(admin_user)) == (TodoStatus.todo, True)
 
 
-def test_hold_is_per_user(app_request, dbsession, admin_user):
+def test_hold_is_per_user(app_request, dbsession, admin_user, regular_user):
     from menage2.views.todo import list_todo_groups
 
     todo = _todo("Shared", owner_id=admin_user.id)
     dbsession.add(todo)
     dbsession.flush()
-    todo.hold(SimpleNamespace(id=admin_user.id + 1000))  # somebody else's hold
+    todo.hold(regular_user)  # somebody else's hold
     info = list_todo_groups(app_request)
     assert [i.text for g in info["groups"] for i in g["items"]] == ["Shared"]
 
@@ -1325,7 +1323,6 @@ def test_todo_update_clears_assignees(app_request, dbsession, admin_user, cast):
 
 
 def test_todo_update_sets_links(app_request, dbsession, admin_user):
-    from menage2.models.item import ItemLink
 
     todo = _todo("Read docs")
     dbsession.add(todo)
@@ -1380,7 +1377,6 @@ def test_todo_update_keeps_the_label_it_was_given(app_request, dbsession, admin_
     by hand through the link's own editor has to survive too — including
     setting it back to the URL.
     """
-    from menage2.models.item import ItemLink
 
     todo = _todo("Read up")
     dbsession.add(todo)
@@ -1542,7 +1538,14 @@ def test_batch_postpone_offers_an_undo(app_request, dbsession, admin_user):
     trigger = json.loads(app_request.response.headers["HX-Trigger"])
     assert trigger["showUndoToast"]["action"] == "postponed"
     entries = json.loads(trigger["showUndoToast"]["entries"])
-    assert entries == [{"id": todo.id, "status": "todo", "due_date": today.isoformat()}]
+    assert entries == [
+        {
+            "id": todo.id,
+            "status": "todo",
+            "due_date": today.isoformat(),
+            "on_hold": False,
+        }
+    ]
 
 
 def test_undo_restores_the_previous_due_date(app_request, dbsession, admin_user):
