@@ -891,14 +891,6 @@
                 "code": "reportGeneralTypeIssues",
                 "range": {
                     "startColumn": 11,
-                    "endColumn": 44,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportGeneralTypeIssues",
-                "range": {
-                    "startColumn": 11,
                     "endColumn": 65,
                     "lineCount": 1
                 }
@@ -932,22 +924,6 @@
                 "range": {
                     "startColumn": 15,
                     "endColumn": 42,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportGeneralTypeIssues",
-                "range": {
-                    "startColumn": 15,
-                    "endColumn": 42,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportGeneralTypeIssues",
-                "range": {
-                    "startColumn": 11,
-                    "endColumn": 41,
                     "lineCount": 1
                 }
             },
@@ -1100,14 +1076,6 @@
                 "range": {
                     "startColumn": 11,
                     "endColumn": 45,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportGeneralTypeIssues",
-                "range": {
-                    "startColumn": 11,
-                    "endColumn": 48,
                     "lineCount": 1
                 }
             }
@@ -1264,8 +1232,8 @@
             {
                 "code": "reportArgumentType",
                 "range": {
-                    "startColumn": 68,
-                    "endColumn": 81,
+                    "startColumn": 17,
+                    "endColumn": 30,
                     "lineCount": 1
                 }
             },
