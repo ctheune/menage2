@@ -45,11 +45,19 @@ jobs:
         run: devenv shell -- true   # builds everything now, so Claude's first command isn't slow
 
 
+      - name: Create app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token }}
           branch_name_template: '{{prefix}}{{entityType}}-{{entityNumber}}-{{description}}'
           show_full_output: true
 
