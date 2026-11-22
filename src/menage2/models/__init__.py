@@ -5,7 +5,7 @@ from sqlalchemy.orm import configure_mappers, sessionmaker
 # Import or define all models here to ensure they are attached to the
 # ``Base.metadata`` prior to any initialization routines.
 from .config import ConfigItem
-from .item import Item, ItemAttachment, ItemLink, TodoStatus
+from .item import Item, ItemAttachment, ItemHold, ItemLink, TodoStatus
 from .planner import (
     Day,
     Month,
@@ -37,6 +37,7 @@ ENSURE_SQLALCHEMY_INIT = {
     IngredientUsage,
     Item,
     ItemAttachment,
+    ItemHold,
     ItemLink,
     Month,
     Passkey,

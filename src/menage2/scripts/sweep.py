@@ -1,4 +1,5 @@
-"""Create whatever the recurrence rules say should exist by now.
+"""Housekeeping: create whatever the recurrence rules say should exist by now
+and drop lapsed hold markers.
 
 Completing an item already spawns its successor, so this is the catch-up:
 rules nobody has touched, `every` rules whose date has come round with the
@@ -20,7 +21,7 @@ import sys
 
 from pyramid.paster import bootstrap, setup_logging
 
-from ..recurrence import run_sweep
+from ..housekeeping import run_housekeeping
 
 
 def parse_args(argv):
@@ -45,7 +46,7 @@ def main(argv=sys.argv):
 
     try:
         with env["request"].tm:
-            spawned = run_sweep(
+            spawned = run_housekeeping(
                 env["request"].dbsession,
                 datetime.date.today(),
                 datetime.datetime.now(datetime.UTC),

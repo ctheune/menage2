@@ -31,7 +31,7 @@
               <tbody>
                 <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>click</kbd></td><td class="align-top">Select item — opens details pane</td></tr>
                 <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>c</kbd></td><td class="align-top">Mark selected done</td></tr>
-                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>h</kbd></td><td class="align-top">Put selected on hold</td></tr>
+                <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>h</kbd></td><td class="align-top">Put selected on hold (for an hour)</td></tr>
                 <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>a</kbd></td><td class="align-top">Activate selected (on-hold / done list)</td></tr>
                 <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>Shift+P</kbd></td><td class="align-top">Postpone selected by 1 day</td></tr>
                 <tr class="small"><td class="pe-3 text-nowrap align-top"><kbd>[</kbd></td><td class="align-top">Collapse all groups</td></tr>

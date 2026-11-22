@@ -20,7 +20,7 @@
       <span tal:condition="entry.done_at" class="todo-history-done text-success">
         done ${format.date(entry.done_at, format='medium')}
       </span>
-      <span tal:condition="not (entry.done_at or entry.on_hold_at)" class="todo-history-status text-muted">
+      <span tal:condition="not entry.done_at" class="todo-history-status text-muted">
         pending
       </span>
     </li>

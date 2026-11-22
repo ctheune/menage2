@@ -31,8 +31,10 @@ from sqlalchemy import (
     Index,
     Integer,
     Text,
+    delete,
+    exists,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, object_session, relationship
 
 from .assignee import item_assignees, principal_named
 from .meta import Base
@@ -43,7 +45,41 @@ from .tag import item_tags, tag_named
 class TodoStatus(enum.Enum):
     todo = "todo"
     done = "done"
-    on_hold = "on_hold"
+
+
+#: How long a hold lasts before the item is back on the holder's list.
+HOLD_DURATION = datetime.timedelta(hours=1)
+
+
+class ItemHold(Base):
+    """An item one user has set aside for a while.
+
+    Per user: in a team one member can hold an item without it vanishing for
+    the others. A hold lapses `HOLD_DURATION` after `held_at`; queries stop
+    counting it by themselves and `purge_lapsed_holds` keeps the table small.
+    """
+
+    __tablename__ = "item_holds"
+
+    item_id = mapped_column(
+        Integer, ForeignKey("items.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    held_at = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+def purge_lapsed_holds(dbsession, now: datetime.datetime) -> int:
+    """Delete holds that have lapsed; returns how many.
+
+    Housekeeping only: lapsed rows are already ignored by every query, this
+    just keeps the table from growing. Run from `housekeeping`.
+    """
+    result = dbsession.execute(
+        delete(ItemHold).where(ItemHold.held_at <= now - HOLD_DURATION)
+    )
+    return result.rowcount
 
 
 class RecurrenceKind(enum.Enum):
@@ -131,7 +167,6 @@ class Item(Base):
     due_date = Column(Date)
     status = Column(Enum(TodoStatus, name="todostatus"), nullable=True)
     done_at = Column(DateTime(timezone=True))
-    on_hold_at = Column(DateTime(timezone=True))
 
     recurrence_id = Column(Integer, ForeignKey("recurrence_rules.id"), nullable=True)
     recurrence = relationship("RecurrenceRule", lazy="joined")
@@ -173,6 +208,50 @@ class Item(Base):
     #: so an item cannot be assigned to somebody who is not there.
     tags = NameSet("tag_links", tag_named)
     assignees = NameSet("assignee_links", principal_named)
+
+    @classmethod
+    def held_by(cls, user, now: datetime.datetime | None = None):
+        """SQL clause: `user` holds the item and the hold has not lapsed."""
+        now = now or datetime.datetime.now(datetime.UTC)
+        return exists().where(
+            ItemHold.item_id == cls.id,
+            ItemHold.user_id == user.id,
+            ItemHold.held_at > now - HOLD_DURATION,
+        )
+
+    def _session(self) -> Session:
+        session = object_session(self)
+        assert session is not None, "item is not attached to a session"
+        return session
+
+    def is_held_by(self, user, now: datetime.datetime | None = None) -> bool:
+        """Whether `user` has this item on hold right now."""
+        now = now or datetime.datetime.now(datetime.UTC)
+        hold = self._session().get(ItemHold, (self.id, user.id))
+        return hold is not None and hold.held_at > now - HOLD_DURATION
+
+    def hold(self, user, now: datetime.datetime | None = None) -> None:
+        """Put the item on `user`'s hold list, (re)starting the hour."""
+        now = now or datetime.datetime.now(datetime.UTC)
+        session = self._session()
+        hold = session.get(ItemHold, (self.id, user.id))
+        if hold is None:
+            session.add(ItemHold(item_id=self.id, user_id=user.id, held_at=now))
+        else:
+            hold.held_at = now
+
+    def release(self, user) -> None:
+        """Take the item off `user`'s hold list."""
+        session = self._session()
+        hold = session.get(ItemHold, (self.id, user.id))
+        if hold is not None:
+            session.delete(hold)
+            session.flush()
+
+    @classmethod
+    def release_all(cls, dbsession, user) -> None:
+        """Take everything off `user`'s hold list."""
+        dbsession.execute(delete(ItemHold).where(ItemHold.user_id == user.id))
 
     @classmethod
     def from_item(cls, item: "Item", **kw):

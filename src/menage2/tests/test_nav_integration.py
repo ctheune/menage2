@@ -105,11 +105,13 @@ def test_list_todos_hold_shows_on_hold_item(
     todo = Todo(
         text="Paused task",
         tags=set(),
-        status=TodoStatus.on_hold,
+        status=TodoStatus.todo,
         owner_id=admin_user.id,
         created_at=_now(),
     )
     dbsession.add(todo)
+    dbsession.flush()
+    todo.hold(admin_user)
     dbsession.flush()
 
     res = authenticated_testapp.get(
@@ -122,15 +124,18 @@ def test_list_todos_hold_activate_all(authenticated_testapp, dbsession, admin_us
     todo = Todo(
         text="On hold item",
         tags=set(),
-        status=TodoStatus.on_hold,
+        status=TodoStatus.todo,
         owner_id=admin_user.id,
         created_at=_now(),
     )
     dbsession.add(todo)
     dbsession.flush()
+    todo.hold(admin_user)
+    dbsession.flush()
 
     res = authenticated_testapp.post("/todos/activate-on-hold", status=303)
     assert "/todos" in res.location
+    assert not todo.is_held_by(admin_user)
 
 
 def test_list_todos_hold_requires_auth(testapp, admin_user):

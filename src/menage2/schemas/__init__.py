@@ -22,7 +22,6 @@ from menage2.dateparse import parse_date as _parse_date
 class TodoStatus(str, Enum):
     todo = "todo"
     done = "done"
-    on_hold = "on_hold"
 
 
 class TodoLinkCreate(BaseModel):
@@ -168,7 +167,6 @@ class TodoResponse(BaseModel):
     links: list[TodoLink]
     created_at: datetime
     done_at: datetime | None
-    on_hold_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -193,6 +191,8 @@ class UndoEntry(BaseModel):
     id: int
     status: TodoStatus = TodoStatus.todo
     due_date: date | None = None
+    #: Whether the user undoing this had it on hold.
+    on_hold: bool = False
 
     @field_validator("status", mode="before")
     @classmethod
